@@ -96,7 +96,7 @@ test、prod 环境同理换成 `TEST_` / `PROD_`。
 6. 跑通后补 `verify` 段
 7. 把踩到的坑写进 `pitfalls.md`
 
-产出都在本机：
+产出在 `<DATA_HOME>` 下：
 
 ```
 <DATA_HOME>\projects\<项目ID>\
@@ -357,9 +357,10 @@ DSH 没有插件市场，走 `install.ps1 -Target dsh` 直接写 `%USERPROFILE%\
 
 **DSH 里造数写台账报「访问被拒绝」**
 
-DSH 的 `workspace-write` 沙箱只允许写工作区和临时目录，`~/.data-tools` 在外。
-把 `DATA_TOOLS_HOME` 指到工作区内（如 `<仓库>/.data-tools`），或让会话用完全访问权限。
-只读查询不受影响。
+DSH 的 `workspace-write` 沙箱只允许写工作区和临时目录。个人/全局模式下
+`<DATA_HOME>` 是 `~/.data-tools`，在工作区外；把 `DATA_TOOLS_HOME` 指到工作区内
+（如 `<仓库>/.data-tools`），或让会话用完全访问权限。团队模式的数据目录本来就在
+业务仓库内，不受影响。只读查询不受影响。
 
 **改了技能规则但不生效**
 
@@ -439,7 +440,7 @@ YAML 把 `no` / `yes` / `on` / `off` 解析成了布尔。给键加引号，写�
 
 ### 配置
 
-`~/.data-tools/projects/<项目ID>/report.yaml`：
+`<DATA_HOME>/projects/<项目ID>/report.yaml`：
 
 ```yaml
 git:
@@ -461,7 +462,7 @@ zentao:
 ### 报告存在哪
 
 ```
-~/.data-tools/reports/<项目ID>/
+<DATA_HOME>/reports/<项目ID>/
 ├── 2026-10-26-daily.md
 ├── 2026-W44-weekly.md
 ├── 2026-10-monthly.md
@@ -480,7 +481,7 @@ Markdown 是唯一内容源，Word 和 PPT 都从它渲染：
 
 ### 模板
 
-`~/.data-tools/templates/<项目ID>/<类型>.md`，只定义章节和提示语：
+`<DATA_HOME>/templates/<项目ID>/<类型>.md`，只定义章节和提示语：
 
 ```markdown
 ## 本周完成
@@ -505,7 +506,7 @@ Markdown 是唯一内容源，Word 和 PPT 都从它渲染：
 
 ### 配置
 
-`~/.data-tools/projects/<项目ID>/git_hosts.yaml`：
+`<DATA_HOME>/projects/<项目ID>/git_hosts.yaml`：
 
 ```yaml
 user_tag: lsh                 # 第一次使用时询问并写入，之后沿用
@@ -593,7 +594,8 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 ```
 
 `--targets` 可选 `claude,cursor,codex,dsh`，逗号分隔，默认 `claude`。
-不加 `--project-id` 时只同步工具包，不创建项目数据目录。
+不加 `--project-id` 时仍会创建 `.data-tools/` 根目录并同步工具包，只跳过
+`.data-tools/projects/<项目ID>/` 的项目骨架。
 
 业务仓库会新增：
 
@@ -606,11 +608,15 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 │   ├── requirements.txt
 │   ├── bootstrap.ps1                  # 首次接入与环境检查
 │   ├── update.ps1                     # 版本检查与一键更新
+│   ├── README.md                      # 同事接入说明（模板渲染）
+│   ├── LICENSE
 │   ├── VERSION                        # 版本、源 commit、同步时间
 │   └── .venv/                         # 本机生成，不提交
 ├── .claude/skills/                    # 按 --targets 生成，提交
 └── .data-tools/                       # 项目数据根
     ├── config.yaml                    # 提交：default_project
+    ├── templates/<项目ID>/            # 提交（可选）：报告模板
+    ├── reports/                       # 不提交：报告产物
     └── projects/<项目ID>/
         ├── adapter.yaml               # 提交：团队共享业务规则
         ├── pitfalls.md                # 提交：团队共享坑库
@@ -653,8 +659,15 @@ Python 3.11+ 时提示运行 `bootstrap.ps1`；同时用 `update.ps1 -CheckOnly 
 powershell -ExecutionPolicy Bypass -File .\data-tools\update.ps1
 ```
 
-只更新 `data-tools/` 源码，不动 `.data-tools/` 里的项目数据，也不自动提交。
-更新完按提示把 `data-tools/` 的变更提交进业务仓库。
+更新会重新运行同步脚本：刷新 `data-tools/`（含 `README.md`、`LICENSE`、`VERSION`），
+重新生成已启用的技能入口（`.claude/skills/`、`.cursor/rules/`、`AGENTS.md`、
+`.dsh/skills/` 中实际存在的那几种），并刷新业务仓库 `.gitignore` 的
+`# data-tools:begin` 块。`.data-tools/` 里已有的项目数据不覆盖（缺 `.env.example`
+时会补模板），也不会自动提交。
+
+更新完运行 `git status`，把 `data-tools/`、生成出来的技能入口和 `.gitignore`
+一起提交；只提交 `data-tools/` 会让已提交的技能规则和 `data-tools/skills/`
+对不上。
 
 `-CheckOnly` 只检查不更新，有新版本时退出码为 10；`-Quiet` 配合它使用，
 没有新版本时不输出。更新源默认是 `https://github.com/liushih/claudeTool.git`，
@@ -671,7 +684,9 @@ Python 3.11+，安装时勾选 **Add python.exe to PATH**，然后重跑脚本�
 **`data-tools` 有未提交改动，更新被拒绝**
 
 `update.ps1` 会先检查 `git status -- data-tools`，有未提交改动时拒绝更新，
-避免覆盖本地修改。先把 `data-tools/` 的改动提交或暂存，再重新运行。
+避免覆盖本地修改。先把 `data-tools/` 的改动提交或暂存，再重新运行。这个检查
+只覆盖 `data-tools/`；生成出来的技能入口和 `.gitignore` 不在检查范围内，更新后
+仍要自己看一遍 `git status`。
 
 **更新时提示「克隆更新源失败」**
 

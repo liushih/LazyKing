@@ -15,9 +15,9 @@
 
 ## 不进 git 的（项目衍生物）
 
-以下内容只留在本机，必须在 `.gitignore` 里挡住：
+以下内容属于项目衍生物，不能进入 claudeTool 仓库；其中本机私有的部分还必须在业务仓库的 `.gitignore` 里挡住：
 
-- **业务脚本**：写死了某个项目的表名、接口路径、状态值、单号规则的脚本
+- **业务脚本**：写死了某个项目的表名、接口路径、状态值、单号规则的脚本。不能进 claudeTool 仓库；团队模式下放业务仓库的 `.data-tools/projects/<项目ID>/scripts/` 并提交
 - **运行产物**：日志（`*.err`、`*.log`）、台账（`*.csv`）、导出结果、截图
 - **凭据与令牌**：`.env`、`*.token*.json`、浏览器登录态、任何含密码的文件
 - **项目配置**：适配层、坑库、项目脚本、报告模板等。个人/全局方式下它们位于 `~/.data-tools/projects/<项目ID>/`；团队方式下随业务仓库提交，都不进本仓库
@@ -27,7 +27,7 @@
 
 ## 团队项目接入时的共享与本地边界
 
-业务仓库内置 `data-tools/` 后，`.data-tools/` 下的内容要区分团队共享和本机私有。
+业务仓库内置 `data-tools/` 后，`.data-tools/` 下的内容要区分团队共享和本机私有。以下路径都在业务仓库的 `.data-tools/` 下。
 
 **提交进业务仓库（团队共享）**
 
@@ -35,7 +35,7 @@
 - `projects/<项目ID>/pitfalls.md`：坑库
 - `projects/<项目ID>/report.yaml`、`projects/<项目ID>/git_hosts.yaml`：报告与代码托管配置（`git_hosts.yaml` 只写 token 键名）
 - `projects/<项目ID>/scripts/`：`impl` 步骤代码
-- `templates/<项目ID>/`：报告模板
+- `templates/<项目ID>/`：报告模板（即 `.data-tools/templates/<项目ID>/`，与 `projects/` 平级）
 
 **不提交（本机私有或运行产物）**
 

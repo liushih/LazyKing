@@ -106,7 +106,7 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 
 每个项目一份独立目录：`<DATA_HOME>\projects\<项目ID>\`，里面是 `adapter.yaml`、`.env`、`pitfalls.md`。
 
-DSH 的沙箱只允许写工作区和临时目录。造数、接入要写 `~/.data-tools` 下的台账和适配层时，把 `DATA_TOOLS_HOME` 指到工作区内（例如 `<仓库>/.data-tools`），或让该会话使用完全访问权限。只读查库不受影响。
+DSH 的沙箱只允许写工作区和临时目录。个人/全局模式下 `<DATA_HOME>` 是 `~/.data-tools`，造数、接入要写台账和适配层时，把 `DATA_TOOLS_HOME` 指到工作区内（例如 `<仓库>/.data-tools`），或让该会话使用完全访问权限。团队模式的数据目录本来就在业务仓库内，不受影响。只读查库不受影响。
 
 ## 文档
 

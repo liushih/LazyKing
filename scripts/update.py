@@ -12,6 +12,7 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -246,6 +247,28 @@ def _known_commit(value: str | None) -> bool:
     return bool(normalized) and normalized != "unknown"
 
 
+_HTTP_SCHEMES = frozenset({"http", "https"})
+
+
+def _validate_source(source: str) -> str:
+    """拒绝带凭据的更新源；允许无凭据 URL、SSH 用户名和本地路径。"""
+    candidate = source.strip()
+    if "://" not in candidate:
+        # 本地路径和 scp 风格 git@host:path 不含密码，原样返回。
+        return candidate
+    parts = urlsplit(candidate)
+    if not parts.netloc:
+        return candidate
+    userinfo, separator, _host = parts.netloc.rpartition("@")
+    if not separator or not userinfo:
+        return candidate
+    if parts.scheme.lower() in _HTTP_SCHEMES or ":" in userinfo:
+        raise UpdateError(
+            "更新源地址不能包含用户名或令牌，请使用 Git 凭据助手或去掉凭据"
+        )
+    return candidate
+
+
 def _write_cache_safely(
     project_dir: Path, latest_version: str | None, latest_commit: str | None, now: datetime
 ) -> None:
@@ -302,6 +325,7 @@ def check_update(
         return CheckResult(False, local, cached_version, f"已是最新版本 v{local}。")
 
     try:
+        source = _validate_source(source)
         versions = remote_versions(source)
         latest = max(versions) if versions else None
         if latest is not None:
@@ -384,7 +408,7 @@ def apply_update(project_dir: Path, source: str | None = None) -> int:
         raise UpdateError("未找到 data-tools/，请先运行 bootstrap 或同步工具。")
 
     settings = load_settings(project_dir)
-    source = source or settings["source"]
+    source = _validate_source(source or settings["source"])
     meta = read_local_version(project_dir)
     raw_version = meta.get("version")
     local_version = raw_version.strip() if isinstance(raw_version, str) else ""

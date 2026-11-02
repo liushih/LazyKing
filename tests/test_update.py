@@ -470,3 +470,80 @@ def test_apply_update_rejects_undecodable_plugin_json(project, monkeypatch):
     monkeypatch.setattr(update.subprocess, "run", fake_run)
     with pytest.raises(update.UpdateError, match="plugin.json"):
         update.apply_update(project, source="https://example.com/repo.git")
+
+
+# Review fixes: never persist credentials from the update source into VERSION or argv.
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "https://example.com/repo.git",
+        "git@example.com:team/repo.git",
+        "ssh://git@example.com/team/repo.git",
+        "C:/repos/claudeTool",
+    ],
+)
+def test_validate_source_allows_token_free_forms(source):
+    assert update._validate_source(source) == source
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "https://user:token@example.com/repo.git",
+        "https://token@example.com/repo.git",
+        "ssh://user:secret@example.com/repo.git",
+    ],
+)
+def test_apply_update_rejects_credential_source(project, monkeypatch, source):
+    _write_version(project)
+    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: False)
+
+    def fake_run(cmd, **kwargs):
+        raise AssertionError("凭据源不应执行任何 git 命令")
+
+    monkeypatch.setattr(update.subprocess, "run", fake_run)
+    with pytest.raises(update.UpdateError, match="不能包含用户名或令牌"):
+        update.apply_update(project, source=source)
+
+    version_text = (project / "data-tools" / "VERSION").read_text(encoding="utf-8")
+    assert "token" not in version_text
+    assert "secret" not in version_text
+
+
+def test_check_update_rejects_credential_source(project, monkeypatch):
+    _write_version(project)
+    called = []
+    monkeypatch.setattr(
+        update, "remote_versions", lambda source: called.append(source) or []
+    )
+    result = update.check_update(project, source="https://user:token@example.com/repo.git")
+    assert result.available is False
+    assert called == []
+
+
+def test_apply_update_records_token_free_source(project, monkeypatch):
+    _write_version(project)
+    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: False)
+    source = "https://example.com/repo.git"
+
+    def fake_run(cmd, **kwargs):
+        if cmd[:2] == ["git", "clone"]:
+            clone = Path(cmd[-1])
+            (clone / ".claude-plugin").mkdir(parents=True)
+            (clone / ".claude-plugin" / "plugin.json").write_text(
+                '{"version": "1.5.0"}', encoding="utf-8"
+            )
+            (clone / "scripts").mkdir()
+            (clone / "scripts" / "sync_project.py").write_text("", encoding="utf-8")
+        elif "sync_project.py" in " ".join(cmd):
+            recorded = cmd[cmd.index("--source-url") + 1]
+            (project / "data-tools" / "VERSION").write_text(
+                f"version: 1.5.0\nsource: {recorded}\n", encoding="utf-8"
+            )
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(update.subprocess, "run", fake_run)
+    assert update.apply_update(project, source=source) == 0
+    version_text = (project / "data-tools" / "VERSION").read_text(encoding="utf-8")
+    assert f"source: {source}" in version_text

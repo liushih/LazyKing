@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -17,6 +18,8 @@ import yaml
 DEFAULT_SOURCE = "https://github.com/liushih/claudeTool.git"
 DEFAULT_INTERVAL_HOURS = 24
 GIT_TIMEOUT_SECONDS = 5
+GIT_STATUS_TIMEOUT_SECONDS = 10
+GIT_CLONE_TIMEOUT_SECONDS = 120
 
 _VERSION_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 
@@ -235,6 +238,14 @@ def _same_commit(local: str | None, remote: str | None) -> bool:
     return local.startswith(remote) or remote.startswith(local)
 
 
+def _known_commit(value: str | None) -> bool:
+    """提交号非空且不是 unknown 才算已知。"""
+    if not isinstance(value, str):
+        return False
+    normalized = value.strip().lower()
+    return bool(normalized) and normalized != "unknown"
+
+
 def _write_cache_safely(
     project_dir: Path, latest_version: str | None, latest_commit: str | None, now: datetime
 ) -> None:
@@ -324,11 +335,12 @@ def _dirty_toolkit(project_dir: Path) -> bool:
             ["git", "-C", str(project_dir), "status", "--porcelain", "--", "data-tools"],
             capture_output=True,
             text=True,
+            timeout=GIT_STATUS_TIMEOUT_SECONDS,
         )
-    except (OSError, UnicodeDecodeError):
-        return False
+    except (OSError, UnicodeDecodeError, subprocess.TimeoutExpired) as exc:
+        raise UpdateError("无法检查 data-tools 的改动状态，已中止") from exc
     if result.returncode != 0:
-        return False
+        raise UpdateError("无法检查 data-tools 的改动状态，已中止")
     return bool(result.stdout.strip())
 
 
@@ -386,8 +398,12 @@ def apply_update(project_dir: Path, source: str | None = None) -> int:
                 ["git", "clone", "--depth", "1", source, str(clone)],
                 capture_output=True,
                 text=True,
+                timeout=GIT_CLONE_TIMEOUT_SECONDS,
+                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
             )
-        except OSError as exc:
+        except subprocess.TimeoutExpired as exc:
+            raise UpdateError("克隆更新源超时，请检查网络后重试。") from exc
+        except (OSError, UnicodeDecodeError) as exc:
             raise UpdateError("无法执行 git clone，请确认已安装 git。") from exc
         if cloned.returncode != 0:
             # 固定文案：不把可能含凭据的源地址或 stderr 带进输出。
@@ -398,7 +414,7 @@ def apply_update(project_dir: Path, source: str | None = None) -> int:
                 (clone / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
             )
             remote_version = plugin["version"]
-        except (OSError, json.JSONDecodeError, KeyError, TypeError):
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError):
             raise UpdateError("更新源缺少有效的 .claude-plugin/plugin.json。") from None
         if not isinstance(remote_version, str) or not remote_version.strip():
             raise UpdateError("更新源的版本号无效。")
@@ -414,6 +430,8 @@ def apply_update(project_dir: Path, source: str | None = None) -> int:
         if (
             local_version
             and not is_newer(local_version, remote_version)
+            and _known_commit(local_commit)
+            and _known_commit(remote_commit)
             and _same_commit(local_commit, remote_commit)
         ):
             print(f"已是最新版本 v{local_version}。")
@@ -429,6 +447,8 @@ def apply_update(project_dir: Path, source: str | None = None) -> int:
             *(["--project-id", project_id] if project_id else []),
             "--targets",
             ",".join(targets),
+            "--source-url",
+            source,
         ]
         synced = subprocess.run(command)
         if synced.returncode != 0:
@@ -443,7 +463,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--project-dir", type=Path, default=Path("."), help="业务仓库根目录")
     parser.add_argument("--source", help="远端仓库地址，默认读取配置")
     parser.add_argument("--check", action="store_true", help="只检查是否有新版本")
-    parser.add_argument("--quiet", action="store_true", help="无新版本时不输出提示")
+    parser.add_argument(
+        "--quiet", action="store_true", help="仅检查模式下，无新版本时不输出提示"
+    )
     args = parser.parse_args(argv)
 
     if not args.check:

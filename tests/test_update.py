@@ -1,4 +1,5 @@
 import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -310,3 +311,162 @@ def test_apply_update_clones_and_syncs(project, monkeypatch):
     monkeypatch.setattr(update.subprocess, "run", fake_run)
     assert update.apply_update(project, source="https://example.com/repo.git") == 0
     assert any("sync_project.py" in " ".join(call) for call in calls)
+
+
+# Review fixes: dirty guard must fail closed, unknown commits force sync,
+# clone must not prompt/hang, and the sync arguments must be exact.
+
+def test_dirty_toolkit_skips_non_git_with_warning(project, capsys):
+    assert update._dirty_toolkit(project) is False
+    assert "不是 git 仓库" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("failure", ["nonzero", "oserror", "timeout"])
+def test_dirty_toolkit_fails_closed_when_git_status_errors(project, monkeypatch, failure):
+    (project / ".git").mkdir()
+
+    def fake_run(cmd, **kwargs):
+        if failure == "oserror":
+            raise OSError("boom")
+        if failure == "timeout":
+            raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout", 1))
+        return subprocess.CompletedProcess(cmd, 128, "", "fatal")
+
+    monkeypatch.setattr(update.subprocess, "run", fake_run)
+    with pytest.raises(update.UpdateError, match="已中止"):
+        update._dirty_toolkit(project)
+
+
+@pytest.mark.parametrize(
+    ("local_commit", "remote_commit"),
+    [("unknown", "bbb2222"), ("aaa1111", "")],
+)
+def test_apply_update_syncs_when_commit_unknown(
+    project, monkeypatch, local_commit, remote_commit
+):
+    _write_version(project, version="1.5.0", commit=local_commit)
+    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: False)
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        if cmd[:2] == ["git", "clone"]:
+            clone = Path(cmd[-1])
+            (clone / ".claude-plugin").mkdir(parents=True)
+            (clone / ".claude-plugin" / "plugin.json").write_text(
+                '{"version": "1.5.0"}', encoding="utf-8"
+            )
+            (clone / "scripts").mkdir()
+            (clone / "scripts" / "sync_project.py").write_text("", encoding="utf-8")
+        if "rev-parse" in cmd:
+            return subprocess.CompletedProcess(cmd, 0, remote_commit, "")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(update.subprocess, "run", fake_run)
+    assert update.apply_update(project, source="https://example.com/repo.git") == 0
+    assert any("sync_project.py" in " ".join(call) for call in calls)
+
+
+def test_cli_apply_returns_1_on_update_error(project, monkeypatch, capsys):
+    def failing_apply(project_dir, source=None):
+        raise update.UpdateError("无法更新")
+
+    monkeypatch.setattr(update, "apply_update", failing_apply)
+    assert update.main(["--project-dir", str(project)]) == 1
+    assert "无法更新" in capsys.readouterr().err
+
+
+def test_apply_update_passes_project_id_targets_and_source_url(project, monkeypatch):
+    _write_version(project)
+    data_dir = project / ".data-tools"
+    data_dir.mkdir(parents=True)
+    (data_dir / "config.yaml").write_text("default_project: demo\n", encoding="utf-8")
+    (project / ".claude" / "skills").mkdir(parents=True)
+    (project / ".cursor" / "rules").mkdir(parents=True)
+    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: False)
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        if cmd[:2] == ["git", "clone"]:
+            clone = Path(cmd[-1])
+            (clone / ".claude-plugin").mkdir(parents=True)
+            (clone / ".claude-plugin" / "plugin.json").write_text(
+                '{"version": "1.5.0"}', encoding="utf-8"
+            )
+            (clone / "scripts").mkdir()
+            (clone / "scripts" / "sync_project.py").write_text("", encoding="utf-8")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(update.subprocess, "run", fake_run)
+    assert update.apply_update(project, source="https://example.com/repo.git") == 0
+
+    sync_calls = [call for call in calls if "sync_project.py" in " ".join(call)]
+    assert len(sync_calls) == 1
+    assert sync_calls[0][0] == sys.executable
+    assert Path(sync_calls[0][1]).name == "sync_project.py"
+    assert sync_calls[0][2:] == [
+        "--project-dir",
+        str(project),
+        "--project-id",
+        "demo",
+        "--targets",
+        "claude,cursor",
+        "--source-url",
+        "https://example.com/repo.git",
+    ]
+
+
+def test_apply_update_clone_disables_prompts_and_times_out(project, monkeypatch):
+    _write_version(project)
+    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: False)
+    captured = {}
+
+    def fake_run(cmd, **kwargs):
+        if cmd[:2] == ["git", "clone"]:
+            captured.update(kwargs)
+            clone = Path(cmd[-1])
+            (clone / ".claude-plugin").mkdir(parents=True)
+            (clone / ".claude-plugin" / "plugin.json").write_text(
+                '{"version": "1.5.0"}', encoding="utf-8"
+            )
+            (clone / "scripts").mkdir()
+            (clone / "scripts" / "sync_project.py").write_text("", encoding="utf-8")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(update.subprocess, "run", fake_run)
+    assert update.apply_update(project, source="https://example.com/repo.git") == 0
+    assert captured["timeout"] == update.GIT_CLONE_TIMEOUT_SECONDS
+    assert captured["env"]["GIT_TERMINAL_PROMPT"] == "0"
+
+
+def test_apply_update_reports_clone_timeout(project, monkeypatch):
+    _write_version(project)
+    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: False)
+
+    def fake_run(cmd, **kwargs):
+        if cmd[:2] == ["git", "clone"]:
+            raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout", 1))
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(update.subprocess, "run", fake_run)
+    with pytest.raises(update.UpdateError, match="超时"):
+        update.apply_update(project, source="https://example.com/repo.git")
+
+
+def test_apply_update_rejects_undecodable_plugin_json(project, monkeypatch):
+    _write_version(project)
+    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: False)
+
+    def fake_run(cmd, **kwargs):
+        if cmd[:2] == ["git", "clone"]:
+            clone = Path(cmd[-1])
+            (clone / ".claude-plugin").mkdir(parents=True)
+            (clone / ".claude-plugin" / "plugin.json").write_bytes(b"\xff\xfe\x00")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(update.subprocess, "run", fake_run)
+    with pytest.raises(update.UpdateError, match="plugin.json"):
+        update.apply_update(project, source="https://example.com/repo.git")

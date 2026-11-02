@@ -22,6 +22,11 @@ def main(argv: list[str] | None = None, connect_fn=None) -> int:
     parser.add_argument("--env", default="dev")
     parser.add_argument("--sql", required=True)
     parser.add_argument("--param", action="append", default=[], metavar="KEY=VALUE")
+    parser.add_argument(
+        "--commit",
+        action="store_true",
+        help="执行成功后提交事务；建表、改数据需要，读操作不用",
+    )
     args = parser.parse_args(argv)
 
     adapter = load_adapter(args.project)
@@ -43,6 +48,8 @@ def main(argv: list[str] | None = None, connect_fn=None) -> int:
     conn = connect(load_env(project_dir(args.project) / ".env"), prefix, database)
     try:
         rows, count = db.execute(conn, args.sql, params or None)
+        if args.commit:
+            conn.commit()
     finally:
         conn.close()
 

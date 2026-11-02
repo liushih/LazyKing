@@ -12,6 +12,7 @@ description: >-
 
 - SQL：查、查一下、连、SQL、select、count
 - 修改数据：改、更新、删除、insert、update、delete
+- 改结构：建表、加字段、alter、drop table（执行时带上 `--commit`）
 - Redis：缓存、key、redis、hash、GET/SET
 - MongoDB：mongo、集合、文档、find、aggregate
 
@@ -33,23 +34,25 @@ description: >-
 **PostgreSQL**
 
 ```bash
-"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/query.py" \
-  --project <项目ID> --env dev \
-  --sql "select status from wms_order where external_order_no = %(no)s" --param no=<单号>
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/query.py" --project <项目ID> --env dev --sql "select status from wms_order where external_order_no = %(no)s" --param no=<单号>
+```
+
+建表或改数据加 `--commit`，不加就只有查询有意义：
+
+```bash
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/query.py" --project <项目ID> --env dev --sql "create table tmp_order (id bigserial primary key)" --commit
 ```
 
 **Redis**
 
 ```bash
-"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/redis.py" \
-  --project <项目ID> --env dev --cmd "GET user:1"
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/redis.py" --project <项目ID> --env dev --cmd "GET user:1"
 ```
 
 **MongoDB**
 
 ```bash
-"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/mongo.py" \
-  --project <项目ID> --env dev --collection logs --find '{"level": "error"}' --limit 20
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/mongo.py" --project <项目ID> --env dev --collection logs --find '{"level": "error"}' --limit 20
 ```
 
 规则（三种存储通用）：
@@ -63,7 +66,8 @@ description: >-
 - Mongo 参数是 JSON：`--find` 传过滤条件，`--aggregate` 传管道数组，
   `--update` 传 `{"filter": {...}, "update": {...}, "many": true}`
 - 连接参数只来自 `.env`，不要在命令行明文传密码
-- 不自动提交事务，除非用户明确要求
+- 事务默认不提交：连接关闭即回滚。**建表、改表、增删改数据必须加 `--commit`**，
+  否则语句执行了但不落库；只读查询不加
 
 ## 失败处理
 

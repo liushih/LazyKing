@@ -39,9 +39,13 @@ class _Conn:
         self.rows = rows
         self.params = None
         self.closed = False
+        self.committed = False
 
     def close(self):
         self.closed = True
+
+    def commit(self):
+        self.committed = True
 
 
 def test_runs_sql_and_prints_rows(project, capsys, monkeypatch):
@@ -62,4 +66,48 @@ def test_runs_sql_and_prints_rows(project, capsys, monkeypatch):
     assert rc == 0
     assert "DONE" in out
     assert seen["params"] == {"no": "X"}
+    assert conn.closed is True
+
+
+def test_commit_flag_commits_after_write(project, capsys, monkeypatch):
+    conn = _Conn([])
+    monkeypatch.setattr(
+        "scripts.query.db.execute", lambda c, sql, params=None: ([], 0)
+    )
+    rc = main(
+        ["--project", "demo", "--sql", "create table t (id int)", "--commit"],
+        connect_fn=lambda env, prefix, db: conn,
+    )
+    assert rc == 0
+    assert conn.committed is True
+    assert conn.closed is True
+
+
+def test_without_commit_flag_leaves_transaction_uncommitted(project, capsys, monkeypatch):
+    conn = _Conn([])
+    monkeypatch.setattr(
+        "scripts.query.db.execute", lambda c, sql, params=None: ([], 0)
+    )
+    rc = main(
+        ["--project", "demo", "--sql", "create table t (id int)"],
+        connect_fn=lambda env, prefix, db: conn,
+    )
+    assert rc == 0
+    assert conn.committed is False
+    assert conn.closed is True
+
+
+def test_commit_flag_does_not_commit_failed_statement(project, capsys, monkeypatch):
+    conn = _Conn([])
+
+    def boom(c, sql, params=None):
+        raise RuntimeError("syntax error")
+
+    monkeypatch.setattr("scripts.query.db.execute", boom)
+    with pytest.raises(RuntimeError):
+        main(
+            ["--project", "demo", "--sql", "create tble t (id int)", "--commit"],
+            connect_fn=lambda env, prefix, db: conn,
+        )
+    assert conn.committed is False
     assert conn.closed is True

@@ -12,6 +12,11 @@ $root = Split-Path $tools -Parent
 $venvPython = Join-Path $tools '.venv\Scripts\python.exe'
 $downloadUrl = 'https://www.python.org/downloads/'
 
+if ($ProjectId -and $ProjectId -match '[\\/]|\.\.') {
+    Write-Host "无效的 ProjectId：$ProjectId（不能包含路径分隔符或 '..'）"
+    exit 1
+}
+
 function Test-PythonAt {
     param([string]$Exe, [string[]]$Prefix = @())
 
@@ -66,6 +71,12 @@ if ($python.Count -eq 0) {
 if ($CheckOnly) {
     if (Test-Path $venvPython) { exit 0 }
     exit 2
+}
+
+if ((Test-Path $venvPython) -and -not (Test-PythonAt -Exe $venvPython)) {
+    Write-Host '检测到 data-tools/.venv，但其 Python 不可用或低于 3.11。'
+    Write-Host '请删除或重命名 data-tools/.venv 后重新运行 bootstrap.ps1。'
+    exit 1
 }
 
 $exe = $python[0]

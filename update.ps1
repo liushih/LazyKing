@@ -63,6 +63,8 @@ if ($python.Count -eq 0) {
     exit 1
 }
 
+$venvReady = (Test-Path $venvPython) -and (Test-PythonAt -Exe $venvPython)
+
 $exe = $python[0]
 $prefix = @()
 if ($python.Count -gt 1) { $prefix = $python[1..($python.Count - 1)] }
@@ -72,4 +74,8 @@ if ($CheckOnly) { $arguments += '--check' }
 if ($Quiet) { $arguments += '--quiet' }
 
 & $exe @prefix @arguments
-exit $LASTEXITCODE
+$exitCode = $LASTEXITCODE
+if ($exitCode -ne 0 -and $exitCode -ne 10 -and -not $venvReady) {
+    Write-Host '提示：data-tools/.venv 不可用，请先运行 bootstrap.ps1 创建虚拟环境并安装依赖。'
+}
+exit $exitCode

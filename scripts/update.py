@@ -14,7 +14,7 @@ import yaml
 
 DEFAULT_SOURCE = "https://github.com/liushih/claudeTool.git"
 DEFAULT_INTERVAL_HOURS = 24
-GIT_TIMEOUT_SECONDS = 15
+GIT_TIMEOUT_SECONDS = 5
 
 _VERSION_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 
@@ -65,7 +65,7 @@ def read_local_version(project_dir: Path) -> dict:
         return {}
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except yaml.YAMLError:
+    except (yaml.YAMLError, OSError, UnicodeDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
 
@@ -107,7 +107,7 @@ def load_settings(project_dir: Path) -> dict:
     if path.is_file():
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except yaml.YAMLError:
+        except (yaml.YAMLError, OSError, UnicodeDecodeError):
             data = None
         if isinstance(data, dict):
             section = data.get("data_tools")
@@ -131,7 +131,7 @@ def read_cache(project_dir: Path) -> dict:
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
 
@@ -222,6 +222,27 @@ def _commit_update_message(local: str, commit: str) -> str:
     return f"[data-tools] 本地 v{local}，远端 main@{commit}。运行 data-tools/update.ps1 更新。"
 
 
+def _same_commit(local: str | None, remote: str | None) -> bool:
+    """短/长 SHA 互为前缀即同一提交；unknown 或缺失无法判断时按相同处理。"""
+    if not local or not remote:
+        return True
+    local = local.strip().lower()
+    remote = remote.strip().lower()
+    if not local or not remote or local == "unknown" or remote == "unknown":
+        return True
+    return local.startswith(remote) or remote.startswith(local)
+
+
+def _write_cache_safely(
+    project_dir: Path, latest_version: str | None, latest_commit: str | None, now: datetime
+) -> None:
+    """缓存写失败（如只读目录）不应让检查抛异常。"""
+    try:
+        write_cache(project_dir, latest_version, latest_commit, now)
+    except OSError:
+        pass
+
+
 def check_update(
     project_dir: Path, source: str | None = None, now: datetime | None = None
 ) -> CheckResult:
@@ -263,7 +284,7 @@ def check_update(
             return CheckResult(
                 True, local, cached_version, _version_update_message(local, cached_version)
             )
-        if cached_commit is not None and cached_commit != local_commit:
+        if cached_commit is not None and not _same_commit(local_commit, cached_commit):
             return CheckResult(True, local, None, _commit_update_message(local, cached_commit))
         return CheckResult(False, local, cached_version, f"已是最新版本 v{local}。")
 
@@ -272,7 +293,7 @@ def check_update(
         latest = max(versions) if versions else None
         if latest is not None:
             latest_text = _version_text(latest)
-            write_cache(project_dir, latest_text, None, now)
+            _write_cache_safely(project_dir, latest_text, None, now)
             if is_newer(local, latest_text):
                 return CheckResult(
                     True, local, latest_text, _version_update_message(local, latest_text)
@@ -280,13 +301,14 @@ def check_update(
             return CheckResult(False, local, latest_text, f"已是最新版本 v{local}。")
 
         head = remote_head(source)
-        write_cache(project_dir, None, head, now)
-        if head is not None and head != local_commit:
+        _write_cache_safely(project_dir, None, head, now)
+        if head is not None and not _same_commit(local_commit, head):
             return CheckResult(True, local, None, _commit_update_message(local, head))
         return CheckResult(False, local, None, f"已是最新版本 v{local}。")
-    except (UpdateError, subprocess.TimeoutExpired, OSError) as exc:
-        write_cache(project_dir, None, None, now)
-        return CheckResult(False, local, None, f"检查更新失败：{exc}")
+    except (UpdateError, subprocess.TimeoutExpired, OSError):
+        # 不写缓存：失败不应在检查间隔内压掉后续重试。
+        # 固定文案，避免把带 user:token 的远端地址带进 stdout/日志。
+        return CheckResult(False, local, None, "检查更新失败，请稍后重试。")
 
 
 def main(argv: list[str] | None = None) -> int:

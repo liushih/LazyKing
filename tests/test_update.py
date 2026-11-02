@@ -168,9 +168,11 @@ def test_remote_versions_parses_tags(monkeypatch):
         "3333333\trefs/tags/not-a-version\n"
     )
     commands = []
+    timeouts = []
 
     def fake_run(command, **kwargs):
         commands.append(command)
+        timeouts.append(kwargs.get("timeout"))
         return _completed(command, output)
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -181,6 +183,7 @@ def test_remote_versions_parses_tags(monkeypatch):
     assert commands[0][:2] == ["git", "ls-remote"]
     assert "--tags" in commands[0]
     assert "--refs" in commands[0]
+    assert timeouts[0] == 5
 
 
 def test_remote_head_returns_short_sha(monkeypatch):
@@ -200,3 +203,80 @@ def test_remote_versions_raises_update_error_on_failure(monkeypatch):
     monkeypatch.setattr(subprocess, "run", fake_run)
     with pytest.raises(update.UpdateError):
         update.remote_versions("https://example.com/repo.git")
+
+
+# Review fixes: short-SHA prefix matching, retry after failure, totality and no credential leaks.
+
+@pytest.mark.parametrize(
+    "local_commit",
+    ["abcdef1234567890abcdef1234567890abcdef12", "abcde"],
+)
+def test_check_update_matches_commit_by_prefix(project, monkeypatch, local_commit):
+    _write_version(project, commit=local_commit)
+    monkeypatch.setattr(update, "remote_versions", lambda source: [])
+    monkeypatch.setattr(update, "remote_head", lambda source: "abcdef1")
+    result = update.check_update(project, source="https://example.com/repo.git")
+    assert result.available is False
+
+
+def test_check_update_unknown_local_commit_does_not_report_update(project, monkeypatch):
+    _write_version(project, commit="unknown")
+    monkeypatch.setattr(update, "remote_versions", lambda source: [])
+    monkeypatch.setattr(update, "remote_head", lambda source: "bbb2222")
+    result = update.check_update(project, source="https://example.com/repo.git")
+    assert result.available is False
+
+
+def test_check_update_retries_after_network_failure(project, monkeypatch):
+    _write_version(project)
+    calls = []
+
+    def failing(source):
+        calls.append(source)
+        raise update.UpdateError("offline")
+
+    monkeypatch.setattr(update, "remote_versions", failing)
+    first = update.check_update(project, source="https://example.com/repo.git")
+    second = update.check_update(project, source="https://example.com/repo.git")
+    assert first.available is False
+    assert second.available is False
+    assert len(calls) == 2
+    assert read_cache(project) == {}
+
+
+def test_check_update_failure_message_does_not_leak_credentials(project, monkeypatch):
+    _write_version(project)
+    secret = "https://user:token@example.com/repo.git"
+
+    def failing(source):
+        raise update.UpdateError(f"fatal: could not read from {secret}")
+
+    monkeypatch.setattr(update, "remote_versions", failing)
+    result = update.check_update(project, source=secret)
+    assert result.available is False
+    assert "token" not in result.message
+    assert "user" not in result.message
+
+
+def test_check_update_survives_cache_write_failure(project, monkeypatch):
+    _write_version(project)
+    monkeypatch.setattr(update, "remote_versions", lambda source: [Version(1, 5, 0)])
+
+    def failing_write(*args, **kwargs):
+        raise OSError("read-only")
+
+    monkeypatch.setattr(update, "write_cache", failing_write)
+    result = update.check_update(project, source="https://example.com/repo.git")
+    assert result.available is True
+
+
+def test_check_update_survives_undecodable_local_files(project, monkeypatch):
+    data_dir = project / "data-tools"
+    data_dir.mkdir(parents=True)
+    (data_dir / "VERSION").write_bytes(b"\xff\xfe\x00")
+    config_dir = project / ".data-tools"
+    config_dir.mkdir(parents=True)
+    (config_dir / "config.yaml").write_bytes(b"\xff\xfe\x00")
+    monkeypatch.setattr(update, "remote_versions", _no_network)
+    result = update.check_update(project, source="https://example.com/repo.git")
+    assert result.available is False

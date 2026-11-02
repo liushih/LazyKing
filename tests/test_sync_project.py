@@ -3,6 +3,7 @@ import yaml
 
 from scripts.sync_project import copy_toolkit, write_version
 from scripts.sync_project import render_targets, upsert_gitignore
+from scripts.sync_project import init_data_dirs, sync_project
 
 
 @pytest.fixture
@@ -76,3 +77,37 @@ def test_upsert_gitignore_is_idempotent(project):
     assert text.count("# data-tools:begin") == 1
     assert "node_modules/" in text
     assert "data-tools/.venv/" in text
+
+
+def test_init_data_dirs_preserves_existing(source, project):
+    project_path = project / ".data-tools" / "projects" / "demo"
+    project_path.mkdir(parents=True)
+    (project_path / "adapter.yaml").write_text("version: 1\n", encoding="utf-8")
+    (project_path / "pitfalls.md").write_text("### P1\n", encoding="utf-8")
+    (project_path / ".env").write_text("SECRET=1\n", encoding="utf-8")
+    init_data_dirs(project, "demo")
+    assert (project_path / "adapter.yaml").read_text(encoding="utf-8") == "version: 1\n"
+    assert (project_path / "pitfalls.md").read_text(encoding="utf-8") == "### P1\n"
+    assert (project_path / ".env").read_text(encoding="utf-8") == "SECRET=1\n"
+    assert (project_path / ".env.example").exists()
+    assert "default_project: demo" in (project / ".data-tools" / "config.yaml").read_text(encoding="utf-8")
+
+
+def test_sync_project_end_to_end(source, project):
+    result = sync_project(project, "demo", ("claude",), source)
+    assert (project / "data-tools" / "VERSION").exists()
+    assert (project / ".claude" / "skills" / "db-access" / "SKILL.md").exists()
+    assert (project / "data-tools" / "README.md").exists()
+    assert (project / ".gitignore").exists()
+    assert result.copied
+
+
+def test_sync_project_dry_run_writes_nothing(source, project):
+    sync_project(project, "demo", ("claude",), source, dry_run=True)
+    assert not (project / "data-tools").exists()
+
+
+def test_sync_project_missing_core_item_raises(source, project):
+    (source / "requirements.txt").unlink()
+    with pytest.raises(FileNotFoundError, match="requirements.txt"):
+        sync_project(project, "demo", ("claude",), source)

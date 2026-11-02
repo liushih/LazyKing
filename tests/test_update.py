@@ -1,5 +1,10 @@
+import subprocess
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
+import pytest
+
+from scripts import update
 from scripts.update import (
     Version,
     cache_is_fresh,
@@ -26,3 +31,172 @@ def test_cache_round_trip(tmp_path):
     assert cache["latest_version"] == "1.5.0"
     assert cache_is_fresh(cache, now + timedelta(hours=1), 24) is True
     assert cache_is_fresh(cache, now + timedelta(hours=25), 24) is False
+
+
+@pytest.fixture
+def project(tmp_path):
+    path = tmp_path / "repo"
+    path.mkdir()
+    return path
+
+
+def _write_version(project, version="1.4.0", commit="aaa1111"):
+    path = project / "data-tools"
+    path.mkdir(parents=True, exist_ok=True)
+    (path / "VERSION").write_text(
+        f"version: {version}\nsource_commit: {commit}\n", encoding="utf-8"
+    )
+
+
+def _write_config(project, text):
+    path = project / ".data-tools"
+    path.mkdir(parents=True, exist_ok=True)
+    (path / "config.yaml").write_text(text, encoding="utf-8")
+
+
+def _no_network(source):
+    raise AssertionError("network")
+
+
+def test_check_update_reports_new_tag(project, monkeypatch):
+    _write_version(project)
+    monkeypatch.setattr(update, "remote_versions", lambda source: [update.Version(1, 4, 0), update.Version(1, 5, 0)])
+    monkeypatch.setattr(update, "remote_head", lambda source: None)
+    result = update.check_update(project, source="https://example.com/repo.git")
+    assert result.available is True
+    assert "v1.5.0" in result.message
+
+
+def test_check_update_uses_fresh_cache_without_network(project, monkeypatch):
+    _write_version(project)
+    now = datetime(2026, 11, 2, 12, 0, tzinfo=timezone.utc)
+    update.write_cache(project, "1.5.0", None, now)
+    monkeypatch.setattr(
+        update, "remote_versions",
+        lambda source: (_ for _ in ()).throw(AssertionError("network")),
+    )
+    result = update.check_update(project, source="https://example.com/repo.git", now=now)
+    assert result.available is True
+
+
+def test_check_update_swallows_network_error(project, monkeypatch):
+    _write_version(project)
+    monkeypatch.setattr(
+        update, "remote_versions",
+        lambda source: (_ for _ in ()).throw(update.UpdateError("offline")),
+    )
+    result = update.check_update(project, source="https://example.com/repo.git")
+    assert result.available is False
+
+
+def test_check_update_uses_commit_when_no_tags(project, monkeypatch):
+    _write_version(project)
+    monkeypatch.setattr(update, "remote_versions", lambda source: [])
+    monkeypatch.setattr(update, "remote_head", lambda source: "bbb2222")
+    result = update.check_update(project, source="https://example.com/repo.git")
+    assert result.available is True
+    assert "main@bbb2222" in result.message
+
+
+def test_cli_check_returns_10_when_update_available(project, monkeypatch):
+    _write_version(project)
+    monkeypatch.setattr(
+        update, "check_update",
+        lambda project_dir, source=None, now=None: update.CheckResult(
+            True, "1.4.0", "1.5.0", "有新版本"
+        ),
+    )
+    assert update.main(["--project-dir", str(project), "--check", "--quiet"]) == 10
+
+
+# Carried ruling: check_update must stay total on missing/invalid local data,
+# and settings from malformed config.yaml must be coerced, not crash or disable the cache.
+
+def test_check_update_missing_version_is_unavailable(project, monkeypatch):
+    monkeypatch.setattr(update, "remote_versions", _no_network)
+    result = update.check_update(project, source="https://example.com/repo.git")
+    assert result.available is False
+    assert result.message
+    assert not (Path(project) / "data-tools" / "VERSION").exists()
+
+
+def test_check_update_invalid_local_version_is_unavailable(project, monkeypatch):
+    _write_version(project, version="latest")
+    monkeypatch.setattr(update, "remote_versions", _no_network)
+    result = update.check_update(project, source="https://example.com/repo.git")
+    assert result.available is False
+    assert "version" in result.message
+
+
+def test_check_update_quoted_interval_hours_uses_cache(project, monkeypatch):
+    _write_version(project)
+    _write_config(project, 'data_tools:\n  check_interval_hours: "24"\n')
+    now = datetime(2026, 11, 2, 12, 0, tzinfo=timezone.utc)
+    update.write_cache(project, "1.5.0", None, now)
+    monkeypatch.setattr(update, "remote_versions", _no_network)
+    result = update.check_update(project, source="https://example.com/repo.git", now=now)
+    assert result.available is True
+
+
+def test_check_update_invalid_interval_hours_falls_back(project, monkeypatch):
+    _write_version(project)
+    _write_config(project, "data_tools:\n  check_interval_hours: not-a-number\n")
+    now = datetime(2026, 11, 2, 12, 0, tzinfo=timezone.utc)
+    update.write_cache(project, "1.5.0", None, now - timedelta(hours=1))
+    monkeypatch.setattr(update, "remote_versions", _no_network)
+    result = update.check_update(project, source="https://example.com/repo.git", now=now)
+    assert result.available is True
+
+
+def test_check_update_coerces_quoted_update_check_false(project, monkeypatch):
+    _write_version(project)
+    _write_config(project, 'data_tools:\n  update_check: "false"\n')
+    monkeypatch.setattr(update, "remote_versions", _no_network)
+    result = update.check_update(project, source="https://example.com/repo.git")
+    assert result.available is False
+    assert "禁用" in result.message
+
+
+def _completed(command, stdout, returncode=0, stderr=""):
+    return subprocess.CompletedProcess(command, returncode, stdout, stderr)
+
+
+def test_remote_versions_parses_tags(monkeypatch):
+    output = (
+        "1111111\trefs/tags/v1.4.0\n"
+        "2222222\trefs/tags/v1.5.0\n"
+        "3333333\trefs/tags/not-a-version\n"
+    )
+    commands = []
+
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        return _completed(command, output)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    assert update.remote_versions("https://example.com/repo.git") == [
+        Version(1, 4, 0),
+        Version(1, 5, 0),
+    ]
+    assert commands[0][:2] == ["git", "ls-remote"]
+    assert "--tags" in commands[0]
+    assert "--refs" in commands[0]
+
+
+def test_remote_head_returns_short_sha(monkeypatch):
+    output = "abcdef1234567890abcdef1234567890abcdef12\trefs/heads/main\n"
+
+    def fake_run(command, **kwargs):
+        return _completed(command, output)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    assert update.remote_head("https://example.com/repo.git") == "abcdef1"
+
+
+def test_remote_versions_raises_update_error_on_failure(monkeypatch):
+    def fake_run(command, **kwargs):
+        return _completed(command, "", returncode=128, stderr="boom")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    with pytest.raises(update.UpdateError):
+        update.remote_versions("https://example.com/repo.git")

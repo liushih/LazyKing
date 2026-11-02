@@ -136,3 +136,19 @@ def test_codex_block_lists_discovered_skills(tmp_path):
     text = (repo / "AGENTS.md").read_text(encoding="utf-8")
     assert "alpha" in text
     assert "beta" in text
+
+
+def test_portable_render_keeps_placeholder(tmp_path, tools):
+    repo = tmp_path / "repo"
+    paths = install(["claude"], "project", repo, tools, home=tmp_path, portable=True)
+    text = paths[0].read_text(encoding="utf-8")
+    assert "<TOOLS_DIR>" in text
+    assert tools.as_posix() not in text
+
+
+def test_portable_codex_block_points_to_project_tools(tmp_path, tools):
+    repo = tmp_path / "repo"
+    install(["codex"], "project", repo, tools, home=tmp_path, portable=True)
+    text = (repo / "AGENTS.md").read_text(encoding="utf-8")
+    assert "data-tools/skills" in text
+    assert tools.as_posix() not in text

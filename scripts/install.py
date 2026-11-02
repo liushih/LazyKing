@@ -32,8 +32,11 @@ def _parse_skill(path: Path) -> tuple[dict, str]:
     return {}, text
 
 
-def render(tool: str, name: str, body: str, description: str, tools_dir: Path) -> str:
-    body = body.replace("<TOOLS_DIR>", Path(tools_dir).as_posix())
+def render(
+    tool: str, name: str, body: str, description: str, tools_dir: Path, portable: bool = False
+) -> str:
+    if not portable:
+        body = body.replace("<TOOLS_DIR>", Path(tools_dir).as_posix())
     if tool in ("claude", "dsh"):
         return f"---\nname: {name}\ndescription: {description}\n---\n\n{GENERATED}{body}"
     if tool == "cursor":
@@ -57,13 +60,14 @@ def _skill_base(tool: str, scope: str, project_dir, home: Path) -> Path:
     return _require_project(project_dir) / f".{tool}" / "skills"
 
 
-def _codex_block(tools_dir: Path) -> str:
+def _codex_block(tools_dir: Path, portable: bool = False) -> str:
     lines = [BEGIN, "## 数据工具", ""]
     for name in skill_names(tools_dir):
         meta, _ = _parse_skill(tools_dir / "skills" / name / "SKILL.md")
         lines.append(f"- {name}: {meta.get('description', '')}")
     lines.append("")
-    lines.append(f"详细规则：{Path(tools_dir).as_posix()}/skills")
+    rules = "data-tools/skills" if portable else f"{Path(tools_dir).as_posix()}/skills"
+    lines.append(f"详细规则：{rules}")
     lines.append(END)
     return "\n".join(lines) + "\n"
 
@@ -76,7 +80,14 @@ def _upsert_block(path: Path, block: str) -> None:
     path.write_text((prefix + block).rstrip() + "\n", encoding="utf-8")
 
 
-def install(targets: list[str], scope: str, project_dir, tools_dir: Path, home: Path) -> list[Path]:
+def install(
+    targets: list[str],
+    scope: str,
+    project_dir,
+    tools_dir: Path,
+    home: Path,
+    portable: bool = False,
+) -> list[Path]:
     tools_dir = Path(tools_dir)
     written: list[Path] = []
     names = skill_names(tools_dir)
@@ -89,7 +100,9 @@ def install(targets: list[str], scope: str, project_dir, tools_dir: Path, home: 
                 out = base / name / "SKILL.md"
                 out.parent.mkdir(parents=True, exist_ok=True)
                 out.write_text(
-                    render(tool, name, body, meta.get("description", ""), tools_dir),
+                    render(
+                        tool, name, body, meta.get("description", ""), tools_dir, portable
+                    ),
                     encoding="utf-8",
                 )
                 written.append(out)
@@ -101,14 +114,21 @@ def install(targets: list[str], scope: str, project_dir, tools_dir: Path, home: 
                 meta, body = _parse_skill(tools_dir / "skills" / name / "SKILL.md")
                 out = base / f"{name}.mdc"
                 out.write_text(
-                    render("cursor", name, body, meta.get("description", ""), tools_dir),
+                    render(
+                        "cursor",
+                        name,
+                        body,
+                        meta.get("description", ""),
+                        tools_dir,
+                        portable,
+                    ),
                     encoding="utf-8",
                 )
                 written.append(out)
 
         elif tool == "codex":
             out = _require_project(project_dir) / "AGENTS.md"
-            _upsert_block(out, _codex_block(tools_dir))
+            _upsert_block(out, _codex_block(tools_dir, portable))
             written.append(out)
 
         else:
@@ -156,6 +176,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tools-dir", default=str(Path(__file__).resolve().parents[1]))
     parser.add_argument("--home", default=str(Path.home()))
     parser.add_argument("--remove", action="store_true")
+    parser.add_argument(
+        "--portable",
+        action="store_true",
+        help="保留 <TOOLS_DIR> 占位符，生成项目内可携带的技能文件",
+    )
     args = parser.parse_args(argv)
 
     targets = [t.strip() for t in args.target.split(",") if t.strip()]
@@ -165,7 +190,14 @@ def main(argv: list[str] | None = None) -> int:
             print("已移除生成文件")
             return 0
 
-        for path in install(targets, args.scope, args.project_dir, Path(args.tools_dir), Path(args.home)):
+        for path in install(
+            targets,
+            args.scope,
+            args.project_dir,
+            Path(args.tools_dir),
+            Path(args.home),
+            portable=args.portable,
+        ):
             print(path)
     except ValueError as exc:
         print(exc, file=sys.stderr)

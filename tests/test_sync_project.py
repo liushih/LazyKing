@@ -2,6 +2,7 @@ import pytest
 import yaml
 
 from scripts.sync_project import copy_toolkit, write_version
+from scripts.sync_project import render_targets, upsert_gitignore
 
 
 @pytest.fixture
@@ -58,3 +59,20 @@ def test_write_version_reads_plugin_version(source, project):
     assert data["version"] == "1.4.0"
     assert data["source"] == "https://example.com/claudeTool.git"
     assert data["source_commit"] == "unknown"
+
+
+def test_render_targets_keeps_tools_dir_placeholder(source, project):
+    paths = render_targets(source, project, ["claude"])
+    text = (project / ".claude" / "skills" / "db-access" / "SKILL.md").read_text(encoding="utf-8")
+    assert "<TOOLS_DIR>" in text
+    assert paths
+
+
+def test_upsert_gitignore_is_idempotent(project):
+    (project / ".gitignore").write_text("node_modules/\n", encoding="utf-8")
+    upsert_gitignore(project)
+    upsert_gitignore(project)
+    text = (project / ".gitignore").read_text(encoding="utf-8")
+    assert text.count("# data-tools:begin") == 1
+    assert "node_modules/" in text
+    assert "data-tools/.venv/" in text

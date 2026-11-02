@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -14,7 +15,23 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts.install import install
+
 DEFAULT_SOURCE = "https://github.com/liushih/claudeTool.git"
+
+GITIGNORE_BEGIN = "# data-tools:begin"
+GITIGNORE_END = "# data-tools:end"
+
+GITIGNORE_BLOCK = f"""{GITIGNORE_BEGIN}
+data-tools/.venv/
+data-tools/**/__pycache__/
+.data-tools/projects/*/.env
+.data-tools/projects/*/ledger.csv
+.data-tools/reports/
+.data-tools/.update-check.json
+.data-tools/**/*.log
+{GITIGNORE_END}
+"""
 
 TOOLKIT_ITEMS: tuple[str, ...] = (
     "skills",
@@ -83,3 +100,33 @@ def write_version(source_root: Path, project_dir: Path, source_url: str = DEFAUL
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
     return dest
+
+
+def render_targets(
+    source_root: Path, project_dir: Path, targets: list[str]
+) -> list[Path]:
+    """在 project_dir 下渲染各工具入口（保留 <TOOLS_DIR> 占位符），返回生成文件列表。"""
+    return install(
+        targets,
+        "project",
+        project_dir,
+        source_root,
+        home=project_dir,
+        portable=True,
+    )
+
+
+def upsert_gitignore(project_dir: Path) -> Path:
+    """在 project_dir/.gitignore 写入或刷新 data-tools 标记块，返回该文件路径。"""
+    path = Path(project_dir) / ".gitignore"
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    existing = re.sub(
+        rf"{re.escape(GITIGNORE_BEGIN)}.*?{re.escape(GITIGNORE_END)}\n?",
+        "",
+        existing,
+        flags=re.S,
+    )
+    prefix = existing.rstrip() + "\n\n" if existing.strip() else ""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text((prefix + GITIGNORE_BLOCK).rstrip() + "\n", encoding="utf-8")
+    return path

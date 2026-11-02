@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.install import install, remove
+from scripts.install import install, main, remove
 
 NAMES = ("data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow")
 
@@ -152,3 +152,22 @@ def test_portable_codex_block_points_to_project_tools(tmp_path, tools):
     text = (repo / "AGENTS.md").read_text(encoding="utf-8")
     assert "data-tools/skills" in text
     assert tools.as_posix() not in text
+
+
+def test_cli_rejects_portable_with_global_scope(tmp_path, tools, capsys):
+    code = main(
+        [
+            "--target",
+            "claude",
+            "--scope",
+            "global",
+            "--portable",
+            "--tools-dir",
+            str(tools),
+            "--home",
+            str(tmp_path),
+        ]
+    )
+    assert code == 2
+    assert "--portable" in capsys.readouterr().err
+    assert not (tmp_path / ".claude" / "skills").exists()

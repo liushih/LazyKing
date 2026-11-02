@@ -478,7 +478,9 @@ def apply_update(project_dir: Path, source: str | None = None) -> int:
         if synced.returncode != 0:
             raise UpdateError("同步 data-tools 失败，请检查脚本输出。")
 
-    print(f"已更新到 v{remote_version}；请在业务仓库提交 data-tools/ 的变更")
+    print(
+        f"已更新到 v{remote_version}；请在业务仓库提交 data-tools/、生成的技能入口和 .gitignore 的变更"
+    )
     return 0
 
 

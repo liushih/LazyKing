@@ -157,6 +157,20 @@ def upsert_gitignore(project_dir: Path) -> Path:
     return path
 
 
+def _require_project_id(project_id: str) -> str:
+    """校验项目 ID 可安全用作单层目录名；拒绝路径分隔符和 `..`。"""
+    if not isinstance(project_id, str) or not project_id.strip():
+        raise ValueError("项目 ID 不能为空")
+    if "/" in project_id or "\\" in project_id or ".." in project_id:
+        raise ValueError(f"项目 ID 非法：{project_id!r}（不能包含 /、\\ 或 ..）")
+    return project_id
+
+
+def _default_project_yaml(project_id: str) -> str:
+    """把 default_project 安全地写成 YAML 行，特殊字符会自动加引号。"""
+    return yaml.safe_dump({"default_project": project_id}, allow_unicode=True).strip()
+
+
 def init_data_dirs(project_dir: Path, project_id: str | None) -> list[Path]:
     """创建项目数据目录，补齐 config.yaml / .env.example，绝不覆盖已有数据文件。"""
     project_dir = Path(project_dir)
@@ -169,6 +183,7 @@ def init_data_dirs(project_dir: Path, project_id: str | None) -> list[Path]:
     if not project_id:
         return created
 
+    project_id = _require_project_id(project_id)
     project_path = data_root / "projects" / project_id
     if not project_path.exists():
         created.append(project_path)
@@ -176,14 +191,14 @@ def init_data_dirs(project_dir: Path, project_id: str | None) -> list[Path]:
 
     config = data_root / "config.yaml"
     if not config.exists():
-        config.write_text(f"default_project: {project_id}\n", encoding="utf-8")
+        config.write_text(_default_project_yaml(project_id) + "\n", encoding="utf-8")
         created.append(config)
     else:
         text = config.read_text(encoding="utf-8")
         if not re.search(r"^default_project\s*:", text, flags=re.M):
             separator = "" if (not text or text.endswith("\n")) else "\n"
             config.write_text(
-                text + separator + f"default_project: {project_id}\n",
+                text + separator + _default_project_yaml(project_id) + "\n",
                 encoding="utf-8",
             )
             created.append(config)
@@ -243,6 +258,9 @@ def sync_project(
         Path(source_root) if source_root is not None else Path(__file__).resolve().parents[1]
     )
     targets = tuple(targets)
+
+    if project_id:
+        project_id = _require_project_id(project_id)
 
     if not project_dir.is_dir():
         raise FileNotFoundError(f"项目目录不存在：{project_dir}")
@@ -324,7 +342,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if not args.dry_run:
-        for path in (*result.copied, *result.rendered):
+        for path in (*result.copied, *result.rendered, *result.preserved):
             print(path)
     return 0
 

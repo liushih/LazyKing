@@ -3,7 +3,13 @@ import yaml
 
 from scripts.sync_project import copy_toolkit, write_version
 from scripts.sync_project import render_targets, upsert_gitignore
-from scripts.sync_project import init_data_dirs, sync_project
+from scripts.sync_project import (
+    _default_project_yaml,
+    _require_project_id,
+    init_data_dirs,
+    main,
+    sync_project,
+)
 
 
 @pytest.fixture
@@ -111,3 +117,48 @@ def test_sync_project_missing_core_item_raises(source, project):
     (source / "requirements.txt").unlink()
     with pytest.raises(FileNotFoundError, match="requirements.txt"):
         sync_project(project, "demo", ("claude",), source)
+
+
+@pytest.mark.parametrize("bad", ["..", "../evil", "a/b", "a\\b"])
+def test_require_project_id_rejects_path_escapes(bad):
+    with pytest.raises(ValueError, match="项目 ID 非法"):
+        _require_project_id(bad)
+
+
+def test_init_data_dirs_rejects_unsafe_project_id(project):
+    with pytest.raises(ValueError, match="项目 ID 非法"):
+        init_data_dirs(project, "a/b")
+    assert not (project / ".data-tools" / "projects").exists()
+
+
+def test_sync_project_rejects_unsafe_project_id(source, project):
+    with pytest.raises(ValueError, match="项目 ID 非法"):
+        sync_project(project, "../evil", ("claude",), source)
+    assert not (project / ".data-tools").exists()
+
+
+def test_default_project_value_with_colon_round_trips():
+    line = _default_project_yaml("team: demo")
+    assert yaml.safe_load(line) == {"default_project": "team: demo"}
+
+
+def test_init_data_dirs_writes_quoted_project_id_that_round_trips(project):
+    init_data_dirs(project, "team demo #1")
+    text = (project / ".data-tools" / "config.yaml").read_text(encoding="utf-8")
+    assert yaml.safe_load(text) == {"default_project": "team demo #1"}
+
+
+def test_cli_returns_2_for_invalid_project_id(source, project):
+    code = main(
+        [
+            "--project-dir",
+            str(project),
+            "--project-id",
+            "../evil",
+            "--source",
+            str(source),
+            "--dry-run",
+        ]
+    )
+    assert code == 2
+    assert not (project / ".data-tools").exists()

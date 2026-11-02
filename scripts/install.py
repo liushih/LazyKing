@@ -183,6 +183,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.portable and args.scope == "global":
+        print("--portable 只能用于 --scope project", file=sys.stderr)
+        return 2
+
     targets = [t.strip() for t in args.target.split(",") if t.strip()]
     try:
         if args.remove:

@@ -20,9 +20,32 @@
 - **业务脚本**：写死了某个项目的表名、接口路径、状态值、单号规则的脚本
 - **运行产物**：日志（`*.err`、`*.log`）、台账（`*.csv`）、导出结果、截图
 - **凭据与令牌**：`.env`、`*.token*.json`、浏览器登录态、任何含密码的文件
-- **项目配置**：适配层、坑库、报告产物（它们位于 `~/.data-tools/`，本身就不在仓库里）
+- **项目配置**：适配层、坑库、项目脚本、报告模板等。个人/全局方式下它们位于 `~/.data-tools/projects/<项目ID>/`；团队方式下随业务仓库提交，都不进本仓库
+- **本机私有数据**：凭据 `.env`、台账 `ledger.csv`、报告产物 `reports/`、更新检查缓存等，无论哪种方式都不提交
 
 判断标准：**这份东西换一个项目就没用，或者含有只属于某个项目或某个人的信息。**
+
+## 团队项目接入时的共享与本地边界
+
+业务仓库内置 `data-tools/` 后，`.data-tools/` 下的内容要区分团队共享和本机私有。
+
+**提交进业务仓库（团队共享）**
+
+- `projects/<项目ID>/adapter.yaml`：业务规则
+- `projects/<项目ID>/pitfalls.md`：坑库
+- `projects/<项目ID>/report.yaml`、`projects/<项目ID>/git_hosts.yaml`：报告与代码托管配置（`git_hosts.yaml` 只写 token 键名）
+- `projects/<项目ID>/scripts/`：`impl` 步骤代码
+- `templates/<项目ID>/`：报告模板
+
+**不提交（本机私有或运行产物）**
+
+- `projects/<项目ID>/.env`：凭据，每人一份
+- `projects/<项目ID>/ledger.csv`：运行台账
+- `reports/`：报告产物
+- `.update-check.json`、`*.log` 等缓存与日志
+
+`scripts/sync_project.py` 会把上述忽略规则写进业务仓库 `.gitignore` 的
+`# data-tools:begin` 块。共享配置里只写变量名或 token 键名，值一律放各自本机的 `.env`。
 
 ## 提交前检查
 
@@ -32,4 +55,4 @@
 
 ## 历史遗留
 
-`hexin-db-tools/`、`hexin-data-gen/`、`hexin-e2e/` 是早期的 hexincloud 专用工具，目前仍在仓库中，是待整理的历史遗留，**不作为新代码的参考**。新增的业务相关内容应放到 `~/.data-tools/projects/<项目ID>/` 或对应业务仓库中。
+`hexin-db-tools/`、`hexin-data-gen/`、`hexin-e2e/` 是早期的 hexincloud 专用工具，目前仍在仓库中，是待整理的历史遗留，**不作为新代码的参考**。新增的业务相关内容应放到 `~/.data-tools/projects/<项目ID>/`（个人/全局）或业务仓库的 `.data-tools/projects/<项目ID>/`（团队内置）中。

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from scripts.install import install, remove
@@ -54,7 +56,7 @@ def test_codex_block_is_not_duplicated(tmp_path, tools):
 def test_remove_deletes_generated(tmp_path, tools):
     repo = tmp_path / "repo"
     install(["cursor"], "project", repo, tools, home=tmp_path)
-    remove(["cursor"], "project", repo, home=tmp_path)
+    remove(["cursor"], "project", repo, home=tmp_path, tools_dir=tools)
     assert not (repo / ".cursor" / "rules" / "data-gen-core.mdc").exists()
 
 
@@ -75,5 +77,62 @@ def test_generated_cursor_file_starts_with_frontmatter(tmp_path, tools):
 
 def test_remove_without_project_dir_skips_project_tools(tmp_path, tools):
     install(["claude"], "global", None, tools, home=tmp_path)
-    remove(["claude", "cursor", "codex"], "global", None, home=tmp_path)
+    remove(["claude", "cursor", "codex"], "global", None, home=tmp_path, tools_dir=tools)
     assert not (tmp_path / ".claude" / "skills" / "data-gen-core" / "SKILL.md").exists()
+
+
+def test_dsh_skill_lands_in_dsh_home(tmp_path, tools):
+    paths = install(["dsh"], "global", None, tools, home=tmp_path)
+    target = tmp_path / ".dsh" / "skills" / "data-gen-core" / "SKILL.md"
+    assert target.exists() and target in paths
+    text = target.read_text(encoding="utf-8")
+    assert text.startswith("---\n")
+    assert "name: data-gen-core" in text
+    assert "<TOOLS_DIR>" not in text
+
+
+def test_dsh_project_scope_writes_into_repo(tmp_path, tools):
+    repo = tmp_path / "repo"
+    paths = install(["dsh"], "project", repo, tools, home=tmp_path)
+    assert (repo / ".dsh" / "skills" / "db-access" / "SKILL.md").exists()
+    assert all(str(p).startswith(str(repo)) for p in paths)
+
+
+def test_dsh_remove_cleans_up(tmp_path, tools):
+    install(["dsh"], "global", None, tools, home=tmp_path)
+    remove(["dsh"], "global", None, home=tmp_path, tools_dir=tools)
+    assert not (tmp_path / ".dsh" / "skills" / "data-gen-core").exists()
+
+
+def _make_skill(root: Path, name: str) -> None:
+    d = root / "skills" / name
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text(
+        f"---\nname: {name}\ndescription: {name} 测试\n---\n\n# {name}\n", encoding="utf-8"
+    )
+
+
+def test_new_skill_directory_is_installed_without_code_change(tmp_path):
+    root = tmp_path / "tools"
+    _make_skill(root, "brand-new")
+    install(["dsh"], "global", None, root, home=tmp_path)
+    assert (tmp_path / ".dsh" / "skills" / "brand-new" / "SKILL.md").exists()
+
+
+def test_underscore_directory_is_not_installed(tmp_path):
+    root = tmp_path / "tools"
+    _make_skill(root, "_TEMPLATE")
+    paths = install(["dsh"], "global", None, root, home=tmp_path)
+    assert paths == []
+    assert not (tmp_path / ".dsh" / "skills" / "_TEMPLATE").exists()
+
+
+def test_codex_block_lists_discovered_skills(tmp_path):
+    root = tmp_path / "tools"
+    _make_skill(root, "alpha")
+    _make_skill(root, "beta")
+    repo = tmp_path / "repo"
+    install(["codex"], "project", repo, root, home=tmp_path)
+    text = (repo / "AGENTS.md").read_text(encoding="utf-8")
+    assert "alpha" in text
+    assert "beta" in text

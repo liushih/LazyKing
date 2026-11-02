@@ -119,7 +119,19 @@ def test_sync_project_missing_core_item_raises(source, project):
         sync_project(project, "demo", ("claude",), source)
 
 
-@pytest.mark.parametrize("bad", ["..", "../evil", "a/b", "a\\b"])
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "..",
+        "../evil",
+        "a/b",
+        "a\\b",
+        "D:evil",
+        "D:",
+        "file:stream",
+        "//?/C:/evil",
+    ],
+)
 def test_require_project_id_rejects_path_escapes(bad):
     with pytest.raises(ValueError, match="项目 ID 非法"):
         _require_project_id(bad)

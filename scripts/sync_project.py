@@ -10,7 +10,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import yaml
 
@@ -158,11 +158,19 @@ def upsert_gitignore(project_dir: Path) -> Path:
 
 
 def _require_project_id(project_id: str) -> str:
-    """校验项目 ID 可安全用作单层目录名；拒绝路径分隔符和 `..`。"""
+    """校验项目 ID 可安全用作单层目录名；拒绝路径分隔符、盘符和 `..`。"""
     if not isinstance(project_id, str) or not project_id.strip():
         raise ValueError("项目 ID 不能为空")
-    if "/" in project_id or "\\" in project_id or ".." in project_id:
-        raise ValueError(f"项目 ID 非法：{project_id!r}（不能包含 /、\\ 或 ..）")
+    if (
+        "/" in project_id
+        or "\\" in project_id
+        or ":" in project_id
+        or ".." in project_id
+        or PureWindowsPath(project_id).drive
+    ):
+        raise ValueError(
+            f"项目 ID 非法：{project_id!r}（不能包含 /、\\、:、.. 或盘符前缀）"
+        )
     return project_id
 
 

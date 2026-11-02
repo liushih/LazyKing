@@ -247,7 +247,7 @@ def test_check_update_retries_after_network_failure(project, monkeypatch):
 
 def test_check_update_failure_message_does_not_leak_credentials(project, monkeypatch):
     _write_version(project)
-    secret = "https://user:token@example.com/repo.git"
+    secret = "https://user:token@example.com/repo.git"  # noqa: secrets
 
     def failing(source):
         raise update.UpdateError(f"fatal: could not read from {secret}")

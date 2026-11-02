@@ -1,4 +1,4 @@
-"""版本比较、更新检查缓存与检查命令。"""
+"""版本比较、更新检查缓存与更新命令。"""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ import argparse
 import json
 import re
 import subprocess
+import sys
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -311,6 +313,131 @@ def check_update(
         return CheckResult(False, local, None, "检查更新失败，请稍后重试。")
 
 
+def _dirty_toolkit(project_dir: Path) -> bool:
+    """data-tools/ 有未提交改动时为 True；不是 git 仓库时警告并返回 False。"""
+    project_dir = Path(project_dir)
+    if not (project_dir / ".git").exists():
+        print(f"警告：{project_dir} 不是 git 仓库，跳过未提交改动检查", file=sys.stderr)
+        return False
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(project_dir), "status", "--porcelain", "--", "data-tools"],
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, UnicodeDecodeError):
+        return False
+    if result.returncode != 0:
+        return False
+    return bool(result.stdout.strip())
+
+
+def _default_project(project_dir: Path) -> str | None:
+    """读 .data-tools/config.yaml 的 default_project；缺失或无效时返回 None。"""
+    path = Path(project_dir) / ".data-tools" / "config.yaml"
+    if not path.is_file():
+        return None
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (yaml.YAMLError, OSError, UnicodeDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    value = data.get("default_project")
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value.strip()
+
+
+def _targets(project_dir: Path) -> tuple[str, ...]:
+    """按已存在的技能入口推断同步目标；一个都没有时默认 claude。"""
+    project_dir = Path(project_dir)
+    candidates = (
+        ("claude", project_dir / ".claude" / "skills"),
+        ("cursor", project_dir / ".cursor" / "rules"),
+        ("codex", project_dir / "AGENTS.md"),
+        ("dsh", project_dir / ".dsh" / "skills"),
+    )
+    found = tuple(name for name, path in candidates if path.exists())
+    return found or ("claude",)
+
+
+def apply_update(project_dir: Path, source: str | None = None) -> int:
+    """把 data-tools 更新到源仓库最新版本；不自动提交或推送。"""
+    project_dir = Path(project_dir)
+    if _dirty_toolkit(project_dir):
+        raise UpdateError("data-tools 有未提交改动，请先提交或暂存后再更新")
+
+    if not (project_dir / "data-tools").is_dir():
+        raise UpdateError("未找到 data-tools/，请先运行 bootstrap 或同步工具。")
+
+    settings = load_settings(project_dir)
+    source = source or settings["source"]
+    meta = read_local_version(project_dir)
+    raw_version = meta.get("version")
+    local_version = raw_version.strip() if isinstance(raw_version, str) else ""
+    raw_commit = meta.get("source_commit")
+    local_commit = raw_commit if isinstance(raw_commit, str) and raw_commit else None
+
+    with tempfile.TemporaryDirectory() as tmp:
+        clone = Path(tmp) / "clone"
+        try:
+            cloned = subprocess.run(
+                ["git", "clone", "--depth", "1", source, str(clone)],
+                capture_output=True,
+                text=True,
+            )
+        except OSError as exc:
+            raise UpdateError("无法执行 git clone，请确认已安装 git。") from exc
+        if cloned.returncode != 0:
+            # 固定文案：不把可能含凭据的源地址或 stderr 带进输出。
+            raise UpdateError("克隆更新源失败，请检查网络或 source 配置。")
+
+        try:
+            plugin = json.loads(
+                (clone / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+            )
+            remote_version = plugin["version"]
+        except (OSError, json.JSONDecodeError, KeyError, TypeError):
+            raise UpdateError("更新源缺少有效的 .claude-plugin/plugin.json。") from None
+        if not isinstance(remote_version, str) or not remote_version.strip():
+            raise UpdateError("更新源的版本号无效。")
+        remote_version = remote_version.strip()
+
+        commit_result = subprocess.run(
+            ["git", "-C", str(clone), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+        )
+        remote_commit = commit_result.stdout.strip() if commit_result.returncode == 0 else None
+
+        if (
+            local_version
+            and not is_newer(local_version, remote_version)
+            and _same_commit(local_commit, remote_commit)
+        ):
+            print(f"已是最新版本 v{local_version}。")
+            return 0
+
+        project_id = _default_project(project_dir)
+        targets = _targets(project_dir)
+        command = [
+            sys.executable,
+            str(clone / "scripts" / "sync_project.py"),
+            "--project-dir",
+            str(project_dir),
+            *(["--project-id", project_id] if project_id else []),
+            "--targets",
+            ",".join(targets),
+        ]
+        synced = subprocess.run(command)
+        if synced.returncode != 0:
+            raise UpdateError("同步 data-tools 失败，请检查脚本输出。")
+
+    print(f"已更新到 v{remote_version}；请在业务仓库提交 data-tools/ 的变更")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="检查并更新 data-tools")
     parser.add_argument("--project-dir", type=Path, default=Path("."), help="业务仓库根目录")
@@ -320,8 +447,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if not args.check:
-        # 更新落盘由后续任务的 apply_update 补充。
-        return 0
+        try:
+            return apply_update(args.project_dir, args.source)
+        except UpdateError as exc:
+            print(exc, file=sys.stderr)
+            return 1
 
     result = check_update(args.project_dir, args.source)
     if result.message and (not args.quiet or result.available):

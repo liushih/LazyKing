@@ -280,3 +280,33 @@ def test_check_update_survives_undecodable_local_files(project, monkeypatch):
     monkeypatch.setattr(update, "remote_versions", _no_network)
     result = update.check_update(project, source="https://example.com/repo.git")
     assert result.available is False
+
+
+def test_apply_update_refuses_dirty_toolkit(project, monkeypatch):
+    _write_version(project)
+    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: True)
+    with pytest.raises(update.UpdateError, match="未提交"):
+        update.apply_update(project, source="https://example.com/repo.git")
+
+
+def test_apply_update_clones_and_syncs(project, monkeypatch):
+    _write_version(project)
+    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: False)
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        if cmd[:2] == ["git", "clone"]:
+            clone = Path(cmd[-1])
+            (clone / ".claude-plugin").mkdir(parents=True)
+            (clone / ".claude-plugin" / "plugin.json").write_text(
+                '{"version": "1.5.0"}', encoding="utf-8"
+            )
+            (clone / "scripts").mkdir()
+            (clone / "scripts" / "sync_project.py").write_text("", encoding="utf-8")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(update.subprocess, "run", fake_run)
+    assert update.apply_update(project, source="https://example.com/repo.git") == 0
+    assert any("sync_project.py" in " ".join(call) for call in calls)

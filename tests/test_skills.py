@@ -87,3 +87,14 @@ def test_git_skill_reports_existing_mr_on_conflict():
     text = (SKILLS / "git-workflow" / "SKILL.md").read_text(encoding="utf-8")
     assert "409" in text and "422" in text
     assert "已存在" in text
+
+
+@pytest.mark.parametrize("name", ["data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow"])
+def test_skill_has_environment_preflight(name):
+    text = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
+    assert "## 第 0 步：环境检查" in text
+    assert "Python 3.11+" in text
+    assert "bootstrap.ps1" in text
+    assert "update.ps1 -CheckOnly -Quiet" in text
+    assert "data-tools/" in text
+    assert (SKILLS / "_references" / "project-layout.md").exists()

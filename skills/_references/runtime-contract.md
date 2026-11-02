@@ -2,6 +2,16 @@
 
 `scripts/run.py` 读取 `adapter.yaml`，按 entity 的 steps 顺序执行。
 
+## 项目内路径
+
+- `<TOOLS_DIR>`：业务仓库根目录下的 `data-tools/`。从当前目录向上查找；找不到读
+  `DATA_TOOLS_DIR`；仍找不到问用户业务仓库根目录，不猜。命令里保留占位符，不写死绝对路径。
+- `<DATA_HOME>`：业务仓库根目录下的 `.data-tools/`。从当前目录向上查找；找不到读
+  `DATA_TOOLS_HOME`；仍找不到回退 `~/.data-tools`。运行时统一由 `runtime/config.py`
+  的 `data_home()` 解析，优先级为 `DATA_TOOLS_HOME` > 最近祖先 `.data-tools/` > `~/.data-tools`。
+
+目录布局、Python 检查、bootstrap 与 update 细节见 `project-layout.md`。
+
 ## 步骤语义
 
 | 类型 | 行为 | 失败条件 |

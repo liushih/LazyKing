@@ -18,6 +18,16 @@ description: >-
 - 新业务首次接入 → 先用 `adapter-bootstrap`
 - 只查询、不产生数据 → 用 `db-access`
 
+## 第 0 步：环境检查
+
+1. 定位 <TOOLS_DIR>：从当前目录向上查找 data-tools/；找不到读 DATA_TOOLS_DIR；仍找不到就问用户业务仓库根目录，不猜。
+2. 定位 <DATA_HOME>：从当前目录向上查找 .data-tools/；找不到读 DATA_TOOLS_HOME；仍找不到用 ~/.data-tools。
+3. 解释器优先 <TOOLS_DIR>/.venv/Scripts/python.exe（Windows）或 <TOOLS_DIR>/.venv/bin/python（POSIX）。
+4. 没有 venv 时检查 py -3.11 --version / py -3 --version / python --version / python3 --version，要求 Python 3.11+。
+5. 都没有或版本过低：提示用户到 https://www.python.org/downloads/ 下载安装 Python 3.11+，勾选 Add to PATH；停止，不代装。
+6. 有 Python 但没 venv：运行 <TOOLS_DIR>/bootstrap.ps1。
+7. 运行 <TOOLS_DIR>/update.ps1 -CheckOnly -Quiet：有新版本就把提示原样告诉用户，不自动更新；脚本不存在、无新版本或检查失败则继续。
+
 ## 前置检查
 
 1. 读 `<数据目录>/projects/<项目ID>/adapter.yaml`
@@ -31,9 +41,9 @@ description: >-
 
 ## 路径
 
-命令里的 `<TOOLS_DIR>` 是工具仓库根目录，按顺序确定：环境变量 `DATA_TOOLS_DIR` → `~/.data-tools/config.yaml` 的 `tools_dir` → 问用户仓库在哪，不要猜。通过 `install.ps1` 渲染安装时命令里已是绝对路径，可跳过。
+命令里的 `<TOOLS_DIR>` 是业务仓库根目录下的 `data-tools/`：从当前目录向上查找；找不到再读 `DATA_TOOLS_DIR`；仍找不到就问用户业务仓库根目录，不要猜。`<DATA_HOME>` 是业务仓库根目录下的 `.data-tools/`：同样向上查找，找不到再读 `DATA_TOOLS_HOME`，最后回退 `~/.data-tools`。
 
-解释器优先用仓库内 `.venv/Scripts/python.exe`；不存在时用 `python`，并先 `pip install -r requirements.txt`。
+解释器优先 `<TOOLS_DIR>/.venv/Scripts/python.exe`（Windows）或 `.venv/bin/python`（POSIX）；没有 venv 时用 `py -3.11` / `py -3` / `python` / `python3`，要求 3.11+；有 Python 但没 venv 时运行 `<TOOLS_DIR>/bootstrap.ps1`。
 
 规则细节按需读取：`<TOOLS_DIR>/skills/_references/adapter-contract.md`（字段与步骤写法）、`runtime-contract.md`（占位符、重试、verify）。
 

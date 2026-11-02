@@ -39,3 +39,31 @@ def test_substitute_keeps_nested_structure():
 def test_substitute_reports_missing_var():
     with pytest.raises(config.ConfigError, match="NOPE"):
         config.substitute("${NOPE}", {})
+
+
+def test_data_home_finds_project_local(monkeypatch, tmp_path):
+    monkeypatch.delenv("DATA_TOOLS_HOME", raising=False)
+    project = tmp_path / "repo"
+    (project / ".data-tools").mkdir(parents=True)
+    monkeypatch.chdir(project)
+    assert config.data_home() == (project / ".data-tools").resolve()
+
+
+def test_data_home_finds_nearest_ancestor(monkeypatch, tmp_path):
+    monkeypatch.delenv("DATA_TOOLS_HOME", raising=False)
+    project = tmp_path / "repo"
+    (project / ".data-tools").mkdir(parents=True)
+    nested = project / "src" / "pkg"
+    nested.mkdir(parents=True)
+    monkeypatch.chdir(nested)
+    assert config.data_home() == (project / ".data-tools").resolve()
+
+
+def test_data_home_env_beats_project_local(monkeypatch, tmp_path):
+    project = tmp_path / "repo"
+    (project / ".data-tools").mkdir(parents=True)
+    override = tmp_path / "override"
+    override.mkdir()
+    monkeypatch.chdir(project)
+    monkeypatch.setenv("DATA_TOOLS_HOME", str(override))
+    assert config.data_home() == override

@@ -33,9 +33,23 @@ def substitute(value: Any, env: dict[str, str]) -> Any:
     return value
 
 
+def _find_up(name: str, start: Path | None = None) -> Path | None:
+    current = (start or Path.cwd()).resolve()
+    for parent in (current, *current.parents):
+        candidate = parent / name
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
 def data_home() -> Path:
     env = os.getenv("DATA_TOOLS_HOME")
-    return Path(env) if env else Path.home() / ".data-tools"
+    if env:
+        return Path(env)
+    local = _find_up(".data-tools")
+    if local is not None:
+        return local
+    return Path.home() / ".data-tools"
 
 
 def project_dir(project_id: str) -> Path:

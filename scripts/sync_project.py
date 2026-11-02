@@ -28,6 +28,9 @@ data-tools/.venv/
 data-tools/**/__pycache__/
 .data-tools/projects/*/.env
 .data-tools/projects/*/ledger.csv
+.data-tools/projects/*/.token.json
+.data-tools/projects/*/scripts/state.json
+.data-tools/**/__pycache__/
 .data-tools/reports/
 .data-tools/.update-check.json
 .data-tools/**/*.log

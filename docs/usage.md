@@ -255,6 +255,15 @@ verify:
   --sql "select status from t where external_order_no = %(no)s" --param no=PB1026114338
 ```
 
+直接执行 SQL 文件（支持多语句）：
+
+```bash
+.venv/Scripts/python.exe scripts/query.py --project hexincloud --env dev \
+  --db hexin_masterdata --file path/to/script.sql --commit
+```
+
+`--sql` 与 `--file` 互斥；不加 `--commit` 时仍只读，prod 不允许 `--commit`。
+
 **Redis**
 
 ```bash
@@ -377,7 +386,7 @@ DSH 的 `workspace-write` 沙箱只允许写工作区和临时目录。个人/�
 
 **业务接口报 token 无效**
 
-删掉 `hexin-data-gen\.token.json` 后重跑，会重新登录。
+项目内模式删掉 `.data-tools/projects/<项目ID>/.token.json` 后重跑；旧工具模式删 `hexin-data-gen\.token.json`。会重新登录。
 
 **返回「未定义变量 X」**
 
@@ -622,13 +631,16 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
         ├── pitfalls.md                # 提交：团队共享坑库
         ├── report.yaml                # 提交（可选）
         ├── git_hosts.yaml             # 提交（可选，只含 token 键名）
-        ├── scripts/                   # 提交：impl 步骤代码
+        ├── scripts/                   # 提交：impl 步骤代码、复杂业务模块
         ├── .env.example               # 提交：键名模板
         └── .env                       # 不提交：各人凭据
 ```
 
+复杂业务的 impl 模块（如 `chain.py`、`hexin_client.py`）也放在 `projects/<项目ID>/scripts/`，随业务仓库提交；B2D/B2C 已内置，不再依赖旧 `hexin-data-gen`/`hexin-db-tools`。
+
 同步工具会把 `data-tools/.venv/`、`.data-tools/projects/*/.env`、
-`.data-tools/projects/*/ledger.csv`、`.data-tools/reports/` 和
+`.data-tools/projects/*/ledger.csv`、`.data-tools/projects/*/.token.json`、
+`.data-tools/projects/*/scripts/state.json`、`.data-tools/reports/` 和
 `.data-tools/.update-check.json` 写进业务仓库的 `.gitignore`。
 
 ### 同事第一次接入

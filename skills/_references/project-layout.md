@@ -22,15 +22,20 @@
 │   │   ├── pitfalls.md                # 提交：团队共享坑库
 │   │   ├── report.yaml                # 提交（可选）
 │   │   ├── git_hosts.yaml             # 提交（可选，只含 token 键名）
-│   │   ├── scripts/                   # 提交：impl 步骤代码
+│   │   ├── scripts/                   # 提交：impl 步骤代码、复杂业务模块
 │   │   ├── .env.example               # 提交：键名模板
 │   │   └── .env                       # 不提交：各人凭据
 │   ├── templates/<项目ID>/            # 提交（可选）
 │   └── reports/                       # 不提交：报告产物
 ```
 
-`data-tools/.venv/`、`.data-tools/projects/*/.env`、`ledger.csv`、`.data-tools/reports/`
-和 `.update-check.json` 由同步工具写入 `.gitignore`，不进仓库。
+`data-tools/.venv/`、`.data-tools/projects/*/.env`、`ledger.csv`、`.token.json`、
+`.data-tools/projects/*/scripts/state.json`、`.data-tools/reports/` 和
+`.update-check.json` 由同步工具写入 `.gitignore`，不进仓库。
+
+复杂业务的 impl 模块（如登录客户端、链路封装）也放 `projects/<项目ID>/scripts/`，
+随业务仓库提交；不要写死 `C:\project\claudeTool`、`hexin-data-gen`、`hexin-db-tools`
+等旧路径。凭据读项目 `.env`，token 缓存写 `projects/<项目ID>/.token.json`。
 
 ## `<TOOLS_DIR>` 的解析
 

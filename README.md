@@ -9,6 +9,7 @@
 | 你说 | 它做 |
 | --- | --- |
 | 查一下 dev 库最近 3 条提货单 | 连库执行 SQL，返回结果 |
+| 把这个 SQL 文件跑一下 | 读取文件执行，支持多语句 |
 | 在 dev 造 100 张提货单，跑到 UPLOADED | 并发造数，逐单记台账 |
 | 同一批次重跑，把失败的补上 | 跳过已完成，只补失败 |
 | 写这周的周报，顺便出 Word | 采集提交与禅道任务，生成并渲染 |
@@ -64,7 +65,7 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -Target dsh -Scope global
 
 按提示给接口地址、账号即可。接入完成后就能直接说「造 100 张提货单」。
 
-> 插件只分发规则，不带 Python 依赖，所以仓库必须 clone 到本机并跑过 `setup.ps1`。
+> 个人/全局插件方式只分发规则，不带 Python 依赖，所以仓库必须 clone 到本机并跑过 `setup.ps1`。
 
 ## 团队项目接入（整包内置）
 
@@ -74,14 +75,18 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -Target dsh -Scope global
 python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project-id <项目ID> --targets claude
 ```
 
-业务仓库会新增 `data-tools/`、`.claude/skills/`、`.data-tools/`。同事只需：
+业务仓库会新增 `data-tools/`、`.claude/skills/`、`.data-tools/`。`--targets` 可选 `claude,cursor,codex,dsh`，团队用哪些就生成哪些。`data-tools/` 已包含 runtime 和命令行入口，同事不需要再 clone claudeTool。
+
+同事只需：
 
 1. clone 业务仓库
 2. 跑 `data-tools/bootstrap.ps1`（没有 Python 会提示下载）
 3. 复制 `.data-tools/projects/<项目ID>/.env.example` 为 `.env`
 4. 直接说「造 100 张提货单」
 
-更新：`data-tools/update.ps1`；发现新版本时技能会先询问是否更新。个人全局使用仍可用插件市场，互不影响。
+复杂业务的 impl 模块（如登录客户端、链路封装）也放 `.data-tools/projects/<项目ID>/scripts/`，随业务仓库提交；B2D/B2C 已内置，不再依赖旧 `hexin-data-gen`/`hexin-db-tools`。
+
+更新：`data-tools/update.ps1`，会刷新 `data-tools/`、生成的技能入口和 `.gitignore`；发现新版本时技能会先询问是否更新。个人全局使用仍可用插件市场，互不影响。
 
 ## 五个技能
 
@@ -104,7 +109,7 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 
 解析顺序：`DATA_TOOLS_HOME` > 从当前目录向上找到的 `.data-tools/` > `%USERPROFILE%\.data-tools`。所以在业务仓库里默认落在仓库自己的 `.data-tools/`，个人全局使用回退到用户目录。
 
-每个项目一份独立目录：`<DATA_HOME>\projects\<项目ID>\`，里面是 `adapter.yaml`、`.env`、`pitfalls.md`。
+每个项目一份独立目录：`<DATA_HOME>\projects\<项目ID>\`，里面是 `adapter.yaml`、`.env`、`pitfalls.md`、`scripts/` 等。
 
 DSH 的沙箱只允许写工作区和临时目录。个人/全局模式下 `<DATA_HOME>` 是 `~/.data-tools`，造数、接入要写台账和适配层时，把 `DATA_TOOLS_HOME` 指到工作区内（例如 `<仓库>/.data-tools`），或让该会话使用完全访问权限。团队模式的数据目录本来就在业务仓库内，不受影响。只读查库不受影响。
 

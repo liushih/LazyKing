@@ -53,10 +53,10 @@ description: >-
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/query.py" --project <项目ID> --env dev --db hexin_masterdata --sql "create table tmp_order (id bigserial primary key)" --commit
 ```
 
-多条语句或直接跑脚本文件，用 hexin-db-tools。不加 `--commit` 时仍只读；prod 不能加 `--commit`：
+多条语句或直接跑脚本文件，用 `query.py --file`。不加 `--commit` 时仍只读；prod 不能加 `--commit`：
 
 ```bash
-"<TOOLS_DIR>/hexin-db-tools/.venv/Scripts/python.exe" "<TOOLS_DIR>/hexin-db-tools/pg_query.py" --env dev --db hexin_masterdata --file path/to/script.sql --commit
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/query.py" --project <项目ID> --env dev --db hexin_masterdata --file path/to/script.sql --commit
 ```
 
 **Redis**

@@ -21,7 +21,9 @@ def main(argv: list[str] | None = None, connect_fn=None) -> int:
     parser.add_argument("--project", required=True)
     parser.add_argument("--env", default="dev")
     parser.add_argument("--db", help="覆盖适配层 database，连同一环境下的其他库")
-    parser.add_argument("--sql", required=True)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--sql")
+    source.add_argument("--file", type=Path, help="从文件读取 SQL")
     parser.add_argument("--param", action="append", default=[], metavar="KEY=VALUE")
     parser.add_argument(
         "--commit",
@@ -32,6 +34,8 @@ def main(argv: list[str] | None = None, connect_fn=None) -> int:
 
     if args.commit and args.env == "prod":
         parser.error("prod 只允许只读查询，拒绝 --commit")
+
+    sql = args.file.read_text(encoding="utf-8") if args.file else args.sql
 
     adapter = load_adapter(args.project)
     env = adapter.envs.get(args.env)
@@ -56,7 +60,7 @@ def main(argv: list[str] | None = None, connect_fn=None) -> int:
         read_only=not args.commit,
     )
     try:
-        rows, count = db.execute(conn, args.sql, params or None)
+        rows, count = db.execute(conn, sql, params or None)
         if args.commit:
             conn.commit()
     finally:

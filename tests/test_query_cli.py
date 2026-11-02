@@ -175,3 +175,23 @@ def test_commit_opens_writable_connection(project, capsys, monkeypatch):
     )
     assert rc == 0
     assert seen["read_only"] is False
+
+
+def test_reads_sql_from_file(project, capsys, monkeypatch, tmp_path):
+    conn = _Conn([("OK",)])
+    seen = {}
+
+    def fake_execute(c, sql, params=None):
+        seen["sql"] = sql
+        return [("OK",)], 1
+
+    monkeypatch.setattr("scripts.query.db.execute", fake_execute)
+    sql_file = tmp_path / "batch.sql"
+    sql_file.write_text("select 1; select 2;", encoding="utf-8")
+    rc = main(
+        ["--project", "demo", "--file", str(sql_file)],
+        connect_fn=lambda env, prefix, db, read_only=False: conn,
+    )
+    assert rc == 0
+    assert seen["sql"] == "select 1; select 2;"
+    assert "OK" in capsys.readouterr().out

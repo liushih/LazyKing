@@ -1,5 +1,5 @@
-﻿param(
-    [string]$Target = "claude,cursor,codex",
+param(
+    [string]$Target = "claude,cursor,codex,dsh",
     [ValidateSet("global", "project")][string]$Scope = "global",
     [string]$ProjectDir = "",
     [switch]$Remove

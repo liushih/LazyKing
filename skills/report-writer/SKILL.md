@@ -47,8 +47,7 @@ description: >-
 5. **采集**：
 
 ```bash
-"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/collect.py" \
-  --project <项目ID> --type <daily|weekly|monthly|review> [--start <日期> --end <日期>]
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/collect.py" --project <项目ID> --type <daily|weekly|monthly|review> [--start <日期> --end <日期>]
 ```
 
 6. **摆事实**：先报告采集结果（几个提交、几个任务、几个 Bug、哪些源失败），
@@ -63,8 +62,7 @@ description: >-
 10. **渲染**（用户要 Word/PPT 时）：
 
 ```bash
-"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/render.py" \
-  --input <md 路径> --format docx,pptx --out-dir <同目录> --title <标题>
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/render.py" --input <md 路径> --format docx,pptx --out-dir <同目录> --title <标题>
 ```
 
 11. **数据缺失**：报告开头显式说明缺了哪个源，例如「禅道数据缺失，本次仅基于代码提交」

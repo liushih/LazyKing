@@ -1,6 +1,6 @@
 # claudeTool
 
-用白话让 AI 帮你连库、造数、写报告、管代码托管。支持 Claude Code、Cursor、Codex。
+用白话让 AI 帮你连库、造数、写报告、管代码托管。支持 Claude Code、Cursor、Codex、DeepSeek Harness。
 
 业务规则存在本机适配层，凭据只存本机，都不进仓库。
 
@@ -46,6 +46,14 @@ Cursor / Codex：
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -Target cursor,codex -Scope project -ProjectDir C:\你的业务仓库
 ```
 
+DSH（DeepSeek Harness）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Target dsh -Scope global
+```
+
+技能写到 `%USERPROFILE%\.dsh\skills\`，新开会话即生效（不用重启），输入 `/db-access` 可直接调用，也能按描述自动触发。换成 `-Scope project -ProjectDir C:\你的业务仓库` 则只在该仓库生效。
+
 **3. 接入第一个业务**
 
 新开会话，直接说：
@@ -78,6 +86,8 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -Target cursor,codex -Sco
 | `DATA_TOOLS_HOME` | `%USERPROFILE%\.data-tools` | 适配层、台账、坑库、凭据 |
 
 每个项目一份独立目录：`~/.data-tools/projects/<项目ID>/`，里面是 `adapter.yaml`、`.env`、`pitfalls.md`。
+
+DSH 的沙箱只允许写工作区和临时目录。造数、接入要写 `~/.data-tools` 下的台账和适配层时，把 `DATA_TOOLS_HOME` 指到工作区内（例如 `<仓库>/.data-tools`），或让该会话使用完全访问权限。只读查库不受影响。
 
 ## 文档
 

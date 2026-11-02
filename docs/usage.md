@@ -342,6 +342,15 @@ Claude Code 的插件内容在启动时加载。装完或更新后重启一次�
 仍然没有时检查 `%USERPROFILE%\.claude\plugins\installed_plugins.json` 里有没有
 `data-tools@data-tools`，以及 `cache\data-tools\data-tools\<版本>\` 目录是否存在。
 
+DSH 没有插件市场，走 `install.ps1 -Target dsh` 直接写 `%USERPROFILE%\.dsh\skills\`，
+装完新开会话就生效。列表里没有时确认文件落在 `<技能名>\SKILL.md`，不要多套一层目录。
+
+**DSH 里造数写台账报「访问被拒绝」**
+
+DSH 的 `workspace-write` 沙箱只允许写工作区和临时目录，`~/.data-tools` 在外。
+把 `DATA_TOOLS_HOME` 指到工作区内（如 `<仓库>/.data-tools`），或让会话用完全访问权限。
+只读查询不受影响。
+
 **改了技能规则但不生效**
 
 同上，重启后才会读到新内容。

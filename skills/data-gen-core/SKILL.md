@@ -40,8 +40,7 @@ description: >-
 ## 执行
 
 ```bash
-"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/run.py" \
-  --project <项目ID> --entity <业务对象> --count <数量> --workers 5 [--run-id <批次号>] [--env dev]
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/run.py" --project <项目ID> --entity <业务对象> --count <数量> --workers 5 [--run-id <批次号>] [--env dev]
 ```
 
 - 台账：`<数据目录>/projects/<项目ID>/ledger.csv`

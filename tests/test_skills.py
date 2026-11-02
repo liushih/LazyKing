@@ -14,6 +14,14 @@ def test_skill_has_frontmatter_and_sections(name):
         assert section in text
 
 
+@pytest.mark.parametrize("name", ["data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow"])
+def test_skill_commands_are_single_line(name):
+    """命令块里不留 bash 反斜杠续行，PowerShell（DSH on Windows）会把它断成多条命令。"""
+    text = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
+    offenders = [line for line in text.splitlines() if line.rstrip().endswith("\\")]
+    assert offenders == [], f"{name} 仍有续行：{offenders}"
+
+
 def test_report_skill_asks_audience_and_scope():
     text = (SKILLS / "report-writer" / "SKILL.md").read_text(encoding="utf-8")
     assert "给谁" in text

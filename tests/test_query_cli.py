@@ -60,7 +60,7 @@ def test_runs_sql_and_prints_rows(project, capsys, monkeypatch):
     monkeypatch.setattr("scripts.query.db.execute", fake_execute)
     rc = main(
         ["--project", "demo", "--sql", "select status from t where no = %(no)s", "--param", "no=X"],
-        connect_fn=lambda env, prefix, db: conn,
+        connect_fn=lambda env, prefix, db, read_only=False: conn,
     )
     out = capsys.readouterr().out
     assert rc == 0
@@ -76,7 +76,7 @@ def test_commit_flag_commits_after_write(project, capsys, monkeypatch):
     )
     rc = main(
         ["--project", "demo", "--sql", "create table t (id int)", "--commit"],
-        connect_fn=lambda env, prefix, db: conn,
+        connect_fn=lambda env, prefix, db, read_only=False: conn,
     )
     assert rc == 0
     assert conn.committed is True
@@ -90,11 +90,44 @@ def test_without_commit_flag_leaves_transaction_uncommitted(project, capsys, mon
     )
     rc = main(
         ["--project", "demo", "--sql", "create table t (id int)"],
-        connect_fn=lambda env, prefix, db: conn,
+        connect_fn=lambda env, prefix, db, read_only=False: conn,
     )
     assert rc == 0
     assert conn.committed is False
     assert conn.closed is True
+
+
+def test_db_override_is_passed_to_connect(project, capsys, monkeypatch):
+    conn = _Conn([("1",)])
+    seen = {}
+
+    def connect_fn(env, prefix, db, read_only=False):
+        seen["db"] = db
+        seen["prefix"] = prefix
+        return conn
+
+    monkeypatch.setattr("scripts.query.db.execute", lambda c, sql, params=None: ([("1",)], 1))
+    rc = main(
+        ["--project", "demo", "--sql", "select 1", "--db", "hexin_masterdata"],
+        connect_fn=connect_fn,
+    )
+    assert rc == 0
+    assert seen["db"] == "hexin_masterdata"
+    assert seen["prefix"] == "DEV"
+
+
+def test_commit_on_prod_is_refused(project, capsys):
+    (project / "adapter.yaml").write_text(
+        (project / "adapter.yaml").read_text(encoding="utf-8").replace(
+            "  dev:\n    base_url: ${BASE}\n    db_prefix: DEV\n    database: hexin_wms\n",
+            "  dev:\n    base_url: ${BASE}\n    db_prefix: DEV\n    database: hexin_wms\n"
+            "  prod:\n    base_url: ${BASE}\n    db_prefix: DEV\n    database: hexin_wms\n",
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(SystemExit) as caught:
+        main(["--project", "demo", "--env", "prod", "--sql", "delete from t", "--commit"])
+    assert caught.value.code == 2
 
 
 def test_commit_flag_does_not_commit_failed_statement(project, capsys, monkeypatch):
@@ -107,7 +140,38 @@ def test_commit_flag_does_not_commit_failed_statement(project, capsys, monkeypat
     with pytest.raises(RuntimeError):
         main(
             ["--project", "demo", "--sql", "create tble t (id int)", "--commit"],
-            connect_fn=lambda env, prefix, db: conn,
+            connect_fn=lambda env, prefix, db, read_only=False: conn,
         )
     assert conn.committed is False
     assert conn.closed is True
+
+
+def test_without_commit_opens_read_only_connection(project, capsys, monkeypatch):
+    conn = _Conn([("1",)])
+    seen = {}
+
+    def connect_fn(env, prefix, db, read_only=False):
+        seen["read_only"] = read_only
+        return conn
+
+    monkeypatch.setattr("scripts.query.db.execute", lambda c, sql, params=None: ([("1",)], 1))
+    rc = main(["--project", "demo", "--sql", "select 1"], connect_fn=connect_fn)
+    assert rc == 0
+    assert seen["read_only"] is True
+
+
+def test_commit_opens_writable_connection(project, capsys, monkeypatch):
+    conn = _Conn([])
+    seen = {}
+
+    def connect_fn(env, prefix, db, read_only=False):
+        seen["read_only"] = read_only
+        return conn
+
+    monkeypatch.setattr("scripts.query.db.execute", lambda c, sql, params=None: ([], 0))
+    rc = main(
+        ["--project", "demo", "--sql", "delete from t", "--commit"],
+        connect_fn=connect_fn,
+    )
+    assert rc == 0
+    assert seen["read_only"] is False

@@ -55,3 +55,19 @@ def test_execute_returns_rows_and_rowcount():
     conn = _FakeConn(rows=[("A",)], rowcount=3)
     rows, count = execute(conn, "update t set s=%s", ("A",))
     assert rows == [("A",)] and count == 3
+
+
+def test_connect_read_only_sets_session_option(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(psycopg, "connect", lambda **kw: seen.update(kw) or object())
+    env = {"DEV_HOST": "h", "DEV_PORT": "5432", "DEV_USER": "u", "DEV_PASSWORD": "p"}
+    connect(env, "DEV", "db1", read_only=True)
+    assert seen["options"] == "-c default_transaction_read_only=on"
+
+
+def test_connect_writable_omits_read_only_option(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(psycopg, "connect", lambda **kw: seen.update(kw) or object())
+    env = {"DEV_HOST": "h", "DEV_PORT": "5432", "DEV_USER": "u", "DEV_PASSWORD": "p"}
+    connect(env, "DEV", "db1", read_only=False)
+    assert "options" not in seen

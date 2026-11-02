@@ -9,7 +9,7 @@ class DbError(Exception):
     pass
 
 
-def connect(env: dict[str, str], prefix: str, database: str):
+def connect(env: dict[str, str], prefix: str, database: str, *, read_only: bool = False):
     keys = {
         "host": f"{prefix}_HOST",
         "port": f"{prefix}_PORT",
@@ -20,14 +20,17 @@ def connect(env: dict[str, str], prefix: str, database: str):
     if missing:
         raise DbError(f"{', '.join(missing)} 未配置")
 
-    return psycopg.connect(
-        host=env[keys["host"]],
-        port=int(env[keys["port"]]),
-        user=env[keys["user"]],
-        password=env[keys["password"]],
-        dbname=database,
-        connect_timeout=10,
-    )
+    kwargs = {
+        "host": env[keys["host"]],
+        "port": int(env[keys["port"]]),
+        "user": env[keys["user"]],
+        "password": env[keys["password"]],
+        "dbname": database,
+        "connect_timeout": 10,
+    }
+    if read_only:
+        kwargs["options"] = "-c default_transaction_read_only=on"
+    return psycopg.connect(**kwargs)
 
 
 def execute(conn, sql: str, params=None) -> tuple[list[tuple], int]:

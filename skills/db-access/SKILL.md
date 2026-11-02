@@ -37,10 +37,16 @@ description: >-
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/query.py" --project <项目ID> --env dev --sql "select status from wms_order where external_order_no = %(no)s" --param no=<单号>
 ```
 
-建表或改数据加 `--commit`，不加就只有查询有意义：
+同一环境的其他库用 `--db` 指定，例如 `--db hexin_masterdata`。dev、test 允许全部 SQL（查询、插入、更新、删除、建表改表），但必须加 `--commit`：不加时连接是只读的，写语句会被服务器直接拒绝，不是静默丢弃。prod 拒绝 `--commit`。
 
 ```bash
-"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/query.py" --project <项目ID> --env dev --sql "create table tmp_order (id bigserial primary key)" --commit
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/query.py" --project <项目ID> --env dev --db hexin_masterdata --sql "create table tmp_order (id bigserial primary key)" --commit
+```
+
+多条语句或直接跑脚本文件，用 hexin-db-tools。不加 `--commit` 时仍只读；prod 不能加 `--commit`：
+
+```bash
+"<TOOLS_DIR>/hexin-db-tools/.venv/Scripts/python.exe" "<TOOLS_DIR>/hexin-db-tools/pg_query.py" --env dev --db hexin_masterdata --file path/to/script.sql --commit
 ```
 
 **Redis**

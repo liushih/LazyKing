@@ -66,6 +66,23 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -Target dsh -Scope global
 
 > 插件只分发规则，不带 Python 依赖，所以仓库必须 clone 到本机并跑过 `setup.ps1`。
 
+## 团队项目接入（整包内置）
+
+维护者在 claudeTool 仓库执行：
+
+```bash
+python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project-id <项目ID> --targets claude
+```
+
+业务仓库会新增 `data-tools/`、`.claude/skills/`、`.data-tools/`。同事只需：
+
+1. clone 业务仓库
+2. 跑 `data-tools/bootstrap.ps1`（没有 Python 会提示下载）
+3. 复制 `.data-tools/projects/<项目ID>/.env.example` 为 `.env`
+4. 直接说「造 100 张提货单」
+
+更新：`data-tools/update.ps1`。个人全局使用仍可用插件市场，互不影响。
+
 ## 五个技能
 
 | 技能 | 触发词 |
@@ -83,9 +100,11 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -Target dsh -Scope global
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `DATA_TOOLS_DIR` | `~/.data-tools/config.yaml` 的 `tools_dir` | 工具目录 |
-| `DATA_TOOLS_HOME` | `%USERPROFILE%\.data-tools` | 适配层、台账、坑库、凭据 |
+| `DATA_TOOLS_HOME` | 项目内 `.data-tools/`，没有则 `%USERPROFILE%\.data-tools` | 适配层、台账、坑库、凭据；设置后优先使用 |
 
-每个项目一份独立目录：`~/.data-tools/projects/<项目ID>/`，里面是 `adapter.yaml`、`.env`、`pitfalls.md`。
+解析顺序：`DATA_TOOLS_HOME` > 从当前目录向上找到的 `.data-tools/` > `%USERPROFILE%\.data-tools`。所以在业务仓库里默认落在仓库自己的 `.data-tools/`，个人全局使用回退到用户目录。
+
+每个项目一份独立目录：`<DATA_HOME>\projects\<项目ID>\`，里面是 `adapter.yaml`、`.env`、`pitfalls.md`。
 
 DSH 的沙箱只允许写工作区和临时目录。造数、接入要写 `~/.data-tools` 下的台账和适配层时，把 `DATA_TOOLS_HOME` 指到工作区内（例如 `<仓库>/.data-tools`），或让该会话使用完全访问权限。只读查库不受影响。
 

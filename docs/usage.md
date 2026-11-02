@@ -22,6 +22,7 @@
 - [九、常见问题](#九常见问题)
 - [十、写报告](#十写报告)
 - [十一、代码托管](#十一代码托管)
+- [十二、团队项目接入](#十二团队项目接入)
 
 ---
 
@@ -98,13 +99,17 @@ test、prod 环境同理换成 `TEST_` / `PROD_`。
 产出都在本机：
 
 ```
-%USERPROFILE%\.data-tools\projects\<项目ID>\
+<DATA_HOME>\projects\<项目ID>\
 ├── adapter.yaml      业务规则
 ├── .env              接口地址与账号（不进 git）
+├── .env.example      键名模板（提交，不含值）
 ├── pitfalls.md       踩坑记录
 ├── scripts\          需要代码才能做的步骤
 └── ledger.csv        运行台账（第一次跑数后生成）
 ```
+
+`<DATA_HOME>` 在业务仓库里是仓库根目录的 `.data-tools\`；个人全局使用时是
+`%USERPROFILE%\.data-tools\`。解析顺序见[第八节](#八配置与路径)。
 
 接入完成后，之后每次造数都直接复用这份规则。
 
@@ -320,7 +325,12 @@ DEV_MONGO_URI
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `DATA_TOOLS_DIR` | `~/.data-tools/config.yaml` 的 `tools_dir` | 技能定位执行入口 |
-| `DATA_TOOLS_HOME` | `%USERPROFILE%\.data-tools` | 适配层、台账、坑库、凭据 |
+| `DATA_TOOLS_HOME` | 项目内 `.data-tools/`，没有则 `%USERPROFILE%\.data-tools` | 适配层、台账、坑库、凭据 |
+
+`<DATA_HOME>` 按顺序解析：`DATA_TOOLS_HOME` > 从当前目录向上找到的最近一个
+`.data-tools/` > `%USERPROFILE%\.data-tools`。在业务仓库里默认用仓库自己的
+`.data-tools/`，所以团队共享的规则和坑库跟仓库一起走；设置了 `DATA_TOOLS_HOME`
+则以它为准。
 
 **旧工具（`hexin-db-tools/`、`hexin-data-gen/`、`hexin-e2e/`）**
 
@@ -569,3 +579,106 @@ GITLAB_TOKEN_DEMO=
 5. 同步分支合到 dev 前，用 `verify-flow` 核对，确认只带入热修复的改动
 
 遇到 MR 冲突或 cherry-pick 冲突，工具会停止并列出冲突文件，不会自动解决。
+
+## 十二、团队项目接入
+
+把整套工具放进业务仓库，同事 clone 后不用再装插件。个人全局安装方式仍然有效，两种方式互不影响。
+
+### 目录布局
+
+维护者在 claudeTool 仓库运行同步脚本：
+
+```bash
+python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project-id <项目ID> --targets claude
+```
+
+`--targets` 可选 `claude,cursor,codex,dsh`，逗号分隔，默认 `claude`。
+不加 `--project-id` 时只同步工具包，不创建项目数据目录。
+
+业务仓库会新增：
+
+```text
+<业务仓库>/
+├── data-tools/                        # 从 claudeTool 同步，提交
+│   ├── skills/                        # 规则源
+│   ├── runtime/
+│   ├── scripts/
+│   ├── requirements.txt
+│   ├── bootstrap.ps1                  # 首次接入与环境检查
+│   ├── update.ps1                     # 版本检查与一键更新
+│   ├── VERSION                        # 版本、源 commit、同步时间
+│   └── .venv/                         # 本机生成，不提交
+├── .claude/skills/                    # 按 --targets 生成，提交
+└── .data-tools/                       # 项目数据根
+    ├── config.yaml                    # 提交：default_project
+    └── projects/<项目ID>/
+        ├── adapter.yaml               # 提交：团队共享业务规则
+        ├── pitfalls.md                # 提交：团队共享坑库
+        ├── report.yaml                # 提交（可选）
+        ├── git_hosts.yaml             # 提交（可选，只含 token 键名）
+        ├── scripts/                   # 提交：impl 步骤代码
+        ├── .env.example               # 提交：键名模板
+        └── .env                       # 不提交：各人凭据
+```
+
+同步工具会把 `data-tools/.venv/`、`.data-tools/projects/*/.env`、
+`.data-tools/projects/*/ledger.csv`、`.data-tools/reports/` 和
+`.data-tools/.update-check.json` 写进业务仓库的 `.gitignore`。
+
+### 同事第一次接入
+
+1. clone 业务仓库
+2. 在仓库根目录运行：
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\data-tools\bootstrap.ps1
+   ```
+
+   脚本检查 Python 3.11+，创建 `data-tools/.venv`、升级 pip、安装
+   `requirements.txt`。幂等：`.venv` 已存在时只补装依赖。需要同时创建项目目录时
+   加 `-ProjectId <项目ID>`。
+
+3. 复制 `.data-tools\projects\<项目ID>\.env.example` 为 `.env`，按里面的键名填账号
+4. 打开 AI 工具，新开会话，直接说「造 100 张提货单」
+
+技能每次启动会先做环境检查：解释器优先用 `data-tools/.venv`，没有 venv 但有
+Python 3.11+ 时提示运行 `bootstrap.ps1`；同时用 `update.ps1 -CheckOnly -Quiet`
+顺带看一眼版本，有新版本只提示，不自动更新。
+
+### 更新
+
+在业务仓库根目录运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\data-tools\update.ps1
+```
+
+只更新 `data-tools/` 源码，不动 `.data-tools/` 里的项目数据，也不自动提交。
+更新完按提示把 `data-tools/` 的变更提交进业务仓库。
+
+`-CheckOnly` 只检查不更新，有新版本时退出码为 10；`-Quiet` 配合它使用，
+没有新版本时不输出。更新源默认是 `https://github.com/liushih/claudeTool.git`，
+可以在 `.data-tools/config.yaml` 的 `data_tools.source` 改。
+
+### 常见问题
+
+**提示「未找到 Python 3.11 或更高版本」**
+
+bootstrap 和 update 都会先找 Python。到 <https://www.python.org/downloads/> 安装
+Python 3.11+，安装时勾选 **Add python.exe to PATH**，然后重跑脚本。脚本不会代装，
+也不修改系统 PATH。
+
+**`data-tools` 有未提交改动，更新被拒绝**
+
+`update.ps1` 会先检查 `git status -- data-tools`，有未提交改动时拒绝更新，
+避免覆盖本地修改。先把 `data-tools/` 的改动提交或暂存，再重新运行。
+
+**更新时提示「克隆更新源失败」**
+
+更新需要访问配置的 `source` 仓库。检查网络、代理和 Git 凭据后重试；
+检查更新失败不会写入缓存，下次会重新检查。用本地路径或内网镜像时，改
+`.data-tools/config.yaml` 的 `data_tools.source`。
+
+**`data-tools/.venv` 存在但 Python 不可用**
+
+bootstrap 会提示删除或重命名 `data-tools/.venv` 后重跑，重新创建虚拟环境。

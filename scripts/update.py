@@ -18,6 +18,7 @@ import yaml
 
 DEFAULT_SOURCE = "https://github.com/liushih/claudeTool.git"
 DEFAULT_INTERVAL_HOURS = 24
+DEFAULT_FAILURE_COOLDOWN_MINUTES = 15
 GIT_TIMEOUT_SECONDS = 5
 GIT_STATUS_TIMEOUT_SECONDS = 10
 GIT_CLONE_TIMEOUT_SECONDS = 120
@@ -108,6 +109,7 @@ def load_settings(project_dir: Path) -> dict:
         "source": DEFAULT_SOURCE,
         "update_check": True,
         "check_interval_hours": DEFAULT_INTERVAL_HOURS,
+        "failure_cooldown_minutes": DEFAULT_FAILURE_COOLDOWN_MINUTES,
     }
     path = Path(project_dir) / ".data-tools" / "config.yaml"
     if path.is_file():
@@ -124,6 +126,9 @@ def load_settings(project_dir: Path) -> dict:
     settings["update_check"] = _coerce_bool(settings["update_check"], True)
     settings["check_interval_hours"] = _coerce_interval_hours(
         settings["check_interval_hours"], DEFAULT_INTERVAL_HOURS
+    )
+    settings["failure_cooldown_minutes"] = _coerce_interval_hours(
+        settings["failure_cooldown_minutes"], DEFAULT_FAILURE_COOLDOWN_MINUTES
     )
     if not isinstance(settings["source"], str) or not settings["source"].strip():
         settings["source"] = DEFAULT_SOURCE
@@ -147,6 +152,7 @@ def write_cache(
     latest_version: str | None,
     latest_commit: str | None,
     now: datetime,
+    failed: bool = False,
 ) -> None:
     """把检查结果写入缓存文件，last_checked 取 now 的 ISO 文本。"""
     path = Path(project_dir) / ".data-tools" / CACHE_NAME
@@ -155,12 +161,18 @@ def write_cache(
         "last_checked": now.isoformat(),
         "latest_version": latest_version,
         "latest_commit": latest_commit,
+        "failed": bool(failed),
     }
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def cache_is_fresh(cache: dict, now: datetime, hours: int) -> bool:
-    """last_checked 距 now 不超过 hours 即新鲜；无法解析返回 False。"""
+def cache_is_fresh(
+    cache: dict,
+    now: datetime,
+    hours: int,
+    failure_minutes: int = DEFAULT_FAILURE_COOLDOWN_MINUTES,
+) -> bool:
+    """成功结果按 hours 缓存；失败结果按 failure_minutes 冷却。"""
     raw = cache.get("last_checked")
     if not isinstance(raw, str):
         return False
@@ -170,8 +182,13 @@ def cache_is_fresh(cache: dict, now: datetime, hours: int) -> bool:
         return False
     if checked.tzinfo is None:
         checked = checked.replace(tzinfo=now.tzinfo)
+    interval = (
+        timedelta(minutes=failure_minutes)
+        if cache.get("failed")
+        else timedelta(hours=hours)
+    )
     try:
-        return (now - checked) <= timedelta(hours=hours)
+        return (now - checked) <= interval
     except TypeError:
         return False
 
@@ -270,11 +287,15 @@ def _validate_source(source: str) -> str:
 
 
 def _write_cache_safely(
-    project_dir: Path, latest_version: str | None, latest_commit: str | None, now: datetime
+    project_dir: Path,
+    latest_version: str | None,
+    latest_commit: str | None,
+    now: datetime,
+    failed: bool = False,
 ) -> None:
     """缓存写失败（如只读目录）不应让检查抛异常。"""
     try:
-        write_cache(project_dir, latest_version, latest_commit, now)
+        write_cache(project_dir, latest_version, latest_commit, now, failed=failed)
     except OSError:
         pass
 
@@ -309,9 +330,12 @@ def check_update(
     source = source or settings["source"]
     now = now or datetime.now(timezone.utc)
     interval = settings["check_interval_hours"]
+    failure_minutes = settings["failure_cooldown_minutes"]
 
     cache = read_cache(project_dir)
-    if cache_is_fresh(cache, now, interval):
+    if cache_is_fresh(cache, now, interval, failure_minutes):
+        if cache.get("failed"):
+            return CheckResult(False, local, None, "")
         cached_version = cache.get("latest_version")
         cached_version = cached_version if isinstance(cached_version, str) else None
         cached_commit = cache.get("latest_commit")
@@ -343,8 +367,9 @@ def check_update(
             return CheckResult(True, local, None, _commit_update_message(local, head))
         return CheckResult(False, local, None, f"已是最新版本 v{local}。")
     except (UpdateError, subprocess.TimeoutExpired, OSError):
-        # 不写缓存：失败不应在检查间隔内压掉后续重试。
+        # 失败后进入短冷却，避免离线时每次技能启动都等网络。
         # 固定文案，避免把带 user:token 的远端地址带进 stdout/日志。
+        _write_cache_safely(project_dir, None, None, now, failed=True)
         return CheckResult(False, local, None, "检查更新失败，请稍后重试。")
 
 
@@ -478,6 +503,10 @@ def apply_update(project_dir: Path, source: str | None = None) -> int:
         if synced.returncode != 0:
             raise UpdateError("同步 data-tools 失败，请检查脚本输出。")
 
+    try:
+        (project_dir / ".data-tools" / CACHE_NAME).unlink()
+    except OSError:
+        pass
     print(
         f"已更新到 v{remote_version}；请在业务仓库提交 data-tools/、生成的技能入口和 .gitignore 的变更"
     )

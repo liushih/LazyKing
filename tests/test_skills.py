@@ -96,6 +96,7 @@ def test_skill_has_environment_preflight(name):
     assert "Python 3.11+" in text
     assert "bootstrap.ps1" in text
     assert "update.ps1 -CheckOnly -Quiet" in text
+    assert "是否现在更新" in text
     assert "data-tools/" in text
     assert (SKILLS / "_references" / "project-layout.md").exists()
 

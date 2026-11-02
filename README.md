@@ -81,7 +81,7 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 3. 复制 `.data-tools/projects/<项目ID>/.env.example` 为 `.env`
 4. 直接说「造 100 张提货单」
 
-更新：`data-tools/update.ps1`。个人全局使用仍可用插件市场，互不影响。
+更新：`data-tools/update.ps1`；发现新版本时技能会先询问是否更新。个人全局使用仍可用插件市场，互不影响。
 
 ## 五个技能
 

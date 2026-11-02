@@ -228,7 +228,16 @@ def test_check_update_unknown_local_commit_does_not_report_update(project, monke
     assert result.available is False
 
 
-def test_check_update_retries_after_network_failure(project, monkeypatch):
+def test_cache_is_fresh_uses_failure_cooldown(tmp_path):
+    now = datetime(2026, 11, 2, 12, 0, tzinfo=timezone.utc)
+    write_cache(tmp_path, None, None, now, failed=True)
+    cache = read_cache(tmp_path)
+    assert cache["failed"] is True
+    assert cache_is_fresh(cache, now + timedelta(minutes=5), 24) is True
+    assert cache_is_fresh(cache, now + timedelta(minutes=20), 24) is False
+
+
+def test_check_update_retries_after_failure_cooldown(project, monkeypatch):
     _write_version(project)
     calls = []
 
@@ -237,12 +246,43 @@ def test_check_update_retries_after_network_failure(project, monkeypatch):
         raise update.UpdateError("offline")
 
     monkeypatch.setattr(update, "remote_versions", failing)
-    first = update.check_update(project, source="https://example.com/repo.git")
-    second = update.check_update(project, source="https://example.com/repo.git")
+    now = datetime(2026, 11, 2, 12, 0, tzinfo=timezone.utc)
+    first = update.check_update(project, source="https://example.com/repo.git", now=now)
+    second = update.check_update(
+        project, source="https://example.com/repo.git", now=now + timedelta(minutes=5)
+    )
     assert first.available is False
     assert second.available is False
+    assert len(calls) == 1
+    assert read_cache(project)["failed"] is True
+
+    third = update.check_update(
+        project, source="https://example.com/repo.git", now=now + timedelta(minutes=20)
+    )
+    assert third.available is False
     assert len(calls) == 2
-    assert read_cache(project) == {}
+
+
+def test_check_update_failure_cooldown_is_configurable(project, monkeypatch):
+    _write_version(project)
+    _write_config(project, "data_tools:\n  failure_cooldown_minutes: 2\n")
+    calls = []
+
+    def failing(source):
+        calls.append(source)
+        raise update.UpdateError("offline")
+
+    monkeypatch.setattr(update, "remote_versions", failing)
+    now = datetime(2026, 11, 2, 12, 0, tzinfo=timezone.utc)
+    update.check_update(project, source="https://example.com/repo.git", now=now)
+    update.check_update(
+        project, source="https://example.com/repo.git", now=now + timedelta(minutes=1)
+    )
+    assert len(calls) == 1
+    update.check_update(
+        project, source="https://example.com/repo.git", now=now + timedelta(minutes=3)
+    )
+    assert len(calls) == 2
 
 
 def test_check_update_failure_message_does_not_leak_credentials(project, monkeypatch):

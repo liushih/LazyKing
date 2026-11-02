@@ -649,7 +649,8 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 
 技能每次启动会先做环境检查：解释器优先用 `data-tools/.venv`，没有 venv 但有
 Python 3.11+ 时提示运行 `bootstrap.ps1`；同时用 `update.ps1 -CheckOnly -Quiet`
-顺带看一眼版本，有新版本只提示，不自动更新。
+顺带看一眼版本。有新版本时会先问是否现在更新，确认后才运行 `update.ps1`；
+拒绝则继续本次会话，不再追问。
 
 ### 更新
 
@@ -671,7 +672,11 @@ powershell -ExecutionPolicy Bypass -File .\data-tools\update.ps1
 
 `-CheckOnly` 只检查不更新，有新版本时退出码为 10；`-Quiet` 配合它使用，
 没有新版本时不输出。更新源默认是 `https://github.com/liushih/claudeTool.git`，
-可以在 `.data-tools/config.yaml` 的 `data_tools.source` 改。
+可以在 `.data-tools/config.yaml` 的 `data_tools.source` 改。同一段还可以设置：
+
+- `update_check: false`：彻底关闭更新检查
+- `check_interval_hours`：成功检查的缓存时长，默认 24 小时
+- `failure_cooldown_minutes`：失败后的冷却时长，默认 15 分钟
 
 ### 常见问题
 
@@ -691,7 +696,9 @@ Python 3.11+，安装时勾选 **Add python.exe to PATH**，然后重跑脚本�
 **更新时提示「克隆更新源失败」**
 
 更新需要访问配置的 `source` 仓库。检查网络、代理和 Git 凭据后重试；
-检查更新失败不会写入缓存，下次会重新检查。用本地路径或内网镜像时，改
+检查失败后会按 `failure_cooldown_minutes`（默认 15 分钟）冷却，之后自动重试，
+不会每次技能启动都卡在网络上。想彻底关闭检查，在 `.data-tools/config.yaml` 的
+`data_tools` 段设置 `update_check: false`。用本地路径或内网镜像时，改
 `.data-tools/config.yaml` 的 `data_tools.source`。
 
 **`data-tools/.venv` 存在但 Python 不可用**

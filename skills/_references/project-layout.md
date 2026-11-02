@@ -105,8 +105,13 @@ powershell -ExecutionPolicy Bypass -File <TOOLS_DIR>/bootstrap.ps1
 - `-CheckOnly`：只检查，不更新；有新版本时退出码 10。
 - `-Quiet`：无新版本时不输出；有新版本仍打印提示。
 
-有新版本就把提示原样告诉用户，由用户自行运行 `update.ps1` 更新，技能不自动更新。
-脚本不存在、无新版本或检查失败时继续当前任务，不阻塞。
+有新版本时，技能询问用户「发现新版本，是否现在更新？」。用户确认后运行 `update.ps1`，
+完成后提醒提交 `data-tools/`、生成的技能入口和 `.gitignore`；用户拒绝则继续，
+本次会话不再追问。脚本不存在、无新版本、检查失败或 `update_check` 关闭时继续。
+
+更新检查成功按 `check_interval_hours`（默认 24 小时）缓存；失败按
+`failure_cooldown_minutes`（默认 15 分钟）冷却，避免离线时每次技能启动都等网络。
+在 `.data-tools/config.yaml` 的 `data_tools` 段可以设置 `update_check: false` 彻底关闭检查。
 
 ## adapter-bootstrap 的额外约定
 

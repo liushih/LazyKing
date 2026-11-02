@@ -15,7 +15,7 @@ description: >-
 ## 第 0 步：环境检查
 
 1. 定位 <TOOLS_DIR>：从当前目录向上查找 data-tools/；找不到读 DATA_TOOLS_DIR；仍找不到就问用户业务仓库根目录，不猜。
-2. 定位 <DATA_HOME>：从当前目录向上查找 .data-tools/；找不到读 DATA_TOOLS_HOME；仍找不到用 ~/.data-tools。
+2. 定位 <DATA_HOME>：先读 DATA_TOOLS_HOME；没有再从当前目录向上查找 .data-tools/；仍找不到用 ~/.data-tools。
 3. 解释器优先 <TOOLS_DIR>/.venv/Scripts/python.exe（Windows）或 <TOOLS_DIR>/.venv/bin/python（POSIX）。
 4. 没有 venv 时检查 py -3.11 --version / py -3 --version / python --version / python3 --version，要求 Python 3.11+。
 5. 都没有或版本过低：提示用户到 https://www.python.org/downloads/ 下载安装 Python 3.11+，勾选 Add to PATH；停止，不代装。
@@ -24,14 +24,14 @@ description: >-
 
 ## 前置检查
 
-1. 确认项目 ID 与数据目录（默认 `%USERPROFILE%\.data-tools`）
+1. 确认项目 ID 与数据目录（默认使用第 0 步解析的 <DATA_HOME>）
 2. 收集：接口地址、认证方式、目标状态
 3. 逐项确认：字段映射、枚举取值、异步时序
 4. 读 `<TOOLS_DIR>/skills/_references/adapter-contract.md` 与 `pitfalls.md`
 
 ## 路径
 
-命令里的 `<TOOLS_DIR>` 是业务仓库根目录下的 `data-tools/`：从当前目录向上查找；找不到再读 `DATA_TOOLS_DIR`；仍找不到就问用户业务仓库根目录，不要猜。`<DATA_HOME>` 是业务仓库根目录下的 `.data-tools/`：同样向上查找，找不到再读 `DATA_TOOLS_HOME`，最后回退 `~/.data-tools`。
+命令里的 `<TOOLS_DIR>` 是业务仓库根目录下的 `data-tools/`：从当前目录向上查找；找不到再读 `DATA_TOOLS_DIR`；仍找不到就问用户业务仓库根目录，不要猜。`<DATA_HOME>` 是业务仓库根目录下的 `.data-tools/`：先读 `DATA_TOOLS_HOME`，没有再从当前目录向上查找，最后回退 `~/.data-tools`。
 
 解释器优先 `<TOOLS_DIR>/.venv/Scripts/python.exe`（Windows）或 `.venv/bin/python`（POSIX）；没有 venv 时用 `py -3.11` / `py -3` / `python` / `python3`，要求 3.11+；有 Python 但没 venv 时运行 `<TOOLS_DIR>/bootstrap.ps1`。
 

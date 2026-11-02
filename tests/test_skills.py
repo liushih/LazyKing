@@ -98,3 +98,7 @@ def test_skill_has_environment_preflight(name):
     assert "update.ps1 -CheckOnly -Quiet" in text
     assert "data-tools/" in text
     assert (SKILLS / "_references" / "project-layout.md").exists()
+
+    # 与 runtime/config.py 的 data_home() 一致：环境变量优先于向上查找。
+    step2 = next(line for line in text.splitlines() if line.startswith("2. 定位 <DATA_HOME>"))
+    assert step2.index("DATA_TOOLS_HOME") < step2.index(".data-tools/")

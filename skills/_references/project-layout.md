@@ -46,13 +46,15 @@
 
 `<DATA_HOME>` 是业务仓库根目录下的 `.data-tools/`，按顺序确定：
 
-1. 从当前目录向上逐级查找 `.data-tools/`。
-2. 找不到时读环境变量 `DATA_TOOLS_HOME`。
+1. 先读环境变量 `DATA_TOOLS_HOME`。
+2. 没有时从当前目录向上逐级查找 `.data-tools/`。
 3. 仍找不到回退 `~/.data-tools`。
 
 运行时统一由 `runtime/config.py` 的 `data_home()` 解析，优先级为
 **`DATA_TOOLS_HOME` > 最近祖先 `.data-tools/` > `~/.data-tools`**。技能里的
-「向上查找」与它保持一致；不要自行拼绝对路径。
+解析顺序与它保持一致；不要自行拼绝对路径。
+
+`<数据目录>` 即 `<DATA_HOME>`。
 
 ## Python 检查
 
@@ -87,7 +89,7 @@ powershell -ExecutionPolicy Bypass -File <TOOLS_DIR>/bootstrap.ps1
 
 | 退出码 | 含义 |
 |---|---|
-| 0 | Python 3.11+ 且 `.venv` 已存在 |
+| 0 | `.venv` 路径已存在（不保证其中的解释器可正常使用） |
 | 1 | 未检测到 Python 3.11+ |
 | 2 | Python 可用，但 `.venv` 不存在 |
 

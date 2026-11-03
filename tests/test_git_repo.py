@@ -85,7 +85,7 @@ def test_fork_base_picks_closest_ancestor(tmp_path):
     assert Repo(repo).fork_base("feature/test/lsh/1-x") == "test"
 
 
-def test_merge_conflict_aborts_and_lists_files(tmp_path):
+def test_merge_conflict_keeps_scene_and_lists_files(tmp_path):
     repo = _init(tmp_path)
     _git(repo, "checkout", "-q", "-b", "feature/dev/lsh/1-x")
     (repo / "a.txt").write_text("from-feature", encoding="utf-8")
@@ -96,7 +96,110 @@ def test_merge_conflict_aborts_and_lists_files(tmp_path):
     with pytest.raises(RepoError) as exc:
         Repo(repo).merge("feature/dev/lsh/1-x", "dev", None, forbidden_targets=["test", "prod"])
     assert "a.txt" in str(exc.value)
-    assert _git(repo, "status", "--porcelain") == ""
+    assert "git merge --abort" in str(exc.value)
+    assert "UU a.txt" in _git(repo, "status", "--porcelain")
+
+
+def _with_remote(tmp_path):
+    """origin 为裸库，含 dev/test；返回 (工作库, 另一份克隆用于模拟同事推送)。"""
+    repo = _init(tmp_path)
+    bare = tmp_path / "origin.git"
+    _git(repo, "init", "-q", "--bare", str(bare))
+    _git(repo, "remote", "add", "origin", str(bare))
+    _git(repo, "branch", "test")
+    _git(repo, "push", "-q", "origin", "dev", "test")
+    mate = tmp_path / "mate"
+    subprocess.run(["git", "clone", "-q", str(bare), str(mate)], check=True, capture_output=True)
+    _git(mate, "config", "user.email", "m@x.com")
+    _git(mate, "config", "user.name", "m")
+    _git(mate, "checkout", "-q", "-B", "dev", "origin/dev")
+    return repo, mate
+
+
+def test_merge_to_dev_fast_forwards_stale_local_dev_first(tmp_path):
+    repo, mate = _with_remote(tmp_path)
+    _git(repo, "checkout", "-q", "-b", "feature/dev/lsh/1-x", "dev")
+    _commit(repo, "c.txt", "feat-1: c\n\nc")
+    _commit(mate, "m.txt", "feat-2: m\n\nm")
+    _git(mate, "push", "-q", "origin", "dev")
+    Repo(repo).merge("feature/dev/lsh/1-x", "dev", None, forbidden_targets=["test", "prod"])
+    assert (repo / "m.txt").exists() and (repo / "c.txt").exists()
+    assert _git(repo, "rev-list", "--count", "origin/dev..dev") != "0"
+
+
+def test_merge_to_dev_refuses_diverged_local_dev(tmp_path):
+    repo, mate = _with_remote(tmp_path)
+    _git(repo, "checkout", "-q", "-b", "feature/dev/lsh/1-x", "dev")
+    _commit(repo, "c.txt", "feat-1: c\n\nc")
+    _git(repo, "checkout", "-q", "dev")
+    _commit(repo, "local.txt", "feat-3: l\n\nl")
+    _commit(mate, "m.txt", "feat-2: m\n\nm")
+    _git(mate, "push", "-q", "origin", "dev")
+    before = _git(repo, "rev-parse", "dev")
+    with pytest.raises(RepoError) as exc:
+        Repo(repo).merge("feature/dev/lsh/1-x", "dev", None, forbidden_targets=["test", "prod"])
+    assert "已分叉" in str(exc.value)
+    assert _git(repo, "rev-parse", "dev") == before
+
+
+def test_merge_refuses_dirty_tracked_files(tmp_path):
+    repo = _init(tmp_path)
+    (repo / "a.txt").write_text("dirty", encoding="utf-8")
+    with pytest.raises(RepoError) as exc:
+        Repo(repo).merge("feature/dev/lsh/1-x", "dev", None, forbidden_targets=["test", "prod"])
+    assert "未提交" in str(exc.value)
+
+
+def test_merge_ignores_untracked_files(tmp_path):
+    repo = _init(tmp_path)
+    _git(repo, "checkout", "-q", "-b", "feature/dev/lsh/1-x")
+    _commit(repo, "c.txt", "feat-1: c\n\nc")
+    _git(repo, "checkout", "-q", "dev")
+    (repo / "scratch.txt").write_text("x", encoding="utf-8")
+    Repo(repo).merge("feature/dev/lsh/1-x", "dev", None, forbidden_targets=["test", "prod"])
+    assert (repo / "c.txt").exists()
+
+
+def test_sync_brings_latest_test_into_feature_branch(tmp_path):
+    repo, mate = _with_remote(tmp_path)
+    _git(repo, "checkout", "-q", "-b", "feature/test/lsh/1-x", "origin/test")
+    _commit(repo, "c.txt", "feat-1: c\n\nc")
+    _git(mate, "checkout", "-q", "test")
+    _commit(mate, "m.txt", "feat-2: m\n\nm")
+    _git(mate, "push", "-q", "origin", "test")
+    assert Repo(repo).sync() == 1
+    assert (repo / "m.txt").exists()
+    assert Repo(repo).sync() == 0
+
+
+def test_sync_refuses_foreign_source(tmp_path):
+    repo, _ = _with_remote(tmp_path)
+    _git(repo, "checkout", "-q", "-b", "feature/test/lsh/1-x", "origin/test")
+    with pytest.raises(RuleViolation) as exc:
+        Repo(repo).sync("dev")
+    assert exc.value.rule == "sync-source"
+
+
+def test_sync_refuses_non_feature_branch(tmp_path):
+    repo, _ = _with_remote(tmp_path)
+    with pytest.raises(RuleViolation) as exc:
+        Repo(repo).sync()
+    assert exc.value.rule == "branch-naming"
+
+
+def test_sync_conflict_keeps_scene(tmp_path):
+    repo, mate = _with_remote(tmp_path)
+    _git(repo, "checkout", "-q", "-b", "feature/test/lsh/1-x", "origin/test")
+    (repo / "a.txt").write_text("mine", encoding="utf-8")
+    _git(repo, "commit", "-qam", "feat-1: f\n\nf")
+    _git(mate, "checkout", "-q", "test")
+    (mate / "a.txt").write_text("theirs", encoding="utf-8")
+    _git(mate, "commit", "-qam", "feat-2: t\n\nt")
+    _git(mate, "push", "-q", "origin", "test")
+    with pytest.raises(RepoError) as exc:
+        Repo(repo).sync()
+    assert "a.txt" in str(exc.value)
+    assert "UU a.txt" in _git(repo, "status", "--porcelain")
 
 
 def test_merge_to_test_is_refused_before_touching_git(tmp_path):
@@ -123,6 +226,13 @@ def test_push_to_non_matching_remote_is_refused(tmp_path):
     with pytest.raises(RuleViolation) as exc:
         Repo(repo).push("test")
     assert exc.value.rule == "push-target"
+
+
+def test_push_dev_is_allowed(tmp_path):
+    repo, _ = _with_remote(tmp_path)
+    _commit(repo, "d.txt", "feat-1: d\n\nd")
+    Repo(repo).push("dev")
+    assert _git(repo, "rev-parse", "origin/dev") == _git(repo, "rev-parse", "dev")
 
 
 def test_hotfix_commits_lists_all_fix_commits_in_order(tmp_path):

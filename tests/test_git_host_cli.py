@@ -10,6 +10,7 @@ class _FakeRepo:
         self.calls = []
         self.bring_in = []
         self.report = None
+        self.synced = 0
 
     def commit(self, message, forbidden):
         self.calls.append(("commit", message))
@@ -28,6 +29,10 @@ class _FakeRepo:
 
     def create_branch(self, name, target):
         self.calls.append(("create_branch", name, target))
+
+    def sync(self, source=None):
+        self.calls.append(("sync", source))
+        return self.synced
 
     def verify_flow(self, prod_branch, test_branch, target):
         self.calls.append(("verify_flow", prod_branch, test_branch, target))
@@ -107,6 +112,27 @@ def test_merge_with_bring_in_needs_confirmation(repo, capsys):
     assert _run(args, repo) == 1
     assert "net-increment" in capsys.readouterr().out
     assert _run(args + ["--confirm-bring-in"], repo) == 0
+
+
+def test_sync_reports_brought_in_count(repo, capsys):
+    repo.synced = 3
+    assert _run(["sync"], repo) == 0
+    assert ("sync", None) in repo.calls
+    assert "3" in capsys.readouterr().out
+
+
+def test_sync_up_to_date_message(repo, capsys):
+    assert _run(["sync", "--from", "test"], repo) == 0
+    assert ("sync", "test") in repo.calls
+    assert "最新" in capsys.readouterr().out
+
+
+def test_sync_rule_violation_is_reported(repo, capsys):
+    def boom(source=None):
+        raise RuleViolation("sync-source", "不能同步 dev")
+    repo.sync = boom
+    assert _run(["sync", "--from", "dev"], repo) == 1
+    assert "[sync-source]" in capsys.readouterr().out
 
 
 def test_mr_create_prints_url(repo, capsys):

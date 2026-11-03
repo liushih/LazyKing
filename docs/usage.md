@@ -553,8 +553,10 @@ GITLAB_TOKEN_DEMO=
 
 正文说明本次修改。"
 .venv/Scripts/python.exe scripts/git_host.py --project demo push --branch feature/dev/lsh/1234-描述
+.venv/Scripts/python.exe scripts/git_host.py --project demo sync
 .venv/Scripts/python.exe scripts/git_host.py --project demo mr create --from feature/test/lsh/1234-描述 --to test --title "标题"
 .venv/Scripts/python.exe scripts/git_host.py --project demo merge --from feature/dev/lsh/1234-描述 --to dev
+.venv/Scripts/python.exe scripts/git_host.py --project demo push --branch dev
 .venv/Scripts/python.exe scripts/git_host.py --project demo verify-flow --prod-branch prod --test-branch feature/test/lsh/1234-描述 --target dev
 .venv/Scripts/python.exe scripts/git_host.py --project demo hotfix sync --fix-branch feature/prod/lsh/1234-热修 --task 1234
 ```
@@ -571,7 +573,8 @@ GITLAB_TOKEN_DEMO=
 | `direct-merge` | 合到 test、prod 只能建 MR，不能本地合并 |
 | `prod-derived` | prod 衍生分支不能直接合到 test 或 dev，要先经过 test 衍生的同步分支 |
 | `net-increment` | 合到 dev 时若带入了非本分支的内容，先列清单，确认后加 `--confirm-bring-in` |
-| `push-target` | 本地分支名为 test、dev、prod 时不能推送，推送只到同名远端分支 |
+| `push-target` | 本地分支名为 test、prod 时不能推送（只能走 MR）；dev 允许直接推送；其余分支只推到同名远端分支 |
+| `sync-source` | `sync` 只能同步分支名中「目标」对应的 origin 分支，如 `feature/test/...` 只能同步 test，不能同步 dev |
 
 分支名只允许一个任务号，因此「一分支一任务」由分支名格式保证。
 
@@ -583,6 +586,18 @@ GITLAB_TOKEN_DEMO=
 
 `branch create` 从 `origin/<目标>` 切出，不跟踪上游，切完会核对起点与目标一致。
 
+### 标准提交流程
+
+1. 提交（`commit`），工作区已跟踪文件必须干净
+2. 若同时要进 dev：先 `merge --to dev`，再 `push --branch dev`（顺序见下）
+3. 若要进 test：`sync` 把最新 `origin/test` 合进当前分支，有冲突先解决，再 `push`，最后 `mr create --to test`
+
+`merge --to dev` 先 fetch，并以 `origin/dev` 为准预检；本地 dev 落后会先快进，已分叉则停止，不强行覆盖。
+先合 dev、后 `sync` test，是为了避免 test 的内容经功能分支流进 dev。
+
+冲突时 `sync` 与 `merge` 会保留现场并列出冲突文件，不会自动解决，也不会 abort。解决冲突须保留双方改动，禁止整文件取一边。
+解决后执行 `git add <文件>` 与 `git commit --no-edit`；放弃则执行 `git merge --abort`。
+
 ### 热修复流程
 
 1. 从 `origin/prod` 切热修复分支，修复，提交
@@ -591,7 +606,7 @@ GITLAB_TOKEN_DEMO=
 4. 同步分支开 MR 到 test
 5. 同步分支合到 dev 前，用 `verify-flow` 核对，确认只带入热修复的改动
 
-遇到 MR 冲突或 cherry-pick 冲突，工具会停止并列出冲突文件，不会自动解决。
+遇到 MR 冲突或 cherry-pick 冲突，工具会停止并列出冲突文件，不会自动解决（cherry-pick 冲突会中止；`sync`、`merge` 冲突则保留现场）。
 
 ## 十二、团队项目接入
 

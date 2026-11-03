@@ -11,7 +11,8 @@ description: >-
 
 - 提交、推送改动（提交信息须符合团队格式）
 - 从 dev、test、prod 切新分支
-- 合并到 dev（本地合并，合并前核对将带入的内容）
+- 发 MR 前把目标分支最新内容同步进当前分支（`sync`），冲突在本地解决
+- 合并到 dev（以 origin/dev 为准本地合并，合并前核对将带入的内容，dev 可直接推送）
 - 建 MR/PR 到 test、prod、dev（支持 GitHub、Gitee、GitLab）
 - 热修复同步：把 prod 的热修复同步到 test 衍生分支，再合到 test 和 dev
 
@@ -52,6 +53,7 @@ description: >-
 ```bash
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/git_host.py" --project <项目ID> commit -m "feat-<任务号>: <描述>\n\n<正文>"
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/git_host.py" --project <项目ID> push --branch <分支>
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/git_host.py" --project <项目ID> sync [--from <test|dev|prod>]
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/git_host.py" --project <项目ID> mr create --from <源分支> --to <目标> --title "<标题>"
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/git_host.py" --project <项目ID> branch create --name <分支名> --target <dev|test|prod>
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/git_host.py" --project <项目ID> merge --from <源分支> --to dev [--confirm-bring-in]
@@ -61,7 +63,7 @@ description: >-
 
 ### 写操作前必须回显并等待确认
 
-推送、建 MR、合并、热修同步都会影响他人可见的内容。执行前先回显：
+推送、建 MR、合并、`sync`、热修同步都会改动仓库或影响他人可见的内容。执行前先回显：
 
 - 平台、项目、源分支、目标分支
 - MR 标题（如有）
@@ -83,7 +85,26 @@ description: >-
 | `branch-naming` | 分支名须为 `feature/<目标>/<用户标识>/<任务号>-<描述>` |
 | `commit-message` | 提交首行须为 `feat-<任务号>: <描述>` 或 `fix-<任务号>: <描述>`，且必须有正文 |
 | `forbidden-path` | 本地环境配置（如 `pom.xml`、`vite.config.ts`）不得提交 |
-| `push-target` | 本地分支名为 test、dev、prod 时不得推送；推送只到同名远端分支 |
+| `push-target` | 本地分支名为 test、prod 时不得推送（只能走 MR）；dev 允许直接推送；其余分支只推到同名远端分支 |
+| `sync-source` | `sync` 只能同步分支名「目标」对应的 origin 分支（`feature/test/...` 只同步 test），不能把 dev 并进送测分支 |
+
+### 标准提交流程
+
+1. `commit`（工作区已跟踪文件须干净；未跟踪文件不影响）
+2. **若同时要进 dev，先于第 3 步**：`merge --to dev`，再 `push --branch dev`。`merge` 会先 fetch，以 `origin/dev` 为准预检；本地 dev 落后会先快进，已分叉则停止，不强行覆盖。先合 dev 是为了避免 test 的内容经功能分支流进 dev
+3. **若要进 test**：`sync` 把最新 `origin/test` 合进当前分支；无冲突才继续，有冲突按下文「冲突处理」解决后再继续
+4. `push` 推到同名远端分支，再 `mr create --to test`，此时 MR 不会有冲突
+
+### 冲突处理
+
+`sync`、`merge` 遇冲突会**保留现场**并列出冲突文件，工具自己不会解决，也不会 abort。解决冲突时：
+
+1. **禁止整文件取一边**：不用 `checkout --ours/--theirs`、`-X ours/theirs`
+2. **两边意图都保留**：逐个冲突块判断，合并双方改动，不得删掉任一方的逻辑，不得为了消除冲突而阉割功能
+3. **先给用户看再提交**：用 `git diff`（合并提交用 `git show --cc`）列出动过的冲突块，说明每处怎么合，用户确认后才 `git add <文件>` 与 `git commit --no-edit`
+4. **解决后验证**：有测试就跑，没有至少做编译或语法检查，通过后才推送
+5. **拿不准就停**：两边逻辑互斥、无法同时保留时，不替用户选，列出两种写法让用户决定
+6. 用户要放弃：`git merge --abort`
 
 ### 从哪里切分支
 
@@ -117,5 +138,6 @@ description: >-
 | 令牌无效（401/403） | 报「令牌无效或权限不足」，不重试 |
 | 平台返回 409 或 422（MR 已存在） | 报告已有编号和链接，**不重复创建** |
 | 网络不通 | 报错并提示检查代理，不静默重试写请求 |
-| 合并或 cherry-pick 冲突 | 停止，列出冲突文件，不尝试自动解决；由用户处理后重新开始 |
+| `sync` / `merge` 冲突 | 现场保留，列出冲突文件；按「冲突处理」保留双方改动解决，不得取一边 |
+| cherry-pick 冲突 | 工具已中止并列出冲突文件，不尝试自动解决；由用户处理后重新开始 |
 | 规则拒绝 | 原样告诉用户规则名与原因，不绕过 |

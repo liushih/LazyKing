@@ -6,10 +6,10 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .rules import RuleViolation, check_commit_message, check_commit_paths, check_merge
+from .rules import RuleViolation, check_commit_message, check_commit_paths, check_merge, check_sync
 
 PROTECTED_BRANCHES = ("test", "dev", "prod")
-PUSH_FORBIDDEN_LOCAL = ("test", "dev", "prod")
+PUSH_FORBIDDEN_LOCAL = ("test", "prod")  # dev 允许直接推送，其余只能走 MR
 
 
 class RepoError(Exception):
@@ -95,6 +95,37 @@ class Repo:
         own = set(self._rev_list(f"{base}...{source}"))
         return [h for h in ordered if h not in own]
 
+    def require_clean(self) -> None:
+        """已跟踪文件有未提交改动、或存在未完成的合并时拒绝继续；未跟踪文件不算。"""
+        if self._git("status", "--porcelain", "--untracked-files=no"):
+            raise RepoError("工作区有未提交的改动或未完成的合并，请先提交/暂存或处理完再继续")
+
+    def fetch(self) -> None:
+        if "origin" in self._git("remote", check=False).split():
+            self._git("fetch", "-q", "origin")
+
+    def _has_ref(self, ref: str) -> bool:
+        return bool(self._git("rev-parse", "--verify", "-q", ref, check=False))
+
+    def _merge_keep_scene(self, *merge_args: str) -> None:
+        """合并；冲突时保留现场（不 abort），报告冲突文件与后续操作。"""
+        result = subprocess.run(
+            ["git", "-C", str(self.path), "merge", "-q", *merge_args],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+        )
+        if result.returncode == 0:
+            return
+        conflicts = self._git("diff", "--name-only", "--diff-filter=U", check=False)
+        files = ", ".join(line for line in conflicts.splitlines() if line.strip())
+        if not files:
+            self._git("merge", "--abort", check=False)
+            detail = (result.stderr or result.stdout).strip().splitlines()
+            raise RepoError(detail[-1] if detail else "合并失败")
+        raise RepoError(
+            f"合并冲突，现场已保留在 {self.current_branch()} 上。冲突文件：{files}。"
+            "解决后执行 git add <文件> 与 git commit --no-edit；放弃则执行 git merge --abort"
+        )
+
     def merge(
         self,
         source: str,
@@ -103,8 +134,14 @@ class Repo:
         forbidden_targets: list[str],
         confirm_bring_in: bool = False,
     ) -> None:
+        if target in forbidden_targets:
+            check_merge(source, target, source_base, [])
+        self.require_clean()
+        self.fetch()
+        target_ref = f"origin/{target}" if self._has_ref(f"origin/{target}") else target
         base = source_base or self.fork_base(source) or target
-        bring_in = self.bring_in_commits(source, target, base) if target == "dev" else []
+        base_ref = self._ref(base) or base
+        bring_in = self.bring_in_commits(source, target_ref, base_ref) if target == "dev" else []
         pending = check_merge(source, target, source_base, bring_in)
         if pending and not confirm_bring_in:
             raise RuleViolation(
@@ -112,21 +149,38 @@ class Repo:
                 f"将带入 {target} 的非本分支内容 {len(pending)} 个提交，确认后请加 --confirm-bring-in",
             )
         self._git("checkout", "-q", target)
-        result = subprocess.run(
-            ["git", "-C", str(self.path), "merge", "--no-ff", "-q", source],
-            capture_output=True, text=True, encoding="utf-8", errors="replace",
-        )
-        if result.returncode != 0:
-            conflicts = self._git("diff", "--name-only", "--diff-filter=U", check=False)
-            self._git("merge", "--abort", check=False)
-            files = ", ".join(line for line in conflicts.splitlines() if line.strip()) or "未知文件"
-            raise RepoError(f"合并冲突，已中止。冲突文件：{files}")
+        if target_ref != target:
+            ff = subprocess.run(
+                ["git", "-C", str(self.path), "merge", "--ff-only", "-q", target_ref],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+            )
+            if ff.returncode != 0:
+                raise RepoError(
+                    f"本地 {target} 与 {target_ref} 已分叉（本地有未推送的提交），"
+                    "请先处理本地 dev 再合并，工具不会强行覆盖"
+                )
+        self._merge_keep_scene("--no-ff", source)
+
+    def sync(self, source: str | None = None) -> int:
+        """把当前功能分支的目标分支（origin/<目标>）最新内容合进来，返回带入的提交数。"""
+        branch = self.current_branch()
+        target = check_sync(branch, source)
+        self.require_clean()
+        self.fetch()
+        ref = f"origin/{target}"
+        if not self._has_ref(ref):
+            raise RepoError(f"找不到 {ref}，无法同步")
+        behind = int(self._git("rev-list", "--count", f"HEAD..{ref}"))
+        if behind:
+            self._merge_keep_scene("--no-edit", ref)
+        return behind
 
     def push(self, branch: str) -> None:
         if branch in PUSH_FORBIDDEN_LOCAL:
             raise RuleViolation(
                 "push-target",
-                f"本地分支名为 {branch} 时不允许推送，请使用 feature/<目标>/<用户标识>/<任务号>-<描述>",
+                f"本地分支名为 {branch} 时不允许推送：test、prod 只能经 MR 进入，"
+                "请使用 feature/<目标>/<用户标识>/<任务号>-<描述>",
             )
         self._git("push", "-u", "origin", f"{branch}:{branch}")
 

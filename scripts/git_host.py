@@ -42,6 +42,9 @@ def _build_parser() -> argparse.ArgumentParser:
     m.add_argument("--to", dest="target", required=True)
     m.add_argument("--confirm-bring-in", action="store_true")
 
+    sy = sub.add_parser("sync")
+    sy.add_argument("--from", dest="source", required=False)
+
     mr = sub.add_parser("mr")
     mr_sub = mr.add_subparsers(dest="mr_cmd", required=True)
     create = mr_sub.add_parser("create")
@@ -100,6 +103,11 @@ def main(argv: list[str] | None = None, host_fn=None, repo_fn=None) -> int:
                 check_merge(args.source, args.target, None, [])
             repo.merge(args.source, args.target, None, list(DIRECT_MERGE_FORBIDDEN), args.confirm_bring_in)
             print(f"已合并 {args.source} → {args.target}")
+            return EXIT_OK
+
+        if args.cmd == "sync":
+            brought = repo.sync(args.source)
+            print(f"已同步，带入 {brought} 个提交" if brought else "已是最新，无需同步")
             return EXIT_OK
 
         if args.cmd == "verify-flow":

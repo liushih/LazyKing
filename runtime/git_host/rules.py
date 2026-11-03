@@ -66,6 +66,23 @@ def check_commit_paths(paths: list[str], forbidden: list[str]) -> None:
         )
 
 
+def check_sync(branch: str, source: str | None) -> str:
+    """返回应同步的来源分支名。功能分支只能同步它自己目标分支的最新内容。"""
+    info = parse_branch(branch)
+    if info is None:
+        raise RuleViolation(
+            "branch-naming",
+            f"当前分支 {branch} 不是 feature/<目标>/<用户标识>/<任务号>-<描述>，无法确定同步来源",
+        )
+    if source is not None and source != info.target:
+        raise RuleViolation(
+            "sync-source",
+            f"{branch} 的目标是 {info.target}，只能同步 origin/{info.target}，"
+            f"不能同步 {source}（会把无关内容带进送测分支）",
+        )
+    return info.target
+
+
 def check_merge(
     source: str,
     target: str,

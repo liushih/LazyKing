@@ -6,6 +6,7 @@ from runtime.git_host.rules import (
     check_commit_message,
     check_commit_paths,
     check_merge,
+    check_sync,
     parse_branch,
 )
 
@@ -80,6 +81,22 @@ def test_merge_feature_test_with_foreign_commits_returns_confirmation_list():
 
 def test_merge_feature_test_with_no_foreign_commits_passes():
     assert check_merge("feature/test/lsh/1-x", "dev", "test", []) == []
+
+
+def test_sync_source_defaults_to_branch_target():
+    assert check_sync("feature/test/lsh/1-x", None) == "test"
+
+
+def test_sync_source_must_match_branch_target():
+    with pytest.raises(RuleViolation) as exc:
+        check_sync("feature/test/lsh/1-x", "dev")
+    assert exc.value.rule == "sync-source"
+
+
+def test_sync_requires_feature_branch_name():
+    with pytest.raises(RuleViolation) as exc:
+        check_sync("dev", None)
+    assert exc.value.rule == "branch-naming"
 
 
 def test_merge_dev_feature_into_dev_passes():

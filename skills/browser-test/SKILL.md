@@ -32,7 +32,7 @@ description: >-
 ## 前置检查
 
 1. 读 `<DATA_HOME>/projects/<项目ID>/browser/browser.yaml`。
-2. 没有就按 `_TEMPLATE/browser.example.yaml` 建档，确认前端根地址和登录方式；凭据只写 `${VAR}`。
+2. 没有就按 `<TOOLS_DIR>/skills/_TEMPLATE/browser.example.yaml` 建档，确认前端根地址和登录方式；凭据只写 `${VAR}`。
 3. 读同目录 `browser/pitfalls.md`，先看已有坑。
 4. 确认目标环境；用户未说明时问一次。
 
@@ -56,7 +56,7 @@ description: >-
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/browser.py" probe --project <项目ID> --url <页面地址>
 ```
 
-按 `_references/browser-flow-contract.md` 把入口、步骤、等待信号、断言写成 `browser/flows/<流程名>.yaml`，再 `run` 到通过。
+按 `<TOOLS_DIR>/skills/_references/browser-flow-contract.md` 把入口、步骤、等待信号、断言写成 `browser/flows/<流程名>.yaml`，再 `run` 到通过。
 
 环境不完整时先跑：
 
@@ -76,7 +76,7 @@ description: >-
 
 自愈顺序：读诊断 → 判断是选择器、等待信号、接口还是前置条件 → 改 YAML（复杂交互抽到项目 `scripts/` 的 `impl`）→ 重跑。只以退出码 0 报通过；未通过时明确说失败步骤。
 
-诊断包细节见 `_references/browser-diagnosis.md`。
+诊断包细节见 `<TOOLS_DIR>/skills/_references/browser-diagnosis.md`。
 
 ## 铁律
 

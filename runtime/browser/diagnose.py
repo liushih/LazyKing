@@ -1,0 +1,166 @@
+"""浏览器失败诊断包。"""
+
+from __future__ import annotations
+
+import json
+import shutil
+from pathlib import Path
+from typing import Any
+
+from .config import FlowDef
+from .flow import FlowResult
+from .report import KEEP, artifacts_dir, prune, timestamp
+
+_SENSITIVE_HEADERS = {"authorization", "cookie", "set-cookie", "x-token"}
+
+
+def redact_headers(headers: dict[str, str]) -> dict[str, str]:
+    return {
+        key: value
+        for key, value in headers.items()
+        if key.lower() not in _SENSITIVE_HEADERS
+    }
+
+
+class PageCollector:
+    def __init__(self) -> None:
+        self.requests: list[dict] = []
+        self.console: list[str] = []
+
+    def attach(self, page: Any) -> None:
+        def on_response(response: Any) -> None:
+            try:
+                request = response.request
+                self.requests.append(
+                    {
+                        "method": request.method,
+                        "url": response.url,
+                        "status": response.status,
+                        "request_headers": redact_headers(dict(request.headers)),
+                    }
+                )
+                if len(self.requests) > 200:
+                    del self.requests[:-200]
+            except Exception:
+                pass
+
+        def on_console(message: Any) -> None:
+            try:
+                self.console.append(f"{message.type}: {message.text}")
+            except Exception:
+                pass
+
+        page.on("response", on_response)
+        page.on("console", on_console)
+
+
+def _screenshot(page: Any, path: Path) -> None:
+    page.screenshot(path=str(path), full_page=True)
+
+
+def _write(path: Path, content: str) -> None:
+    try:
+        path.write_text(content, encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _diagnosis(page: Any, result: FlowResult) -> str:
+    failure = result.failure
+    try:
+        url = page.url
+    except Exception:
+        url = "unknown"
+    try:
+        title = page.title()
+    except Exception:
+        title = "unknown"
+
+    lines = [
+        "# 浏览器流程失败诊断",
+        "",
+        f"- 流程：{result.flow}",
+        f"- 环境：{result.env}",
+    ]
+    if failure is not None:
+        lines.extend(
+            [
+                f"- 失败步骤：{failure.step_index}. {failure.step_name}",
+                f"- 错误：{failure.message}",
+                f"- 期望：{failure.expected}",
+                f"- 实际：{failure.actual}",
+            ]
+        )
+    lines.extend(
+        [
+            f"- 当前 URL：{url}",
+            f"- 页面标题：{title}",
+        ]
+    )
+    lines.extend(["", "## 步骤"])
+    for step in result.steps:
+        error = f" {step.error}" if step.error else ""
+        lines.append(f"- {step.name}: {step.status} ({step.duration_ms}ms){error}")
+
+    lines.extend(
+        [
+            "",
+            "## 建议",
+            "- 检查选择器是否变化，优先用 data-testid 或行内范围限定。",
+            "- 检查等待信号是否对应实际接口或 URL 变化。",
+            "- 检查页面是否跳转、是否有前置条件未满足。",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def capture(
+    page: Any,
+    project_id: str,
+    flow: FlowDef,
+    result: FlowResult,
+    collector: PageCollector,
+    *,
+    trace_path: Path | None = None,
+) -> Path:
+    directory = artifacts_dir(project_id)
+    directory.mkdir(parents=True, exist_ok=True)
+    stem = f"{flow.name}-{timestamp()}"
+    out = directory / stem
+    index = 2
+    while out.exists():
+        out = directory / f"{stem}-{index}"
+        index += 1
+    out.mkdir(parents=True)
+
+    try:
+        _screenshot(page, out / "failure.png")
+    except Exception:
+        pass
+    try:
+        (out / "page.html").write_text(page.content(), encoding="utf-8")
+    except Exception:
+        pass
+    _write(out / "requests.json", json.dumps(collector.requests, ensure_ascii=False, indent=2))
+    _write(out / "console.log", "\n".join(collector.console))
+    try:
+        (out / "flow.snapshot.yaml").write_text(flow.path.read_text(encoding="utf-8"), encoding="utf-8")
+    except Exception:
+        pass
+
+    run_lines = [
+        f"{step.name}\t{step.status}\t{step.duration_ms}ms" + (f"\t{step.error}" if step.error else "")
+        for step in result.steps
+    ]
+    _write(out / "run.log", "\n".join(run_lines))
+    _write(out / "diagnosis.md", _diagnosis(page, result))
+
+    if trace_path is not None and Path(trace_path).exists():
+        try:
+            shutil.copyfile(trace_path, out / "trace.zip")
+        except Exception:
+            pass
+
+    prune(directory, KEEP)
+    return out

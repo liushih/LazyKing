@@ -6,12 +6,14 @@ import json
 import shutil
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from .config import FlowDef
 from .flow import FlowResult
 from .report import KEEP, artifacts_dir, prune, timestamp
 
 _SENSITIVE_HEADERS = {"authorization", "cookie", "set-cookie", "x-token"}
+_SENSITIVE_QUERY_PARTS = ("token", "authorization", "password", "secret", "passwd", "cookie")
 
 
 def redact_headers(headers: dict[str, str]) -> dict[str, str]:
@@ -20,6 +22,17 @@ def redact_headers(headers: dict[str, str]) -> dict[str, str]:
         for key, value in headers.items()
         if key.lower() not in _SENSITIVE_HEADERS
     }
+
+
+def redact_url(url: str) -> str:
+    parts = urlsplit(url)
+    if not parts.query:
+        return url
+    pairs = [
+        (key, "***" if any(part in key.lower() for part in _SENSITIVE_QUERY_PARTS) else value)
+        for key, value in parse_qsl(parts.query, keep_blank_values=True)
+    ]
+    return urlunsplit(parts._replace(query=urlencode(pairs, safe="*")))
 
 
 class PageCollector:
@@ -34,7 +47,7 @@ class PageCollector:
                 self.requests.append(
                     {
                         "method": request.method,
-                        "url": response.url,
+                        "url": redact_url(response.url),
                         "status": response.status,
                         "request_headers": redact_headers(dict(request.headers)),
                     }

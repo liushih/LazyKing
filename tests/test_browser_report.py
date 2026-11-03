@@ -63,3 +63,13 @@ def test_capture_survives_screenshot_failure(page, fixture_url, tmp_path, monkey
     monkeypatch.setattr("runtime.browser.diagnose._screenshot", broken)
     out = capture(page, "demo", flow, failed_result(flow.path), PageCollector())
     assert (out / "diagnosis.md").exists()
+
+
+def test_redact_url_hides_sensitive_query_values():
+    from runtime.browser.diagnose import redact_url
+
+    url = "http://h/dev-api/resource/sse?Authorization=Bearer%20abc.def&clientid=x&token=zzz&pageNum=1"
+    cleaned = redact_url(url)
+    assert "abc.def" not in cleaned and "zzz" not in cleaned
+    assert "pageNum=1" in cleaned and "clientid=x" in cleaned
+    assert redact_url("http://h/a/b") == "http://h/a/b"

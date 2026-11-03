@@ -722,76 +722,53 @@ bootstrap 会提示删除或重命名 `data-tools/.venv` 后重跑，重新创�
 
 ## 十三、浏览器测试
 
-用可见 Chrome 复跑页面流程。第一次探索后把流程写进业务仓库，下次直接跑，不再重新找入口和选择器。
+用本机 Chrome 打开前端页面，按步骤操作并核对结果。第一次由 AI 看着页面把步骤写成流程文件，之后同样的测试直接复跑，不用再重新找入口和选择器。
 
-### 准备
+### 接入一个项目
 
-1. 确认机器装了 Chrome；浏览器测试只用系统 Chrome，不额外下载。
-2. 在项目 `.data-tools/projects/<项目ID>/browser/browser.yaml` 配置前端根地址、登录方式和成功标志，凭据只写 `${VAR}`。
-3. 把 `browser/` 里的 `browser.yaml`、`flows/*.yaml`、`pitfalls.md` 随业务仓库提交；`.data-tools/browser/` 不提交。
+1. **确认环境**：本机装了 Chrome 和 Python 3.11+，已按「团队项目接入」或「快速开始」装好 data-tools。
+2. **配置前端地址和登录**：在 `.data-tools/projects/<项目ID>/browser/browser.yaml` 里写各环境的前端根地址（不是接口地址）、登录步骤和登录成功的判断，模板见 `skills/_TEMPLATE/browser.example.yaml`。地址、账号、密码都写成 `${变量}`。
+3. **在 `.env` 里填变量**：例如前端地址、登录账号和密码。键名同步写进 `.env.example`，方便同事照着填。
+4. **检查**：运行 `browser.py doctor --project <项目ID>`，确认 Chrome、依赖、配置和变量都齐全。
+5. **生成第一个流程**：对 AI 说「测一下 XX 页面」。没有现成流程时，AI 会先用 `probe` 看一遍页面，再把入口、步骤、断言写成 `browser/flows/<名称>.yaml`，并跑到通过。
+6. **提交**：把 `browser/` 下的 `browser.yaml`、`flows/`、`pitfalls.md` 随业务仓库提交，同事拉下来就能用。运行产生的截图、诊断包、浏览器 profile 在 `.data-tools/browser/`，不提交。
 
-### 常用说法
+### 日常使用
+
+直接说：
 
 | 你说 | 它做 |
 |---|---|
-| 测一下 B2D 待发货 | 复跑 `b2d-send` 流程 |
-| 走一遍修改物流方式 | 按流程点击并断言 |
-| 浏览器验证一下这个单号 | 用 `--var order_no=` 传参数后复跑 |
-| 页面改版了，流程挂了 | 读诊断包，改选择器后重跑 |
+| 测一下 B2D 待发货 | 复跑已有的 `b2d-send` 流程 |
+| 浏览器验证一下这个单号 | 把单号作为参数传给流程再跑 |
+| 走一遍修改物流方式 | 按流程点击并核对 |
+| 页面改了，流程挂了 | 读失败诊断，改流程后重跑 |
 
-### 命令
+也可以自己用命令：
 
 ```bash
-"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/browser.py" doctor --project <项目ID>
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/browser.py" list --project <项目ID>
-"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/browser.py" run --project <项目ID> --flow <名称> --env dev
-"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/browser.py" probe --project <项目ID> --url ${BASE_URL}/index
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/browser.py" run --project <项目ID> --flow <名称> --var order_no=<单号>
 ```
 
-### 运行选项
+| 选项 | 说明 |
+|---|---|
+| `--var 名称=值` | 传流程参数，可重复 |
+| `--env dev` | 指定环境，不写用默认环境 |
+| `--headless` | 不显示窗口，适合无人值守 |
+| `--profile 路径` | 换一个浏览器 profile，用于强制重新登录 |
 
-| 选项 | 适用 | 说明 |
-|---|---|---|
-| `--var 名称=值` | run | 传流程参数，可重复 |
-| `--env dev` | run / probe | 指定环境，不写则取流程或 `browser.yaml` 的默认环境 |
-| `--headless` | run / probe | 不显示窗口，适合无人值守；默认显示窗口 |
-| `--profile 路径` | run / probe | 换一个浏览器 profile，用来绕开被占用的 profile 或强制重新登录 |
-| `--trace` | run | 录制 Playwright trace，失败时一并放进诊断包 |
-| `--json` | list / run | 输出机器可读结果 |
-| `--label 名称` | probe | 给探索快照起名 |
+其余命令：`doctor` 检查环境，`probe --url <页面>` 探索一个新页面。登录状态保存在固定的 profile 里，第二次起不用重新登录。
 
-### 有窗口和无头的区别
+### 流程失败了怎么办
 
-- **有窗口（默认）**：窗口最大化，页面铺满窗口；登录态保存在固定 profile 里，第二次起不用重新登录。
-- **无头（`--headless`）**：视口固定 1280×720。页面布局依赖视口时，两种模式可能表现不同，写流程和排查失败时要用同一种模式对比。
-- 一个 profile 同时只能被一个 Chrome 使用；跑流程前先关掉手动打开过这个 profile 的窗口。
-
-### 失败后
-
-`run` 退出码 1 时，读诊断包里的 `diagnosis.md`、截图、DOM 和请求记录，改 `flows/<名称>.yaml` 后重跑。只以退出码 0 报通过。稳定后把新的坑按四段式写进 `browser/pitfalls.md`。
-
-流程在原来能通过、突然稳定失败时，先别改选择器：用 `curl -I <前端地址>` 看 `Last-Modified`，确认被测前端有没有刚发布，再手工点一次对应功能。
+失败时会在 `.data-tools/browser/artifacts/` 生成诊断包，里面有失败步骤、截图和页面信息；对 AI 说「看下刚才为什么失败」即可。原来能过、突然稳定失败时，先确认被测前端是不是刚发布了新版本。
 
 ### 常见问题
 
-**页面只占窗口左上角一块，其余是灰的**
+- **提示「请关闭占用该 profile 的 Chrome」**：另一个 Chrome 在用同一个 profile。关掉它，或加 `--profile` 换一个目录。
+- **提示「流程引用了未定义的变量」**：流程里的 `${变量}` 没有来源。在 `.env`、`browser.yaml` 的环境里补上，或用 `--var` 传入。
+- **`doctor` 提示 Playwright 未安装**：重跑 `data-tools/bootstrap.ps1` 补装依赖。
+- **`doctor` 提示找不到 Chrome**：本机需要自己安装 Chrome，bootstrap 不会装它。
 
-旧版本把视口固定成了 1280×720（Python 里 `viewport=None` 等于没传，要用 `no_viewport=True`）。更新 `data-tools` 后会铺满窗口。
-
-**窗口顶部提示「您使用的是不受支持的命令行标记：--no-sandbox」**
-
-Playwright 启动 Chrome 时默认带 `--no-sandbox`，Chrome 在有窗口时会弹这条警告，不影响功能。当前版本用 `--test-type` 隐藏它，只作用于工具专用的自动化 profile，不影响你平时的 Chrome。不要为了去掉它开启 `chromium_sandbox`：在部分环境里 Chrome 会启动即崩溃。
-
-**启动失败，提示「请关闭占用该 profile 的 Chrome」**
-
-另一个 Chrome 正在用同一个 profile，或上次运行异常退出留下了锁。关掉那个窗口，或用 `--profile` 换一个目录。
-
-**流程提示「流程引用了未定义的变量」（退出码 2）**
-
-流程里写了 `${变量}`，但既没有在 `vars` 里声明、`--var` 没传，`browser.yaml` 的环境里也没有。补上其中一处即可；这个检查在启动浏览器之前做。含 `impl` 步骤的流程会跳过这个检查，因为变量可能由 `impl` 在运行时产生。
-
-**诊断包里有敏感信息吗**
-
-请求头、URL 参数里的令牌、错误文本、报告和页面 HTML 都会脱敏，规则按键名和 JWT/Bearer 形状匹配。换了键名的不透明密钥可能漏过，诊断包只放在不提交的 `.data-tools/browser/` 下，分享给别人前自己再看一眼。
-
-详细写法见技能内的 `browser-flow-contract.md` 和 `browser-diagnosis.md`。
+流程文件的完整写法见 `skills/_references/browser-flow-contract.md`。

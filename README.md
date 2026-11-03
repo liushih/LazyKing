@@ -89,6 +89,8 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 
 更新：`data-tools/update.ps1`，会刷新 `data-tools/`、生成的技能入口和 `.gitignore`；发现新版本时技能会先询问是否更新。个人全局使用仍可用插件市场，互不影响。
 
+要用浏览器测试，还需要给项目配前端地址和登录方式，步骤见 [使用说明：浏览器测试](docs/usage.md#十三浏览器测试)。本机需要装 Chrome。
+
 ## 六个技能
 
 | 技能 | 触发词 |
@@ -117,7 +119,7 @@ DSH 的沙箱只允许写工作区和临时目录。个人/全局模式下 `<DAT
 
 ## 文档
 
-- [使用说明](docs/usage.md)：适配层写法、造数参数、数据库、报告、代码托管、常见问题
+- [使用说明](docs/usage.md)：适配层写法、造数参数、数据库、浏览器测试、报告、代码托管、常见问题
 - [设计文档](docs/superpowers/specs/) · [实现计划](docs/superpowers/plans/)
 - [贡献指南](CONTRIBUTING.md)
 

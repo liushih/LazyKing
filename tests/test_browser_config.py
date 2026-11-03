@@ -8,6 +8,7 @@ from runtime.browser.config import (
     load_browser_config,
     load_flow,
     profile_path,
+    find_unresolved,
     resolve_variables,
 )
 
@@ -105,3 +106,28 @@ def test_list_flows(browser_project):
     flows = list_flows("demo")
     assert [flow.name for flow in flows] == ["smoke"]
     assert flows[0].vars["order_no"].required is True
+
+
+def test_find_unresolved_lists_undeclared_placeholders(browser_project):
+    path = browser_project / "browser" / "flows" / "smoke.yaml"
+    path.write_text(
+        path.read_text(encoding="utf-8") + "  - name: 断言\n    expect_url: {contains: \"${MISSING_ONE}/${order_no}/${MISSING_TWO}\"}\n",
+        encoding="utf-8",
+    )
+    cfg = load_browser_config("demo")
+    flow = load_flow("demo", "smoke")
+    variables = resolve_variables(cfg, flow, "dev", {"order_no": "A1"}, {})
+    assert find_unresolved(flow, variables) == ["MISSING_ONE", "MISSING_TWO"]
+
+
+def test_find_unresolved_tolerates_impl_provided_names(browser_project):
+    path = browser_project / "browser" / "flows" / "smoke.yaml"
+    path.write_text(
+        path.read_text(encoding="utf-8")
+        + "  - name: 调用\n    impl: scripts/x.py:go\n  - name: 用结果\n    expect_url: {contains: \"${from_impl}\"}\n",
+        encoding="utf-8",
+    )
+    cfg = load_browser_config("demo")
+    flow = load_flow("demo", "smoke")
+    variables = resolve_variables(cfg, flow, "dev", {"order_no": "A1"}, {})
+    assert find_unresolved(flow, variables) == []

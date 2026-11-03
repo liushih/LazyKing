@@ -92,3 +92,58 @@ def test_run_failure_captures_diagnostics_and_returns_1(monkeypatch, capsys):
     monkeypatch.setattr(cli, "close", lambda *args, **kwargs: None)
     assert cli.main(["run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1"]) == 1
     assert "artifacts" in captured
+
+
+def test_undeclared_placeholder_is_config_error_before_launch(browser_project, monkeypatch):
+    path = browser_project / "browser" / "flows" / "smoke.yaml"
+    path.write_text(
+        path.read_text(encoding="utf-8") + "  - name: 断言\n    expect_url: {contains: \"${NOT_DEFINED}\"}\n",
+        encoding="utf-8",
+    )
+    launched = []
+    monkeypatch.setattr(cli, "launch", lambda *args, **kwargs: launched.append(1))
+    assert cli.main(["run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1"]) == 2
+    assert launched == []
+
+
+def test_trace_dir_failure_still_closes_browser(browser_project, monkeypatch, tmp_path):
+    closed = []
+    monkeypatch.setattr(cli, "launch", lambda headless, profile, tracing=False: _Session())
+    monkeypatch.setattr(cli, "PageCollector", _Collector)
+    monkeypatch.setattr(cli, "close", lambda *args, **kwargs: closed.append(1))
+    monkeypatch.setattr(
+        cli, "run_flow",
+        lambda *args, **kwargs: FlowResult("smoke", "dev", "pass", "now", 1, "smoke.yaml", [StepResult("打开", "pass", 1)]),
+    )
+    monkeypatch.setattr(cli, "ensure_login", lambda *args, **kwargs: True)
+    real_mkdir = Path.mkdir
+
+    def failing_mkdir(self, *args, **kwargs):
+        if "traces" in self.parts:
+            raise OSError("denied")
+        return real_mkdir(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", failing_mkdir)
+    code = cli.main(["run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1", "--trace"])
+    assert closed == [1]
+    assert code == 0
+
+
+def test_diagnose_shows_most_recent_across_flows(browser_project, tmp_path):
+    import os
+
+    root = tmp_path / "browser" / "artifacts"
+    old = root / "zzz-flow-1"
+    new = root / "aaa-flow-2"
+    old.mkdir(parents=True)
+    new.mkdir(parents=True)
+    (old / "diagnosis.md").write_text("OLD", encoding="utf-8")
+    (new / "diagnosis.md").write_text("NEW", encoding="utf-8")
+    os.utime(old, (1000, 1000))
+    os.utime(new, (2000, 2000))
+    import io, contextlib
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        assert cli.main(["diagnose", "--project", "demo"]) == 0
+    assert "NEW" in buf.getvalue() and "OLD" not in buf.getvalue()

@@ -73,3 +73,70 @@ def test_redact_url_hides_sensitive_query_values():
     assert "abc.def" not in cleaned and "zzz" not in cleaned
     assert "pageNum=1" in cleaned and "clientid=x" in cleaned
     assert redact_url("http://h/a/b") == "http://h/a/b"
+
+
+def test_redact_headers_drops_custom_auth_headers():
+    cleaned = redact_headers({"X-Auth-Token": "a", "Proxy-Authorization": "b", "X-Api-Key": "c", "Accept": "json"})
+    assert cleaned == {"Accept": "json"}
+
+
+def test_scrub_text_hides_tokens_in_free_text():
+    from runtime.browser.diagnose import scrub_text
+
+    jwt = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJsb2dpbiI6InUifQ.abcDEF123_-xyz"
+    text = f"goto http://h/x?token={jwt}&a=1 failed; header Bearer {jwt} and password=hunter22 ok"
+    cleaned = scrub_text(text)
+    assert jwt not in cleaned and "hunter22" not in cleaned
+    assert "a=1" in cleaned and "failed" in cleaned
+
+
+def test_capture_scrubs_page_url_and_error_text(page, fixture_url, tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_TOOLS_HOME", str(tmp_path))
+    secret = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJsb2dpbiI6InUifQ.abcDEF123_-xyz"
+    page.goto(fixture_url + "/index.html?token=" + secret)
+    flow = FlowDef("smoke", "", "dev", {}, [], tmp_path / "flow.yaml")
+    flow.path.write_text("version: 1\nflow: smoke\nsteps: []\n", encoding="utf-8")
+    result = failed_result(flow.path)
+    result.steps[1].error = "navigating to http://h/x?token=" + secret + " failed"
+    out = capture(page, "demo", flow, result, PageCollector())
+    for name in ["diagnosis.md", "run.log", "page.html", "console.log"]:
+        assert secret not in (out / name).read_text(encoding="utf-8"), name
+
+
+def test_write_report_scrubs_error_text(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_TOOLS_HOME", str(tmp_path))
+    secret = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJsb2dpbiI6InUifQ.abcDEF123_-xyz"
+    flow_file = tmp_path / "smoke.yaml"
+    flow_file.write_text("x", encoding="utf-8")
+    result = failed_result(flow_file)
+    result.failure.message = "bad http://h/x?token=" + secret
+    path = write_report("demo", result)
+    assert secret not in path.read_text(encoding="utf-8")
+
+
+def test_prune_orders_by_modified_time_not_name(tmp_path):
+    import os
+
+    older = tmp_path / "zzz-flow-1.json"
+    newer = tmp_path / "aaa-flow-2.json"
+    older.write_text("o", encoding="utf-8")
+    newer.write_text("n", encoding="utf-8")
+    os.utime(older, (1000, 1000))
+    os.utime(newer, (2000, 2000))
+    prune(tmp_path, keep=1)
+    assert [p.name for p in tmp_path.iterdir()] == ["aaa-flow-2.json"]
+
+
+def test_latest_entry_uses_modified_time(tmp_path):
+    import os
+
+    from runtime.browser.report import latest_entry
+
+    a = tmp_path / "aaa-flow-2"
+    z = tmp_path / "zzz-flow-1"
+    a.mkdir()
+    z.mkdir()
+    os.utime(z, (1000, 1000))
+    os.utime(a, (2000, 2000))
+    assert latest_entry(tmp_path).name == "aaa-flow-2"
+    assert latest_entry(tmp_path / "missing") is None

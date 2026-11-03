@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -359,3 +360,28 @@ def profile_path(cfg: BrowserConfig, env_name: str, override: Path | None = None
     if cfg.profile is not None:
         return cfg.profile
     return data_home() / "browser" / "profiles" / cfg.project / env_name
+
+
+_PLACEHOLDER = re.compile(r"[$][{]([A-Za-z_][A-Za-z0-9_]*)[}]")
+
+
+def _placeholders(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return _PLACEHOLDER.findall(value)
+    if isinstance(value, dict):
+        return [name for item in value.values() for name in _placeholders(item)]
+    if isinstance(value, list):
+        return [name for item in value for name in _placeholders(item)]
+    return []
+
+
+def find_unresolved(flow: FlowDef, variables: dict[str, str]) -> list[str]:
+    """流程里引用了、却没有任何来源的 ${变量}。含 impl 步骤时放行：impl 的返回值会在运行时并入变量。"""
+    if any("impl" in step for step in flow.steps):
+        return []
+    names: list[str] = []
+    for step in flow.steps:
+        for name in _placeholders(step):
+            if name not in variables and name not in names:
+                names.append(name)
+    return sorted(names)

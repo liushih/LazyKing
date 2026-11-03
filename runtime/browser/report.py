@@ -37,18 +37,37 @@ def write_report(project_id: str, result: FlowResult) -> Path:
     while path.exists():
         path = directory / f"{stem}-{index}.json"
         index += 1
+    from .diagnose import scrub_text
+
     path.write_text(
-        json.dumps(asdict(result), ensure_ascii=False, indent=2),
+        scrub_text(json.dumps(asdict(result), ensure_ascii=False, indent=2)),
         encoding="utf-8",
     )
     prune(directory, KEEP)
     return path
 
 
+def _by_recency(root: Path) -> list[Path]:
+    def key(path: Path) -> tuple[float, str]:
+        try:
+            return (path.stat().st_mtime, path.name)
+        except OSError:
+            return (0.0, path.name)
+
+    return sorted(root.iterdir(), key=key, reverse=True)
+
+
+def latest_entry(root: Path) -> Path | None:
+    if not root.is_dir():
+        return None
+    entries = _by_recency(root)
+    return entries[0] if entries else None
+
+
 def prune(root: Path, keep: int = KEEP) -> None:
     if not root.is_dir():
         return
-    entries = sorted(root.iterdir(), key=lambda path: path.name, reverse=True)
+    entries = _by_recency(root)
     for entry in entries[keep:]:
         try:
             if entry.is_dir():

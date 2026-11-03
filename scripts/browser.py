@@ -19,6 +19,7 @@ from runtime.browser import report as report_mod
 from runtime.browser.config import (
     BrowserConfigError,
     FlowNotFoundError,
+    find_unresolved,
     list_flows,
     load_browser_config,
     load_flow,
@@ -214,6 +215,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"[参数] {exc}")
         return CONFIG_ERROR
     variables = resolve_variables(cfg, flow, env_name, cli_vars)
+    unresolved = find_unresolved(flow, variables)
+    if unresolved:
+        raise BrowserConfigError(f"流程引用了未定义的变量：{', '.join(unresolved)}")
     profile = profile_path(cfg, env_name, Path(args.profile) if args.profile else None)
 
     collector = PageCollector()
@@ -253,8 +257,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     finally:
         if session is not None:
             if args.trace:
-                trace_path = data_home() / "browser" / "traces" / f"{flow.name}-{report_mod.timestamp()}.zip"
-                trace_path.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    trace_path = data_home() / "browser" / "traces" / f"{flow.name}-{report_mod.timestamp()}.zip"
+                    trace_path.parent.mkdir(parents=True, exist_ok=True)
+                except OSError:
+                    trace_path = None
             close(session, trace_path)
 
     if args.trace and trace_path and artifacts and trace_path.exists():
@@ -365,15 +372,10 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
     if not directory.is_dir():
         print("没有诊断包")
         return CONFIG_ERROR
-    entries = sorted(
-        (path for path in directory.iterdir() if path.is_dir()),
-        key=lambda path: path.name,
-        reverse=True,
-    )
-    if not entries:
+    latest = report_mod.latest_entry(directory)
+    if latest is None or not latest.is_dir():
         print("没有诊断包")
         return CONFIG_ERROR
-    latest = entries[0]
     diagnosis = latest / "diagnosis.md"
     if not diagnosis.exists():
         print(f"诊断包缺少 diagnosis.md：{latest}")

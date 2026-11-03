@@ -90,3 +90,26 @@ def test_local_storage_wins_when_page_stays_on_login(page, fixture_url):
     page.goto(fixture_url + "/login.html")
     page.evaluate("localStorage.setItem('Admin-Token', 'token-123')")
     assert check_login_success(page, login) is True
+
+
+def test_close_survives_trace_stop_failure():
+    from runtime.browser.driver import BrowserSession
+
+    calls = []
+
+    class Tracing:
+        def stop(self, path):
+            raise RuntimeError("trace stop failed")
+
+    class Context:
+        tracing = Tracing()
+
+        def close(self):
+            calls.append("context")
+
+    class Playwright:
+        def stop(self):
+            calls.append("playwright")
+
+    close(BrowserSession(Playwright(), Context(), object()), trace_path=Path("t.zip"))
+    assert calls == ["context", "playwright"]

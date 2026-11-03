@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path
 from typing import Any
@@ -12,7 +13,7 @@ from .config import FlowDef
 from .flow import FlowResult
 from .report import KEEP, artifacts_dir, prune, timestamp
 
-_SENSITIVE_HEADERS = {"authorization", "cookie", "set-cookie", "x-token"}
+_SENSITIVE_HEADER_PARTS = ("authorization", "cookie", "token", "secret", "api-key", "apikey", "password")
 _SENSITIVE_QUERY_PARTS = ("token", "authorization", "password", "secret", "passwd", "cookie")
 
 
@@ -20,7 +21,7 @@ def redact_headers(headers: dict[str, str]) -> dict[str, str]:
     return {
         key: value
         for key, value in headers.items()
-        if key.lower() not in _SENSITIVE_HEADERS
+        if not any(part in key.lower() for part in _SENSITIVE_HEADER_PARTS)
     }
 
 
@@ -33,6 +34,19 @@ def redact_url(url: str) -> str:
         for key, value in parse_qsl(parts.query, keep_blank_values=True)
     ]
     return urlunsplit(parts._replace(query=urlencode(pairs, safe="*")))
+
+
+_JWT = re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
+_BEARER = re.compile(r"(?i)\bBearer(?:\s|%20)+[A-Za-z0-9._~+/=-]+")
+_KEYED = re.compile(
+    r"(?i)\b([A-Za-z0-9_-]*(?:token|authorization|password|passwd|secret|api[-_]?key)[A-Za-z0-9_-]*)=([^&\s\"'<>]+)"
+)
+
+
+def scrub_text(text: str) -> str:
+    text = _JWT.sub("***", text)
+    text = _BEARER.sub("Bearer ***", text)
+    return _KEYED.sub(lambda m: f"{m.group(1)}=***", text)
 
 
 class PageCollector:
@@ -73,7 +87,7 @@ def _screenshot(page: Any, path: Path) -> None:
 
 def _write(path: Path, content: str) -> None:
     try:
-        path.write_text(content, encoding="utf-8")
+        path.write_text(scrub_text(content), encoding="utf-8")
     except Exception:
         pass
 
@@ -81,7 +95,7 @@ def _write(path: Path, content: str) -> None:
 def _diagnosis(page: Any, result: FlowResult) -> str:
     failure = result.failure
     try:
-        url = page.url
+        url = redact_url(page.url)
     except Exception:
         url = "unknown"
     try:
@@ -152,7 +166,7 @@ def capture(
     except Exception:
         pass
     try:
-        (out / "page.html").write_text(page.content(), encoding="utf-8")
+        (out / "page.html").write_text(scrub_text(page.content()), encoding="utf-8")
     except Exception:
         pass
     _write(out / "requests.json", json.dumps(collector.requests, ensure_ascii=False, indent=2))

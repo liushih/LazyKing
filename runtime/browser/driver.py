@@ -44,7 +44,10 @@ def launch(headless: bool, profile: Path, *, tracing: bool = False) -> BrowserSe
         ) from exc
 
     if tracing:
-        context.tracing.start(screenshots=True, snapshots=True, sources=True)
+        try:
+            context.tracing.start(screenshots=True, snapshots=True, sources=True)
+        except Exception:
+            pass
     page = context.pages[0] if context.pages else context.new_page()
     page.set_default_timeout(15000)
     return BrowserSession(playwright=playwright, context=context, page=page)
@@ -53,7 +56,10 @@ def launch(headless: bool, profile: Path, *, tracing: bool = False) -> BrowserSe
 def close(session: BrowserSession, trace_path: Path | None = None) -> None:
     try:
         if trace_path is not None:
-            session.context.tracing.stop(path=str(trace_path))
+            try:
+                session.context.tracing.stop(path=str(trace_path))
+            except Exception:
+                pass
     finally:
         try:
             session.context.close()

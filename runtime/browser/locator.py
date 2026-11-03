@@ -115,3 +115,12 @@ def find(scope: Any, spec: dict | LocatorSpec, aliases: dict[str, Any]) -> Any:
     if count > 1 and not parsed.last:
         raise LocatorMatchError(describe_locator(parsed), count, _candidates(locator, count))
     return locator.last if parsed.last else locator.first
+
+
+def find_all(scope: Any, spec: dict | LocatorSpec, aliases: dict[str, Any]) -> Any:
+    parsed = spec if isinstance(spec, LocatorSpec) else parse_locator(spec)
+    if parsed.within:
+        if parsed.within not in aliases:
+            raise LocatorError(f"未定义的定位别名：{parsed.within}")
+        scope = aliases[parsed.within]
+    return _build(scope, parsed)

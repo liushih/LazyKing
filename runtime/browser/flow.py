@@ -1,0 +1,490 @@
+"""浏览器流程执行引擎。"""
+
+from __future__ import annotations
+
+import importlib.util
+import time
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, Callable
+from urllib.parse import urlparse
+
+from runtime.config import ConfigError, data_home, substitute
+
+from .config import FlowDef, LoginConfig
+from .driver import check_login_success
+from .locator import LocatorMatchError, find, find_all
+
+
+class FlowRunError(Exception):
+    pass
+
+
+class _StepSkipped(Exception):
+    pass
+
+
+class StepAssertion(Exception):
+    def __init__(
+        self,
+        message: str,
+        expected: str | None = None,
+        actual: str | None = None,
+        detail: dict | None = None,
+    ):
+        self.expected = expected
+        self.actual = actual
+        self.detail = dict(detail or {})
+        super().__init__(message)
+
+
+@dataclass
+class StepResult:
+    name: str
+    status: str
+    duration_ms: int
+    error: str | None = None
+
+
+@dataclass
+class StepFailure:
+    step_index: int
+    step_name: str
+    message: str
+    expected: str | None = None
+    actual: str | None = None
+    detail: dict = field(default_factory=dict)
+
+
+@dataclass
+class FlowResult:
+    flow: str
+    env: str
+    result: str
+    started_at: str
+    duration_ms: int
+    flow_file: str
+    steps: list[StepResult]
+    failure: StepFailure | None = None
+    artifacts: str | None = None
+    error: str | None = None
+
+
+_ACTIONS = {"goto", "click", "fill", "press", "select", "check", "hover", "use_row", "impl"}
+_LOCATOR_ACTIONS = {"click", "fill", "select", "check", "hover"}
+
+
+def _ms(start: float) -> int:
+    return int((time.monotonic() - start) * 1000)
+
+
+def _log(logger: Any, message: str) -> None:
+    if logger is not None:
+        try:
+            logger.info(message)
+        except Exception:
+            pass
+
+
+def _wait_until(predicate: Callable[[], Any], timeout_ms: int, interval: float = 0.05) -> bool:
+    deadline = time.monotonic() + timeout_ms / 1000
+    while True:
+        try:
+            if predicate():
+                return True
+        except Exception:
+            pass
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(interval)
+
+
+def _text(locator: Any) -> str:
+    try:
+        return locator.inner_text()
+    except Exception:
+        try:
+            return locator.text_content() or ""
+        except Exception:
+            return ""
+
+
+def _first(locator: Any) -> Any:
+    try:
+        return locator.first
+    except Exception:
+        return locator
+
+
+def _row_locator(page: Any, spec: dict) -> Any:
+    row = page.locator(spec.get("row_css", "table tbody tr"))
+    if spec.get("checkbox"):
+        row = row.filter(has=page.locator(spec["checkbox"]))
+    if spec.get("text"):
+        row = row.filter(has_text=spec["text"])
+    return row
+
+
+def _target_locator(page: Any, step: dict, aliases: dict[str, Any]) -> Any | None:
+    if "use_row" in step:
+        return _row_locator(page, step["use_row"])
+    for action in _LOCATOR_ACTIONS:
+        if action in step:
+            return find(page, step[action], aliases)
+    return None
+
+
+def _response_predicate(value: Any) -> Callable[[Any], bool]:
+    if isinstance(value, str):
+        def match(response: Any) -> bool:
+            return value in response.url and 200 <= response.status < 300
+
+        return match
+
+    value = value or {}
+    url_part = value.get("url_contains", "")
+    status = value.get("status")
+
+    def match(response: Any) -> bool:
+        if url_part and url_part not in response.url:
+            return False
+        if status is not None:
+            return response.status == status
+        return 200 <= response.status < 300
+
+    return match
+
+
+def load_impl(spec: str, root: Path) -> Callable:
+    try:
+        file_part, func_name = spec.split(":", 1)
+    except ValueError as exc:
+        raise FlowRunError(f"impl 必须写成 文件:函数：{spec}") from exc
+    path = Path(root) / file_part
+    if not path.exists():
+        raise FlowRunError(f"impl 文件不存在：{path}")
+    module_spec = importlib.util.spec_from_file_location(f"browser_impl_{abs(hash(path))}", path)
+    if module_spec is None or module_spec.loader is None:
+        raise FlowRunError(f"无法加载 impl：{path}")
+    module = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)
+    func = getattr(module, func_name, None)
+    if func is None:
+        raise FlowRunError(f"{path} 中没有函数 {func_name}")
+    return func
+
+
+def _perform(
+    page: Any,
+    step: dict,
+    variables: dict[str, str],
+    aliases: dict[str, Any],
+    project_dir: Path,
+    logger: Any,
+) -> Any | None:
+    if "goto" in step:
+        page.goto(str(step["goto"]), wait_until="domcontentloaded")
+    elif "click" in step:
+        find(page, step["click"], aliases).click()
+    elif "fill" in step:
+        find(page, step["fill"], aliases).fill(str(step["value"]))
+    elif "press" in step:
+        page.keyboard.press(str(step["press"]))
+    elif "select" in step:
+        find(page, step["select"], aliases).select_option(str(step["value"]))
+    elif "check" in step:
+        find(page, step["check"], aliases).check()
+    elif "hover" in step:
+        find(page, step["hover"], aliases).hover()
+    elif "use_row" in step:
+        row = _row_locator(page, step["use_row"])
+        if step.get("as"):
+            aliases[step["as"]] = row
+        return row
+    elif "impl" in step:
+        func = load_impl(str(step["impl"]), project_dir)
+        ctx = SimpleNamespace(
+            page=page,
+            vars=variables,
+            project_dir=Path(project_dir),
+            data_home=data_home(),
+            logger=logger,
+            step=step,
+        )
+        result = func(ctx)
+        if isinstance(result, dict):
+            variables.update({str(key): str(value) for key, value in result.items()})
+        return result
+    return None
+
+
+def _apply_waits(
+    page: Any,
+    step: dict,
+    aliases: dict[str, Any],
+    target: Any | None,
+    timeout_ms: int,
+) -> None:
+    if "wait_url" in step:
+        value = step["wait_url"]
+        if isinstance(value, str):
+            value = {"contains": value}
+        if "path" in value:
+            expected = f"pathname={value['path']}"
+            ok = _wait_until(lambda: urlparse(page.url).path == value["path"], timeout_ms)
+        else:
+            contains = str(value.get("contains", ""))
+            expected = f"URL 包含 {contains}"
+            ok = _wait_until(lambda: contains in page.url, timeout_ms)
+        if not ok:
+            raise StepAssertion("等待 URL 超时", expected, page.url)
+
+    if "wait_visible" in step:
+        value = step["wait_visible"]
+        if value is True:
+            locator = aliases.get(step.get("as")) or target
+            if locator is None:
+                raise StepAssertion("wait_visible=true 需要 as 或 use_row")
+            _first(locator).wait_for(state="visible", timeout=timeout_ms)
+        else:
+            find(page, value, aliases).wait_for(state="visible", timeout=timeout_ms)
+
+    if "wait_hidden" in step:
+        find(page, step["wait_hidden"], aliases).wait_for(state="hidden", timeout=timeout_ms)
+
+    if "wait_text" in step:
+        value = step["wait_text"]
+        locator = find(page, value["locator"], aliases)
+        _expect_text(locator, value, timeout_ms)
+
+
+def _expect_text(locator: Any, value: dict, timeout_ms: int) -> None:
+    expected = value.get("equals")
+    contains = value.get("contains")
+    expected_text = f"等于 {expected}" if expected is not None else f"包含 {contains}"
+    actual = ""
+    deadline = time.monotonic() + timeout_ms / 1000
+    while True:
+        actual = _text(locator)
+        if expected is not None and actual == expected:
+            return
+        if expected is None and contains is not None and contains in actual:
+            return
+        if time.monotonic() >= deadline:
+            raise StepAssertion(f"文本断言失败：期望 {expected_text}，实际 {actual!r}", expected_text, actual)
+        time.sleep(0.05)
+
+
+def _apply_expects(page: Any, step: dict, aliases: dict[str, Any], timeout_ms: int) -> None:
+    if "expect_visible" in step:
+        locator = find(page, step["expect_visible"], aliases)
+        if not _wait_until(lambda: locator.is_visible(), timeout_ms):
+            raise StepAssertion("元素未可见", "可见", "不可见")
+
+    if "expect_hidden" in step:
+        locator = find(page, step["expect_hidden"], aliases)
+        if not _wait_until(lambda: not locator.is_visible(), timeout_ms):
+            raise StepAssertion("元素仍可见", "不可见", "可见")
+
+    if "expect_text" in step:
+        value = step["expect_text"]
+        _expect_text(find(page, value["locator"], aliases), value, timeout_ms)
+
+    if "expect_url" in step:
+        value = step["expect_url"]
+        if "path" in value:
+            expected = f"pathname={value['path']}"
+            ok = _wait_until(lambda: urlparse(page.url).path == value["path"], timeout_ms)
+        else:
+            contains = str(value.get("contains", ""))
+            expected = f"URL 包含 {contains}"
+            ok = _wait_until(lambda: contains in page.url, timeout_ms)
+        if not ok:
+            raise StepAssertion("URL 断言失败", expected, page.url)
+
+    if "expect_count" in step:
+        value = step["expect_count"]
+        locator = find_all(page, value["locator"], aliases)
+        eq = value.get("eq")
+        minimum = value.get("min")
+        maximum = value.get("max")
+        expected = f"数量 eq={eq} min={minimum} max={maximum}"
+
+        def count_ok() -> bool:
+            count = locator.count()
+            if eq is not None and count != eq:
+                return False
+            if minimum is not None and count < minimum:
+                return False
+            if maximum is not None and count > maximum:
+                return False
+            return True
+
+        if not _wait_until(count_ok, timeout_ms):
+            raise StepAssertion("元素数量断言失败", expected, str(locator.count()))
+
+
+def run_step(
+    page: Any,
+    step: dict,
+    variables: dict[str, str],
+    aliases: dict[str, Any],
+    project_dir: Path,
+    *,
+    timeout_ms: int,
+    logger: Any = None,
+) -> None:
+    step = substitute(step, variables)
+    action = next((key for key in step if key in _ACTIONS), None)
+    if action is None and "wait_response" in step:
+        raise FlowRunError("wait_response 需要动作")
+
+    if action is None:
+        target = None
+    else:
+        if step.get("optional"):
+            target = _target_locator(page, step, aliases)
+            if target is not None and target.count() == 0:
+                raise _StepSkipped()
+        wait_response = step.get("wait_response")
+        if wait_response:
+            with page.expect_response(_response_predicate(wait_response), timeout=timeout_ms) as response_info:
+                target = _perform(page, step, variables, aliases, project_dir, logger)
+            response = response_info.value
+            _log(logger, f"{step.get('name')}: response {response.status} {response.url}")
+        else:
+            target = _perform(page, step, variables, aliases, project_dir, logger)
+
+    _apply_waits(page, step, aliases, target, timeout_ms)
+    _apply_expects(page, step, aliases, timeout_ms)
+
+
+def _failure_from_exception(index: int, name: str, exc: Exception) -> StepFailure:
+    if isinstance(exc, StepAssertion):
+        return StepFailure(index, name, str(exc), exc.expected, exc.actual, exc.detail)
+    if isinstance(exc, LocatorMatchError):
+        return StepFailure(
+            index,
+            name,
+            str(exc),
+            "唯一元素",
+            f"命中 {exc.count} 个",
+            {"count": exc.count, "candidates": exc.candidates},
+        )
+    return StepFailure(index, name, str(exc), detail={"type": type(exc).__name__})
+
+
+def run_flow(
+    page: Any,
+    flow: FlowDef,
+    env_name: str,
+    variables: dict[str, str],
+    project_dir: Path,
+    *,
+    timeout_ms: int = 15000,
+    logger: Any = None,
+) -> FlowResult:
+    started_at = datetime.now().astimezone().isoformat(timespec="seconds")
+    started = time.monotonic()
+    values = dict(variables)
+    aliases: dict[str, Any] = {}
+    results: list[StepResult] = []
+    failure: StepFailure | None = None
+
+    for index, step in enumerate(flow.steps, 1):
+        name = str(step.get("name", f"步骤{index}"))
+        step_started = time.monotonic()
+        step_timeout = int(step.get("timeout", timeout_ms))
+        try:
+            run_step(
+                page,
+                step,
+                values,
+                aliases,
+                Path(project_dir),
+                timeout_ms=step_timeout,
+                logger=logger,
+            )
+        except _StepSkipped:
+            results.append(StepResult(name, "skipped", _ms(step_started)))
+            _log(logger, f"{name}: skipped")
+            continue
+        except Exception as exc:
+            failure = _failure_from_exception(index, name, exc)
+            results.append(StepResult(name, "fail", _ms(step_started), str(exc)))
+            _log(logger, f"{name}: fail {exc}")
+            break
+        results.append(StepResult(name, "pass", _ms(step_started)))
+        _log(logger, f"{name}: pass")
+
+    return FlowResult(
+        flow=flow.name,
+        env=env_name,
+        result="fail" if failure else "pass",
+        started_at=started_at,
+        duration_ms=_ms(started),
+        flow_file=str(flow.path),
+        steps=results,
+        failure=failure,
+    )
+
+
+def ensure_login(
+    page: Any,
+    login: LoginConfig,
+    *,
+    variables: dict[str, str],
+    project_dir: Path,
+    timeout_ms: int = 15000,
+    logger: Any = None,
+) -> bool:
+    values = dict(variables)
+    try:
+        url = substitute(login.url, values)
+    except ConfigError as exc:
+        raise FlowRunError(f"登录地址变量解析失败：{exc}") from exc
+
+    page.goto(str(url), wait_until="domcontentloaded")
+    if _wait_until(lambda: check_login_success(page, login), 3000):
+        return True
+
+    login_values = {
+        **values,
+        "username": login.username or "",
+        "password": login.password or "",
+    }
+    if login.impl:
+        func = load_impl(login.impl, Path(project_dir))
+        ctx = SimpleNamespace(
+            page=page,
+            vars=login_values,
+            project_dir=Path(project_dir),
+            data_home=data_home(),
+            logger=logger,
+            step={"impl": login.impl},
+        )
+        result = func(ctx)
+        if isinstance(result, dict):
+            login_values.update({str(key): str(value) for key, value in result.items()})
+    else:
+        for index, raw_step in enumerate(login.steps, 1):
+            step = dict(raw_step)
+            step.setdefault("name", f"登录步骤{index}")
+            try:
+                run_step(
+                    page,
+                    step,
+                    login_values,
+                    {},
+                    Path(project_dir),
+                    timeout_ms=timeout_ms,
+                    logger=logger,
+                )
+            except _StepSkipped:
+                continue
+
+    if _wait_until(lambda: check_login_success(page, login), timeout_ms):
+        return True
+    raise FlowRunError("登录失败：未检测到登录成功标志")

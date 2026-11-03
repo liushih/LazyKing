@@ -120,11 +120,17 @@ def _validate_step(step: Any, where: str, *, require_name: bool) -> dict:
     if require_name and (not isinstance(name, str) or not name.strip()):
         raise BrowserConfigError(f"{where} 缺少 name")
     actions = [key for key in step if key in _ACTIONS]
-    if len(actions) != 1:
-        raise BrowserConfigError(f"{where} 必须且只能包含一个动作：{'/'.join(_ACTIONS)}")
-    action = actions[0]
-    if action in _VALUE_ACTIONS and "value" not in step:
-        raise BrowserConfigError(f"{where} 的 {action} 缺少 value")
+    if len(actions) > 1:
+        raise BrowserConfigError(f"{where} 最多只能包含一个动作：{'/'.join(_ACTIONS)}")
+    if not actions:
+        if "wait_response" in step:
+            raise BrowserConfigError(f"{where} 的 wait_response 需要动作")
+        if not any(key.startswith(("wait_", "expect_")) for key in step):
+            raise BrowserConfigError(f"{where} 至少需要一个动作或 wait_/expect_ 断言")
+    else:
+        action = actions[0]
+        if action in _VALUE_ACTIONS and "value" not in step:
+            raise BrowserConfigError(f"{where} 的 {action} 缺少 value")
 
     timeout = step.get("timeout")
     if timeout is not None and (not isinstance(timeout, int) or timeout <= 0):

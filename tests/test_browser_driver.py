@@ -75,3 +75,18 @@ def test_login_success_checks_local_storage(page, fixture_url):
     assert check_login_success(page, login) is True
     page.evaluate("localStorage.setItem('Admin-Token', 'wrong')")
     assert check_login_success(page, login) is False
+
+
+def test_local_storage_wins_when_page_stays_on_login(page, fixture_url):
+    login = LoginConfig(
+        url=fixture_url + "/login.html",
+        username=None,
+        password=None,
+        steps=[],
+        impl=None,
+        success_url_path="/index.html",
+        success_localstorage={"Admin-Token": r"token-\d+"},
+    )
+    page.goto(fixture_url + "/login.html")
+    page.evaluate("localStorage.setItem('Admin-Token', 'token-123')")
+    assert check_login_success(page, login) is True

@@ -62,10 +62,12 @@ def close(session: BrowserSession, trace_path: Path | None = None) -> None:
 
 
 def check_login_success(page: Any, login: LoginConfig) -> bool:
-    if login.success_url_path and urlparse(page.url).path != login.success_url_path:
-        return False
-    for key, pattern in login.success_localstorage.items():
-        value = page.evaluate("key => localStorage.getItem(key)", key)
-        if not value or not re.search(pattern, value):
-            return False
+    if login.success_localstorage:
+        for key, pattern in login.success_localstorage.items():
+            value = page.evaluate("key => localStorage.getItem(key)", key)
+            if not value or not re.search(pattern, value):
+                return False
+        return True
+    if login.success_url_path:
+        return urlparse(page.url).path == login.success_url_path
     return True

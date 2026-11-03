@@ -45,6 +45,7 @@ login:
 - 所有值先与系统环境变量、项目 `.env` 合并（`.env` 覆盖同名系统变量），再替换 `${VAR}`。
 - `login` 可省略，表示无需登录。
 - `login.steps` 与 `login.impl` 二选一；`login.success` 至少提供 `url_path` 或 `localStorage`。
+- 配置了 `localStorage` 时以 token 为准；只有未配置 `localStorage` 时才比较 `url_path` 的 pathname。
 - `login.url` 可以写 `${BASE_URL}/login`，运行时按环境解析。
 - `login.steps` 里的 `${username}`、`${password}` 来自 `login.username` / `login.password`。
 - `defaults.profile` 可写固定路径；否则按项目 + 环境隔离。
@@ -179,7 +180,7 @@ steps:
 3. 否则执行 `login.steps` 或 `login.impl`。
 4. 再校验 `success`；不通过报环境错误。
 
-`success.url_path` 只比较 pathname，不匹配 query，避免登录页 `redirect=/index` 误判。
+`success.url_path` 只在未配置 `localStorage` 时使用；配置了 token 时以 token 为准，避免页面停在登录页但实际已登录的误判。
 
 ## 10. 命令与退出码
 

@@ -139,7 +139,7 @@ login:
 - `envs.<env>.base_url` 必填，指**前端页面根地址**（例如 `http://localhost`），不是接口网关；流程可通过 `${BASE_URL}` 引用。
 - `login` 可省略，表示无需登录。省略时所有流程直接从 `goto` 开始。
 - `login.steps` 与 `login.impl` 二选一；同时存在时报配置错误。
-- `login.success` 至少提供一项（`url_path` 或 `localStorage`），用于判断登录态是否有效；`localStorage` 的值按正则搜索。
+- `login.success` 至少提供一项（`url_path` 或 `localStorage`），用于判断登录态是否有效；`localStorage` 的值按正则搜索。配置了 `localStorage` 时以 token 为准；只有未配置 `localStorage` 时才比较 URL pathname。
 - 登录流程：打开 `login.url`；若当前已满足 `success` 则跳过；否则执行 `steps`/`impl`，再校验 `success`。校验失败报环境错误。
 - `defaults.headless` 可被 `--headless` 覆盖；`defaults.timeout_ms` 是单步默认超时。
 - profile 路径默认 `<DATA_HOME>/browser/profiles/<项目ID>/<env>`，可被 `defaults.profile` 或 `--profile` 覆盖。

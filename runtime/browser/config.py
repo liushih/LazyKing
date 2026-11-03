@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from runtime.config import ConfigError, data_home, load_env, project_dir, substitute
+
+from .apiwatch import ApiWatchConfig
 
 
 class BrowserConfigError(Exception):
@@ -65,15 +67,16 @@ class BrowserConfig:
     headless: bool
     profile: Path | None
     login: LoginConfig | None
-
+    api_watch: ApiWatchConfig = field(default_factory=ApiWatchConfig)
 
 _BROWSER_FIELDS = {"version", "project", "envs", "defaults", "login"}
-_DEFAULT_FIELDS = {"env", "timeout_ms", "headless", "profile"}
+_DEFAULT_FIELDS = {"env", "timeout_ms", "headless", "profile", "api_watch"}
+_API_WATCH_FIELDS = {"enabled", "ignore", "success_codes", "grace_ms"}
 _LOGIN_FIELDS = {"url", "username", "password", "steps", "impl", "success"}
 _SUCCESS_FIELDS = {"url_path", "localStorage"}
 _FLOW_FIELDS = {"version", "flow", "description", "env", "vars", "steps"}
 _VAR_FIELDS = {"required", "default", "description"}
-_STEP_FIELDS = {"name", "timeout", "optional", "value", "as"}
+_STEP_FIELDS = {"name", "timeout", "optional", "value", "as", "allow_api_error"}
 _ACTIONS = {"goto", "click", "fill", "press", "select", "check", "hover", "use_row", "impl"}
 _VALUE_ACTIONS = {"fill", "select"}
 
@@ -140,7 +143,34 @@ def _validate_step(step: Any, where: str, *, require_name: bool) -> dict:
         raise BrowserConfigError(f"{where} 的 optional 必须是布尔值")
     if "as" in step and (not isinstance(step["as"], str) or not step["as"].strip()):
         raise BrowserConfigError(f"{where} 的 as 必须是非空字符串")
+    allow = step.get("allow_api_error")
+    if allow is not None and not (
+        isinstance(allow, bool) or (isinstance(allow, list) and all(isinstance(item, str) for item in allow))
+    ):
+        raise BrowserConfigError(f"{where} 的 allow_api_error 必须是布尔值或 URL 片段列表")
     return step
+
+
+def _load_api_watch(raw: Any) -> ApiWatchConfig:
+    raw = _check_mapping(raw or {}, "browser.yaml defaults.api_watch")
+    _check_keys(raw, _API_WATCH_FIELDS, "browser.yaml defaults.api_watch")
+    enabled = raw.get("enabled", True)
+    if not isinstance(enabled, bool):
+        raise BrowserConfigError("browser.yaml defaults.api_watch.enabled 必须是布尔值")
+    ignore = raw.get("ignore") or []
+    if not isinstance(ignore, list) or not all(isinstance(item, str) for item in ignore):
+        raise BrowserConfigError("browser.yaml defaults.api_watch.ignore 必须是 URL 片段列表")
+    grace_ms = raw.get("grace_ms", ApiWatchConfig.grace_ms)
+    if isinstance(grace_ms, bool) or not isinstance(grace_ms, int) or grace_ms < 0:
+        raise BrowserConfigError("browser.yaml defaults.api_watch.grace_ms 必须是非负整数")
+    success_codes = raw.get("success_codes")
+    if success_codes is None:
+        codes = ApiWatchConfig.success_codes
+    elif isinstance(success_codes, list) and success_codes:
+        codes = tuple(str(code).strip().lower() for code in success_codes)
+    else:
+        raise BrowserConfigError("browser.yaml defaults.api_watch.success_codes 必须是非空列表")
+    return ApiWatchConfig(enabled=enabled, ignore=tuple(ignore), success_codes=codes, grace_ms=grace_ms)
 
 
 def _load_login(raw: Any, lookup: dict[str, str]) -> LoginConfig | None:
@@ -255,6 +285,7 @@ def load_browser_config(project_id: str) -> BrowserConfig:
         headless=headless,
         profile=profile,
         login=login,
+        api_watch=_load_api_watch(defaults.get("api_watch")),
     )
 
 

@@ -42,9 +42,27 @@ steps:
 """
 
 
+_API_REPLIES = {
+    "/api/boom": (500, '{"code": 500, "msg": "服务异常"}'),
+    "/api/biz-error": (200, '{"code": 500, "msg": "库存不足"}'),
+}
+
+
 class _QuietHandler(SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass
+
+    def do_GET(self):
+        reply = _API_REPLIES.get(self.path.split("?", 1)[0])
+        if reply is None:
+            return super().do_GET()
+        status, body = reply
+        payload = body.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
 
 @pytest.fixture(scope="session")

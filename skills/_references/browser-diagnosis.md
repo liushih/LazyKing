@@ -8,7 +8,7 @@
 
 | 文件 | 内容 |
 |---|---|
-| `diagnosis.md` | 失败步骤、期望/实际、当前 URL、页面标题、步骤耗时、建议动作 |
+| `diagnosis.md` | 失败步骤、期望/实际、当前 URL、页面标题、接口异常（如有）、步骤耗时、建议动作 |
 | `failure.png` | 失败瞬间截图（截图失败时可能缺失） |
 | `page.html` | 当前 DOM |
 | `requests.json` | 最近请求，Cookie / Authorization / Set-Cookie 已脱敏 |
@@ -33,6 +33,7 @@ run 失败
 判断提示：
 
 - `diagnosis.md` 里「命中 N 个」→ 选择器太宽，收窄到 `data-testid`、行内 `in` 或精确文本。
+- `diagnosis.md` 里有「接口异常」→ 接口已经报错（HTTP 错误、业务码或网络失败），优先排查后端或入参；确属预期（反向用例、无关的后台轮询）时，在步骤加 `allow_api_error` 或在 `api_watch.ignore` 里登记。
 - `wait_response` 超时 → 打开 `requests.json` 看实际接口路径和状态码。
 - `wait_visible` 超时 → 看 `page.html` 和截图，确认元素是否更换了容器或 testid。
 - 登录失败 → 确认 `success.url_path` 只比 pathname，且 profile 未被其他 Chrome 占用。

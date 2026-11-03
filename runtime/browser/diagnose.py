@@ -124,15 +124,23 @@ def _diagnosis(page: Any, result: FlowResult) -> str:
             f"- 页面标题：{title}",
         ]
     )
+    api_errors = (failure.detail or {}).get("api_errors") if failure is not None else None
+    if api_errors:
+        lines.extend(["", "## 接口异常"])
+        for item in api_errors:
+            lines.append(f"- {item['method']} {item['url']} → {item['reason']}")
+            if item.get("body"):
+                lines.append(f"  - 响应：{item['body']}")
     lines.extend(["", "## 步骤"])
     for step in result.steps:
         error = f" {step.error}" if step.error else ""
         lines.append(f"- {step.name}: {step.status} ({step.duration_ms}ms){error}")
 
+    lines.extend(["", "## 建议"])
+    if api_errors:
+        lines.append("- 接口已经报错：优先排查后端或入参，而不是选择器；确属预期时在步骤上加 allow_api_error。")
     lines.extend(
         [
-            "",
-            "## 建议",
             "- 检查选择器是否变化，优先用 data-testid 或行内范围限定。",
             "- 检查等待信号是否对应实际接口或 URL 变化。",
             "- 检查页面是否跳转、是否有前置条件未满足。",

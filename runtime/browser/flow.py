@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 
 from runtime.config import ConfigError, data_home, substitute
 
+from .apiwatch import ApiFailure, ApiWatch, ApiWatchConfig
 from .config import FlowDef, LoginConfig
 from .driver import check_login_success
 from .locator import LocatorMatchError, find, find_all
@@ -88,7 +89,12 @@ def _log(logger: Any, message: str) -> None:
             pass
 
 
-def _wait_until(predicate: Callable[[], Any], timeout_ms: int, interval: float = 0.05) -> bool:
+def _wait_until(
+    predicate: Callable[[], Any],
+    timeout_ms: int,
+    interval: float = 0.05,
+    watch: ApiWatch | None = None,
+) -> bool:
     deadline = time.monotonic() + timeout_ms / 1000
     while True:
         try:
@@ -96,6 +102,8 @@ def _wait_until(predicate: Callable[[], Any], timeout_ms: int, interval: float =
                 return True
         except Exception:
             pass
+        if watch is not None:
+            watch.check()
         if time.monotonic() >= deadline:
             return False
         time.sleep(interval)
@@ -136,10 +144,11 @@ def _target_locator(page: Any, step: dict, aliases: dict[str, Any]) -> Any | Non
     return None
 
 
-def _response_predicate(value: Any) -> Callable[[Any], bool]:
+def _response_predicate(value: Any, any_status: bool = False) -> Callable[[Any], bool]:
+    """any_status：接口监听开启时，响应一到就匹配（状态异常交给 watch.verify 立即判失败），不再傻等一个 2xx。"""
     if isinstance(value, str):
         def match(response: Any) -> bool:
-            return value in response.url and 200 <= response.status < 300
+            return value in response.url and (any_status or 200 <= response.status < 300)
 
         return match
 
@@ -152,7 +161,7 @@ def _response_predicate(value: Any) -> Callable[[Any], bool]:
             return False
         if status is not None:
             return response.status == status
-        return 200 <= response.status < 300
+        return any_status or 200 <= response.status < 300
 
     return match
 
@@ -179,6 +188,26 @@ def _wait_stable(locator: Any, timeout_ms: int) -> None:
             same = 0
         last = box
         time.sleep(STABLE_INTERVAL)
+
+
+WATCH_SLICE_MS = 300
+
+
+def _wait_for_state(locator: Any, state: str, timeout_ms: int, watch: ApiWatch | None) -> None:
+    """locator.wait_for 的可中断版本：分片等待，片与片之间检查接口异常；最后一片超时照常抛 Playwright 原始错误。"""
+    if watch is None:
+        locator.wait_for(state=state, timeout=timeout_ms)
+        return
+    deadline = time.monotonic() + timeout_ms / 1000
+    while True:
+        remaining = int((deadline - time.monotonic()) * 1000)
+        try:
+            locator.wait_for(state=state, timeout=max(1, min(WATCH_SLICE_MS, remaining)))
+            return
+        except Exception as exc:
+            if type(exc).__name__ != "TimeoutError" or remaining <= WATCH_SLICE_MS:
+                raise
+        watch.check()
 
 
 def load_impl(spec: str, root: Path) -> Callable:
@@ -257,6 +286,7 @@ def _apply_waits(
     aliases: dict[str, Any],
     target: Any | None,
     timeout_ms: int,
+    watch: ApiWatch | None = None,
 ) -> None:
     if "wait_url" in step:
         value = step["wait_url"]
@@ -264,11 +294,11 @@ def _apply_waits(
             value = {"contains": value}
         if "path" in value:
             expected = f"pathname={value['path']}"
-            ok = _wait_until(lambda: urlparse(page.url).path == value["path"], timeout_ms)
+            ok = _wait_until(lambda: urlparse(page.url).path == value["path"], timeout_ms, watch=watch)
         else:
             contains = str(value.get("contains", ""))
             expected = f"URL 包含 {contains}"
-            ok = _wait_until(lambda: contains in page.url, timeout_ms)
+            ok = _wait_until(lambda: contains in page.url, timeout_ms, watch=watch)
         if not ok:
             raise StepAssertion("等待 URL 超时", expected, page.url)
 
@@ -278,20 +308,20 @@ def _apply_waits(
             locator = aliases.get(step.get("as")) or target
             if locator is None:
                 raise StepAssertion("wait_visible=true 需要 as 或 use_row")
-            _first(locator).wait_for(state="visible", timeout=timeout_ms)
+            _wait_for_state(_first(locator), "visible", timeout_ms, watch)
         else:
-            find(page, value, aliases).wait_for(state="visible", timeout=timeout_ms)
+            _wait_for_state(find(page, value, aliases), "visible", timeout_ms, watch)
 
     if "wait_hidden" in step:
-        find(page, step["wait_hidden"], aliases).wait_for(state="hidden", timeout=timeout_ms)
+        _wait_for_state(find(page, step["wait_hidden"], aliases), "hidden", timeout_ms, watch)
 
     if "wait_text" in step:
         value = step["wait_text"]
         locator = find(page, value["locator"], aliases)
-        _expect_text(locator, value, timeout_ms)
+        _expect_text(locator, value, timeout_ms, watch)
 
 
-def _expect_text(locator: Any, value: dict, timeout_ms: int) -> None:
+def _expect_text(locator: Any, value: dict, timeout_ms: int, watch: ApiWatch | None = None) -> None:
     expected = value.get("equals")
     contains = value.get("contains")
     expected_text = f"等于 {expected}" if expected is not None else f"包含 {contains}"
@@ -303,35 +333,43 @@ def _expect_text(locator: Any, value: dict, timeout_ms: int) -> None:
             return
         if expected is None and contains is not None and contains in actual:
             return
+        if watch is not None:
+            watch.check()
         if time.monotonic() >= deadline:
             raise StepAssertion(f"文本断言失败：期望 {expected_text}，实际 {actual!r}", expected_text, actual)
         time.sleep(0.05)
 
 
-def _apply_expects(page: Any, step: dict, aliases: dict[str, Any], timeout_ms: int) -> None:
+def _apply_expects(
+    page: Any,
+    step: dict,
+    aliases: dict[str, Any],
+    timeout_ms: int,
+    watch: ApiWatch | None = None,
+) -> None:
     if "expect_visible" in step:
         locator = find(page, step["expect_visible"], aliases)
-        if not _wait_until(lambda: locator.is_visible(), timeout_ms):
+        if not _wait_until(lambda: locator.is_visible(), timeout_ms, watch=watch):
             raise StepAssertion("元素未可见", "可见", "不可见")
 
     if "expect_hidden" in step:
         locator = find(page, step["expect_hidden"], aliases)
-        if not _wait_until(lambda: not locator.is_visible(), timeout_ms):
+        if not _wait_until(lambda: not locator.is_visible(), timeout_ms, watch=watch):
             raise StepAssertion("元素仍可见", "不可见", "可见")
 
     if "expect_text" in step:
         value = step["expect_text"]
-        _expect_text(find(page, value["locator"], aliases), value, timeout_ms)
+        _expect_text(find(page, value["locator"], aliases), value, timeout_ms, watch)
 
     if "expect_url" in step:
         value = step["expect_url"]
         if "path" in value:
             expected = f"pathname={value['path']}"
-            ok = _wait_until(lambda: urlparse(page.url).path == value["path"], timeout_ms)
+            ok = _wait_until(lambda: urlparse(page.url).path == value["path"], timeout_ms, watch=watch)
         else:
             contains = str(value.get("contains", ""))
             expected = f"URL 包含 {contains}"
-            ok = _wait_until(lambda: contains in page.url, timeout_ms)
+            ok = _wait_until(lambda: contains in page.url, timeout_ms, watch=watch)
         if not ok:
             raise StepAssertion("URL 断言失败", expected, page.url)
 
@@ -353,7 +391,7 @@ def _apply_expects(page: Any, step: dict, aliases: dict[str, Any], timeout_ms: i
                 return False
             return True
 
-        if not _wait_until(count_ok, timeout_ms):
+        if not _wait_until(count_ok, timeout_ms, watch=watch):
             raise StepAssertion("元素数量断言失败", expected, str(locator.count()))
 
 
@@ -366,6 +404,7 @@ def run_step(
     *,
     timeout_ms: int,
     logger: Any = None,
+    watch: ApiWatch | None = None,
 ) -> None:
     step = substitute(step, variables)
     action = next((key for key in step if key in _ACTIONS), None)
@@ -381,19 +420,22 @@ def run_step(
                 raise _StepSkipped()
         wait_response = step.get("wait_response")
         if wait_response:
-            with page.expect_response(_response_predicate(wait_response), timeout=timeout_ms) as response_info:
+            predicate = _response_predicate(wait_response, any_status=watch is not None and watch.active)
+            with page.expect_response(predicate, timeout=timeout_ms) as response_info:
                 target = _perform(page, step, variables, aliases, project_dir, logger)
             response = response_info.value
             _log(logger, f"{step.get('name')}: response {response.status} {response.url}")
+            if watch is not None and not (isinstance(wait_response, dict) and "status" in wait_response):
+                watch.verify(response)
         else:
             target = _perform(page, step, variables, aliases, project_dir, logger)
 
-    _apply_waits(page, step, aliases, target, timeout_ms)
-    _apply_expects(page, step, aliases, timeout_ms)
+    _apply_waits(page, step, aliases, target, timeout_ms, watch)
+    _apply_expects(page, step, aliases, timeout_ms, watch)
 
 
 def _failure_from_exception(index: int, name: str, exc: Exception) -> StepFailure:
-    if isinstance(exc, StepAssertion):
+    if isinstance(exc, (StepAssertion, ApiFailure)):
         return StepFailure(index, name, str(exc), exc.expected, exc.actual, exc.detail)
     if isinstance(exc, LocatorMatchError):
         return StepFailure(
@@ -416,6 +458,7 @@ def run_flow(
     *,
     timeout_ms: int = 15000,
     logger: Any = None,
+    api_watch: ApiWatchConfig | None = None,
 ) -> FlowResult:
     started_at = datetime.now().astimezone().isoformat(timespec="seconds")
     started = time.monotonic()
@@ -423,32 +466,39 @@ def run_flow(
     aliases: dict[str, Any] = {}
     results: list[StepResult] = []
     failure: StepFailure | None = None
+    watch = ApiWatch(api_watch or ApiWatchConfig())
+    watch.attach(page)
 
-    for index, step in enumerate(flow.steps, 1):
-        name = str(step.get("name", f"步骤{index}"))
-        step_started = time.monotonic()
-        step_timeout = int(step.get("timeout", timeout_ms))
-        try:
-            run_step(
-                page,
-                step,
-                values,
-                aliases,
-                Path(project_dir),
-                timeout_ms=step_timeout,
-                logger=logger,
-            )
-        except _StepSkipped:
-            results.append(StepResult(name, "skipped", _ms(step_started)))
-            _log(logger, f"{name}: skipped")
-            continue
-        except Exception as exc:
-            failure = _failure_from_exception(index, name, exc)
-            results.append(StepResult(name, "fail", _ms(step_started), str(exc)))
-            _log(logger, f"{name}: fail {exc}")
-            break
-        results.append(StepResult(name, "pass", _ms(step_started)))
-        _log(logger, f"{name}: pass")
+    try:
+        for index, step in enumerate(flow.steps, 1):
+            name = str(step.get("name", f"步骤{index}"))
+            step_started = time.monotonic()
+            step_timeout = int(step.get("timeout", timeout_ms))
+            watch.begin_step(step.get("allow_api_error", False))
+            try:
+                run_step(
+                    page,
+                    step,
+                    values,
+                    aliases,
+                    Path(project_dir),
+                    timeout_ms=step_timeout,
+                    logger=logger,
+                    watch=watch,
+                )
+            except _StepSkipped:
+                results.append(StepResult(name, "skipped", _ms(step_started)))
+                _log(logger, f"{name}: skipped")
+                continue
+            except Exception as exc:
+                failure = _failure_from_exception(index, name, exc)
+                results.append(StepResult(name, "fail", _ms(step_started), str(exc)))
+                _log(logger, f"{name}: fail {exc}")
+                break
+            results.append(StepResult(name, "pass", _ms(step_started)))
+            _log(logger, f"{name}: pass")
+    finally:
+        watch.detach()
 
     return FlowResult(
         flow=flow.name,

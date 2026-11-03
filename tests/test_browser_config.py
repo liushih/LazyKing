@@ -131,3 +131,74 @@ def test_find_unresolved_tolerates_impl_provided_names(browser_project):
     flow = load_flow("demo", "smoke")
     variables = resolve_variables(cfg, flow, "dev", {"order_no": "A1"}, {})
     assert find_unresolved(flow, variables) == []
+
+
+def test_api_watch_defaults(browser_project):
+    cfg = load_browser_config("demo")
+    assert cfg.api_watch.enabled is True
+    assert cfg.api_watch.ignore == ()
+    assert cfg.api_watch.grace_ms == 1500
+
+
+def test_api_watch_custom_settings(browser_project):
+    path = browser_project / "browser" / "browser.yaml"
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "  headless: false\n",
+            "  headless: false\n  api_watch:\n    enabled: false\n    ignore: [/api/heartbeat]\n"
+            "    success_codes: [1, \"OK\"]\n    grace_ms: 500\n",
+        ),
+        encoding="utf-8",
+    )
+    cfg = load_browser_config("demo")
+    assert cfg.api_watch.enabled is False
+    assert cfg.api_watch.ignore == ("/api/heartbeat",)
+    assert cfg.api_watch.success_codes == ("1", "ok")
+    assert cfg.api_watch.grace_ms == 500
+
+
+def test_api_watch_unknown_field_raises(browser_project):
+    path = browser_project / "browser" / "browser.yaml"
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "  headless: false\n", "  headless: false\n  api_watch:\n    nope: 1\n"
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(BrowserConfigError, match="nope"):
+        load_browser_config("demo")
+
+
+def test_api_watch_grace_must_be_non_negative_int(browser_project):
+    path = browser_project / "browser" / "browser.yaml"
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "  headless: false\n", "  headless: false\n  api_watch:\n    grace_ms: -1\n"
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(BrowserConfigError, match="grace_ms"):
+        load_browser_config("demo")
+
+
+def test_allow_api_error_accepts_bool_or_url_list(browser_project):
+    path = browser_project / "browser" / "flows" / "smoke.yaml"
+    path.write_text(
+        path.read_text(encoding="utf-8")
+        + "  - name: 允许\n    goto: ${BASE_URL}/x\n    allow_api_error: true\n"
+        + "  - name: 部分允许\n    goto: ${BASE_URL}/y\n    allow_api_error: [/api/a]\n",
+        encoding="utf-8",
+    )
+    flow = load_flow("demo", "smoke")
+    assert flow.steps[1]["allow_api_error"] is True
+    assert flow.steps[2]["allow_api_error"] == ["/api/a"]
+
+
+def test_allow_api_error_rejects_other_types(browser_project):
+    path = browser_project / "browser" / "flows" / "smoke.yaml"
+    path.write_text(
+        path.read_text(encoding="utf-8") + "  - name: 非法\n    goto: ${BASE_URL}/x\n    allow_api_error: 1\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(BrowserConfigError, match="allow_api_error"):
+        load_flow("demo", "smoke")

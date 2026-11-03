@@ -247,6 +247,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             variables,
             project_dir(project),
             timeout_ms=cfg.timeout_ms,
+            api_watch=cfg.api_watch,
         )
         if result.result == "fail":
             try:

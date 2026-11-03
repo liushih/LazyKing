@@ -140,3 +140,18 @@ def test_latest_entry_uses_modified_time(tmp_path):
     os.utime(a, (2000, 2000))
     assert latest_entry(tmp_path).name == "aaa-flow-2"
     assert latest_entry(tmp_path / "missing") is None
+
+
+def test_diagnosis_lists_api_errors(page, fixture_url, tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_TOOLS_HOME", str(tmp_path))
+    page.goto(fixture_url + "/index.html")
+    flow = FlowDef("smoke", "", "dev", {}, [], tmp_path / "flow.yaml")
+    flow.path.write_text("version: 1\nflow: smoke\nsteps: []\n", encoding="utf-8")
+    result = failed_result(flow.path)
+    result.failure.detail = {
+        "api_errors": [{"method": "POST", "url": "http://x/api/save", "status": 500,
+                        "reason": "HTTP 500", "body": '{"msg": "服务异常"}'}]
+    }
+    out = capture(page, "demo", flow, result, PageCollector())
+    text = (out / "diagnosis.md").read_text(encoding="utf-8")
+    assert "接口异常" in text and "POST http://x/api/save" in text and "服务异常" in text

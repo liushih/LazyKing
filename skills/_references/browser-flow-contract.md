@@ -19,6 +19,7 @@ defaults:
   timeout_ms: 15000
   headless: false
   # profile: 可选；默认 <DATA_HOME>/browser/profiles/<项目ID>/<env>
+  # api_watch: 可选；接口异常快速失败，见第 5.1 节
 
 login:
   url: ${BASE_URL}/login
@@ -91,6 +92,7 @@ steps:
 - 每个步骤必须有唯一 `name`，最多一个动作。
 - **只断言、不操作的步骤是允许的**：零个动作 + 至少一个 `wait_*` 或 `expect_*`。
 - `wait_response` 必须配合动作使用。
+- 可选步骤字段：`timeout`（毫秒，覆盖默认超时）、`optional`、`as`、`allow_api_error`（见 5.1）。
 
 ## 3. 动作
 
@@ -126,15 +128,50 @@ steps:
 
 | 写法 | 语义 |
 |---|---|
-| `wait_response: /api/list` | 与动作并发等待 URL 包含该串、状态 2xx |
-| `wait_response: {url_contains: /api/list, status: 200}` | 指定状态码 |
+| `wait_response: /api/list` | 与动作并发等待 URL 包含该串；响应一到即判定，状态非 2xx 或业务码异常立刻失败（接口监听关闭时仍等 2xx） |
+| `wait_response: {url_contains: /api/list, status: 200}` | 指定状态码；写了 `status` 就只按该状态匹配，不做业务码检查 |
 | `wait_url: {path: /index}` | pathname 精确相等 |
 | `wait_url: {contains: /wms/outbound}` | URL 包含 |
 | `wait_visible: {testid: ...}` | 等待可见 |
 | `wait_hidden: {css: ...}` | 等待消失 |
 | `wait_text: {locator: {css: ...}, contains: 保存成功}` | 等待文本 |
 
-不提供固定 sleep。需要停顿时说明等待信号没找对。
+不提供固定 sleep。需要停顿时说明等待信号没找对。所有等待都是条件一满足立即继续，`timeout_ms` 只是失败时的上限。
+
+### 5.1 接口异常快速失败
+
+步骤的等待/断言期间，页面发出的接口请求出错时，不必等到超时才报错。判定标准（通用约定）：
+
+| 类别 | 判为异常 |
+|---|---|
+| HTTP | `xhr` / `fetch` 与主页面请求状态码 ≥ 400；图片、脚本等静态资源 404 不算 |
+| 业务 | HTTP 200 但 JSON 响应体顶层 `success: false`，或 `code` 不在成功码内（默认 `0`、`200`、`"ok"`、`"success"`，忽略大小写） |
+| 网络 | 请求失败（`ERR_ABORTED` 即页面跳转或前端主动取消的除外） |
+
+- **宽限期**：接口报错后，若等待条件在 `grace_ms`（默认 1500）内仍未满足才判失败；页面自己重试成功的不会误判。
+- 失败信息含 URL、状态/业务码、响应片段，写入报告和诊断包的 `diagnosis.md`「接口异常」一节。
+- 只看当前步骤期间出现的接口；步骤没有任何等待/断言时不会中途判失败。
+
+`browser.yaml` 可调：
+
+```yaml
+defaults:
+  api_watch:
+    enabled: true            # 默认开启
+    ignore: [/api/heartbeat] # URL 子串；这些接口出错一律不算
+    success_codes: [0, 200]  # 覆盖默认成功码
+    grace_ms: 1500
+```
+
+步骤上可局部放行（例如专门验证报错提示的反向用例）：
+
+```yaml
+- name: 提交空表单
+  click: {testid: submit}
+  allow_api_error: true            # 整步不监听
+  # allow_api_error: [/api/save]   # 或只放行这些 URL
+  expect_text: {locator: {css: .el-message}, contains: 不能为空}
+```
 
 ## 6. 断言
 

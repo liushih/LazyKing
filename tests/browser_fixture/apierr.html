@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8"><title>接口异常夹具</title></head>
+<body>
+  <button data-testid="boom">HTTP 500</button>
+  <button data-testid="biz">业务失败</button>
+  <button data-testid="noisy">背景报错后恢复</button>
+  <div id="done" hidden>完成</div>
+  <script>
+    const show = () => { document.querySelector('#done').hidden = false; };
+    document.querySelector('[data-testid="boom"]').addEventListener('click', () => fetch('/api/boom'));
+    document.querySelector('[data-testid="biz"]').addEventListener('click', () => fetch('/api/biz-error'));
+    document.querySelector('[data-testid="noisy"]').addEventListener('click', async () => {
+      await fetch('/api/boom');
+      setTimeout(show, 300);
+    });
+  </script>
+</body>
+</html>

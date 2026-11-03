@@ -14,8 +14,15 @@ envs:
 
 defaults:
   env: dev
+  # 单步等待上限（毫秒）。条件满足会立即继续，这里只决定"失败要等多久"，建议 15000；
+  # 个别确实慢的步骤在步骤上单独写 timeout。
   timeout_ms: 15000
   headless: false
+  # 接口异常快速失败：步骤等待期间接口报错（HTTP>=400、业务码非成功、网络失败）就提前判失败。默认开启。
+  # api_watch:
+  #   ignore: [/api/heartbeat]
+  #   success_codes: [0, 200]
+  #   grace_ms: 1500
 
 login:
   url: ${BASE_URL}/login

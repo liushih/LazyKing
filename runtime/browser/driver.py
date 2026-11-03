@@ -28,14 +28,21 @@ def launch(headless: bool, profile: Path, *, tracing: bool = False) -> BrowserSe
     profile = Path(profile)
     profile.parent.mkdir(parents=True, exist_ok=True)
     playwright = sync_playwright().start()
+    options: dict[str, Any] = {
+        "channel": "chrome",
+        "headless": headless,
+        "accept_downloads": True,
+    }
+    if headless:
+        options["viewport"] = {"width": 1280, "height": 720}
+    else:
+        # Python 里 viewport=None 等于没传（默认 1280x720）；不固定视口要用 no_viewport。
+        # Playwright 默认带 --no-sandbox，Chrome 会在窗口顶部弹警告条；开启沙箱在部分环境会让 Chrome 启动即崩溃，
+        # 所以保留默认沙箱行为，用 --test-type 只隐藏这条提示（仅用于本工具专用的自动化 profile）。
+        options["no_viewport"] = True
+        options["args"] = ["--start-maximized", "--test-type"]
     try:
-        context = playwright.chromium.launch_persistent_context(
-            str(profile),
-            channel="chrome",
-            headless=headless,
-            viewport=None,
-            accept_downloads=True,
-        )
+        context = playwright.chromium.launch_persistent_context(str(profile), **options)
     except Exception as exc:
         playwright.stop()
         raise BrowserEnvError(

@@ -113,3 +113,56 @@ def test_close_survives_trace_stop_failure():
 
     close(BrowserSession(Playwright(), Context(), object()), trace_path=Path("t.zip"))
     assert calls == ["context", "playwright"]
+
+
+class _FakePage:
+    def set_default_timeout(self, ms):
+        pass
+
+
+class _FakeContext:
+    pages = [_FakePage()]
+
+
+class _FakeChromium:
+    def __init__(self):
+        self.kwargs = None
+
+    def launch_persistent_context(self, profile, **kwargs):
+        self.kwargs = kwargs
+        return _FakeContext()
+
+
+class _FakePlaywright:
+    def __init__(self):
+        self.chromium = _FakeChromium()
+
+    def stop(self):
+        pass
+
+
+def _launch_with_fake(monkeypatch, tmp_path, headless):
+    fake = _FakePlaywright()
+
+    class _Starter:
+        def start(self):
+            return fake
+
+    monkeypatch.setattr("playwright.sync_api.sync_playwright", lambda: _Starter())
+    launch(headless=headless, profile=tmp_path / "profile")
+    return fake.chromium.kwargs
+
+
+def test_headed_launch_uses_real_window_size_and_hides_unsupported_flag_banner(monkeypatch, tmp_path):
+    kwargs = _launch_with_fake(monkeypatch, tmp_path, headless=False)
+    assert kwargs["no_viewport"] is True
+    assert "viewport" not in kwargs
+    assert "--start-maximized" in kwargs["args"]
+    assert "--test-type" in kwargs["args"]
+    assert "chromium_sandbox" not in kwargs
+
+
+def test_headless_launch_keeps_fixed_1280x720_viewport(monkeypatch, tmp_path):
+    kwargs = _launch_with_fake(monkeypatch, tmp_path, headless=True)
+    assert kwargs["viewport"] == {"width": 1280, "height": 720}
+    assert "no_viewport" not in kwargs

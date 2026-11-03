@@ -62,7 +62,7 @@ def browser_context(tmp_path_factory):
     profile = tmp_path_factory.mktemp("chrome-profile")
     playwright = sync_api.sync_playwright().start()
     try:
-        context = sync_api.chromium.launch_persistent_context(
+        context = playwright.chromium.launch_persistent_context(
             str(profile), channel="chrome", headless=True, viewport=None
         )
     except Exception as exc:

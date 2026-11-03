@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8"><title>登录</title></head>
+<body>
+  <button>登 录</button>
+  <script>
+    document.querySelector('button').addEventListener('click', () => {
+      localStorage.setItem('Admin-Token', 'token-123');
+      location.href = '/index.html';
+    });
+  </script>
+</body>
+</html>

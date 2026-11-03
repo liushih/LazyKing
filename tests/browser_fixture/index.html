@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8"><title>浏览器测试夹具</title></head>
+<body>
+  <button data-testid="save">保存</button>
+  <button data-testid="dialog-opener">打开弹框</button>
+  <div class="el-message" hidden>保存成功</div>
+  <input placeholder="手机号">
+  <input placeholder="密码">
+  <div role="tab" id="tab-send">待发货</div>
+  <table>
+    <tbody>
+      <tr>
+        <td><input class="standard-checkbox" type="checkbox"></td>
+        <td>WO001</td>
+        <td><button data-row="WO001">更多</button></td>
+        <td><button data-row="WO001">日志</button></td>
+      </tr>
+      <tr>
+        <td><input class="standard-checkbox" type="checkbox"></td>
+        <td>WO002</td>
+        <td><button data-row="WO002">更多</button></td>
+        <td><button data-row="WO002">日志</button></td>
+      </tr>
+    </tbody>
+  </table>
+  <div role="dialog" data-testid="dialog" hidden>物流方式<button>取消</button></div>
+  <div id="log"></div>
+  <script>
+    const log = (text) => { document.querySelector('#log').textContent = text; };
+    document.querySelector('[data-testid="save"]').addEventListener('click', async () => {
+      await fetch('/api/save');
+      document.querySelector('.el-message').hidden = false;
+    });
+    document.querySelector('[data-testid="dialog-opener"]').addEventListener('click', () => {
+      document.querySelector('[data-testid="dialog"]').hidden = false;
+    });
+    document.querySelector('#tab-send').addEventListener('click', async () => {
+      await fetch('/api/list');
+      log('list-loaded');
+    });
+    document.querySelectorAll('table button').forEach((btn) => {
+      btn.addEventListener('click', () => log(`${btn.dataset.row}-${btn.textContent}`));
+    });
+  </script>
+</body>
+</html>

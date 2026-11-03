@@ -192,10 +192,24 @@ steps:
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/browser.py" diagnose --project <项目ID>
 ```
 
+### 选项
+
+| 选项 | 适用 | 说明 |
+|---|---|---|
+| `--var 名称=值` | run | 流程参数，可重复；必填变量缺失在启动浏览器前报错 |
+| `--env 名称` | run / probe | 指定环境；默认取流程的 `env`，再取 `defaults.env` |
+| `--headless` | run / probe | 不显示窗口；视口固定 1280x720。默认有窗口、最大化 |
+| `--profile 路径` | run / probe | 换浏览器 profile，用于绕开被占用的 profile 或强制重新登录 |
+| `--trace` | run | 录制 Playwright trace，失败时放进诊断包 |
+| `--json` | list / run | 机器可读输出 |
+| `--label 名称` | probe | 探索快照名称 |
+
+有窗口和无头的页面尺寸不同，对比失败时要用同一种模式。
+
 | 退出码 | 含义 |
 |---|---|
 | 0 | 通过 |
 | 1 | 流程失败 |
-| 2 | 配置错误 |
+| 2 | 配置错误（含流程引用了未定义的变量） |
 | 3 | 流程不存在 |
 | 4 | 环境错误 |

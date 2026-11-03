@@ -58,6 +58,8 @@ description: >-
 
 按 `<TOOLS_DIR>/skills/_references/browser-flow-contract.md` 把入口、步骤、等待信号、断言写成 `browser/flows/<流程名>.yaml`，再 `run` 到通过。
 
+常用选项（完整表见 `browser-flow-contract.md` 第 10 节）：`--headless` 不显示窗口（视口固定 1280x720，默认有窗口且最大化）；`--profile <路径>` 换浏览器 profile，用于绕开被占用的 profile 或强制重新登录；`--trace` 录制 trace；`--json` 机器可读输出。有窗口和无头的页面尺寸不同，对比失败时用同一种模式。
+
 环境不完整时先跑：
 
 ```bash
@@ -73,6 +75,8 @@ description: >-
 | 退出码 4 | 环境错误：按提示检查 Chrome、Playwright、profile 占用或登录 |
 | 退出码 1 | 流程失败：读诊断包 `diagnosis.md`，改流程后重跑 |
 | 出现新坑 | 按四段（现象 / 原因 / 绕法 / 适用）追加到 `browser/pitfalls.md`，按「现象」去重 |
+
+原来能通过、突然稳定失败时，先查被测前端有没有刚发布（`curl -I <前端地址>` 看 `Last-Modified`），再手工点一次对应功能，确认功能本身变了再改流程；不要先改选择器或加等待。
 
 自愈顺序：读诊断 → 判断是选择器、等待信号、接口还是前置条件 → 改 YAML（复杂交互抽到项目 `scripts/` 的 `impl`）→ 重跑。只以退出码 0 报通过；未通过时明确说失败步骤。
 

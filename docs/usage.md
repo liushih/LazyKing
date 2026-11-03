@@ -748,8 +748,50 @@ bootstrap 会提示删除或重命名 `data-tools/.venv` 后重跑，重新创�
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/browser.py" probe --project <项目ID> --url ${BASE_URL}/index
 ```
 
+### 运行选项
+
+| 选项 | 适用 | 说明 |
+|---|---|---|
+| `--var 名称=值` | run | 传流程参数，可重复 |
+| `--env dev` | run / probe | 指定环境，不写则取流程或 `browser.yaml` 的默认环境 |
+| `--headless` | run / probe | 不显示窗口，适合无人值守；默认显示窗口 |
+| `--profile 路径` | run / probe | 换一个浏览器 profile，用来绕开被占用的 profile 或强制重新登录 |
+| `--trace` | run | 录制 Playwright trace，失败时一并放进诊断包 |
+| `--json` | list / run | 输出机器可读结果 |
+| `--label 名称` | probe | 给探索快照起名 |
+
+### 有窗口和无头的区别
+
+- **有窗口（默认）**：窗口最大化，页面铺满窗口；登录态保存在固定 profile 里，第二次起不用重新登录。
+- **无头（`--headless`）**：视口固定 1280×720。页面布局依赖视口时，两种模式可能表现不同，写流程和排查失败时要用同一种模式对比。
+- 一个 profile 同时只能被一个 Chrome 使用；跑流程前先关掉手动打开过这个 profile 的窗口。
+
 ### 失败后
 
 `run` 退出码 1 时，读诊断包里的 `diagnosis.md`、截图、DOM 和请求记录，改 `flows/<名称>.yaml` 后重跑。只以退出码 0 报通过。稳定后把新的坑按四段式写进 `browser/pitfalls.md`。
+
+流程在原来能通过、突然稳定失败时，先别改选择器：用 `curl -I <前端地址>` 看 `Last-Modified`，确认被测前端有没有刚发布，再手工点一次对应功能。
+
+### 常见问题
+
+**页面只占窗口左上角一块，其余是灰的**
+
+旧版本把视口固定成了 1280×720（Python 里 `viewport=None` 等于没传，要用 `no_viewport=True`）。更新 `data-tools` 后会铺满窗口。
+
+**窗口顶部提示「您使用的是不受支持的命令行标记：--no-sandbox」**
+
+Playwright 启动 Chrome 时默认带 `--no-sandbox`，Chrome 在有窗口时会弹这条警告，不影响功能。当前版本用 `--test-type` 隐藏它，只作用于工具专用的自动化 profile，不影响你平时的 Chrome。不要为了去掉它开启 `chromium_sandbox`：在部分环境里 Chrome 会启动即崩溃。
+
+**启动失败，提示「请关闭占用该 profile 的 Chrome」**
+
+另一个 Chrome 正在用同一个 profile，或上次运行异常退出留下了锁。关掉那个窗口，或用 `--profile` 换一个目录。
+
+**流程提示「流程引用了未定义的变量」（退出码 2）**
+
+流程里写了 `${变量}`，但既没有在 `vars` 里声明、`--var` 没传，`browser.yaml` 的环境里也没有。补上其中一处即可；这个检查在启动浏览器之前做。含 `impl` 步骤的流程会跳过这个检查，因为变量可能由 `impl` 在运行时产生。
+
+**诊断包里有敏感信息吗**
+
+请求头、URL 参数里的令牌、错误文本、报告和页面 HTML 都会脱敏，规则按键名和 JWT/Bearer 形状匹配。换了键名的不透明密钥可能漏过，诊断包只放在不提交的 `.data-tools/browser/` 下，分享给别人前自己再看一眼。
 
 详细写法见技能内的 `browser-flow-contract.md` 和 `browser-diagnosis.md`。

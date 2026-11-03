@@ -83,9 +83,10 @@ def test_upsert_gitignore_is_idempotent(project):
     assert text.count("# data-tools:begin") == 1
     assert "node_modules/" in text
     assert "data-tools/.venv/" in text
-    assert ".data-tools/projects/*/.token.json" in text
+    assert ".data-tools/projects/*/.token*.json" in text
     assert ".data-tools/projects/*/scripts/state.json" in text
     assert ".data-tools/browser/" in text
+    assert ".data-tools/projects/*/scripts/.token*.json" in text
 
 
 def test_init_data_dirs_preserves_existing(source, project):

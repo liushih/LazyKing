@@ -642,7 +642,7 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 复杂业务的 impl 模块（如 `chain.py`、`hexin_client.py`）也放在 `projects/<项目ID>/scripts/`，随业务仓库提交；B2D/B2C 已内置，不再依赖旧 `hexin-data-gen`/`hexin-db-tools`。
 
 同步工具会把 `data-tools/.venv/`、`.data-tools/projects/*/.env`、
-`.data-tools/projects/*/ledger.csv`、`.data-tools/projects/*/.token.json`、
+`.data-tools/projects/*/ledger.csv`、`.data-tools/projects/*/.token*.json`、`.data-tools/projects/*/scripts/.token*.json`、
 `.data-tools/projects/*/scripts/state.json`、`.data-tools/reports/` 和
 `.data-tools/.update-check.json` 写进业务仓库的 `.gitignore`。
 

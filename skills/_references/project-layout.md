@@ -34,7 +34,7 @@
 │   └── browser/                       # 不提交：profile、浏览器报告、诊断包、probe
 ```
 
-`data-tools/.venv/`、`.data-tools/projects/*/.env`、`ledger.csv`、`.token.json`、
+`data-tools/.venv/`、`.data-tools/projects/*/.env`、`ledger.csv`、`.token*.json`（含 `scripts/` 下的环境令牌缓存）、
 `.data-tools/projects/*/scripts/state.json`、`.data-tools/reports/`、
 `.data-tools/browser/` 和 `.update-check.json` 由同步工具写入 `.gitignore`，不进仓库。
 

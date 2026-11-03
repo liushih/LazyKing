@@ -56,10 +56,10 @@ def fixture_url():
     server.shutdown()
 
 
-@pytest.fixture(scope="session")
-def browser_context(tmp_path_factory):
+@pytest.fixture
+def browser_context(tmp_path):
     sync_api = pytest.importorskip("playwright.sync_api")
-    profile = tmp_path_factory.mktemp("chrome-profile")
+    profile = tmp_path / "chrome-profile"
     playwright = sync_api.sync_playwright().start()
     try:
         context = playwright.chromium.launch_persistent_context(

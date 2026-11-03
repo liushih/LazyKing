@@ -431,6 +431,17 @@ def run_flow(
     )
 
 
+def _login_ready(page: Any, login: LoginConfig, login_path: str) -> bool:
+    try:
+        if check_login_success(page, login):
+            return True
+        if urlparse(page.url).path == login_path:
+            return page.locator("input, button").count() > 0
+    except Exception:
+        return False
+    return False
+
+
 def ensure_login(
     page: Any,
     login: LoginConfig,
@@ -446,9 +457,15 @@ def ensure_login(
     except ConfigError as exc:
         raise FlowRunError(f"登录地址变量解析失败：{exc}") from exc
 
+    login_path = urlparse(str(url)).path
     page.goto(str(url), wait_until="domcontentloaded")
-    if _wait_until(lambda: check_login_success(page, login), 3000):
-        return True
+    deadline = time.monotonic() + timeout_ms / 1000
+    while time.monotonic() < deadline:
+        if check_login_success(page, login):
+            return True
+        if _login_ready(page, login, login_path):
+            break
+        time.sleep(0.1)
 
     login_values = {
         **values,
@@ -484,6 +501,12 @@ def ensure_login(
                 )
             except _StepSkipped:
                 continue
+            except Exception as exc:
+                if check_login_success(page, login):
+                    return True
+                raise FlowRunError(f"登录步骤失败：{step['name']}：{exc}") from exc
+            if check_login_success(page, login):
+                return True
 
     if _wait_until(lambda: check_login_success(page, login), timeout_ms):
         return True

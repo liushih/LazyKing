@@ -32,6 +32,7 @@ data-tools/**/__pycache__/
 .data-tools/projects/*/scripts/state.json
 .data-tools/**/__pycache__/
 .data-tools/reports/
+.data-tools/browser/
 .data-tools/.update-check.json
 .data-tools/**/*.log
 {GITIGNORE_END}

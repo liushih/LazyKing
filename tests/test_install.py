@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.install import install, main, remove
+from scripts.install import install, main, remove, skill_names
 
 NAMES = ("data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow")
 
@@ -18,6 +18,13 @@ def tools(tmp_path):
             encoding="utf-8",
         )
     return root
+
+
+def test_skill_names_discovers_browser_test(tmp_path):
+    path = tmp_path / "skills" / "browser-test"
+    path.mkdir(parents=True)
+    (path / "SKILL.md").write_text("---\nname: browser-test\ndescription: 测试\n---\n", encoding="utf-8")
+    assert "browser-test" in skill_names(tmp_path)
 
 
 def test_claude_skill_has_name_and_description(tmp_path, tools):

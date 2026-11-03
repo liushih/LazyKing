@@ -5,15 +5,15 @@
     "email": "1739498098@qq.com"
   },
   "metadata": {
-    "description": "白话触发连库、批量造数与报告撰写的技能集",
-    "version": "1.4.0"
+    "description": "白话触发连库、批量造数、浏览器测试与报告撰写的技能集",
+    "version": "1.5.0"
   },
   "plugins": [
     {
       "name": "data-tools",
       "source": "./",
-      "description": "白话触发连库、批量造数、报告撰写与代码托管：规则本地累积、凭据不入库，适配 Claude、Cursor、Codex、DeepSeek Harness",
-      "version": "1.4.0",
+      "description": "白话触发连库、批量造数、浏览器测试、报告撰写与代码托管：规则本地累积、凭据不入库，适配 Claude、Cursor、Codex、DeepSeek Harness",
+      "version": "1.5.0",
       "author": {
         "name": "liushihao",
         "email": "1739498098@qq.com"

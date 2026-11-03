@@ -11,7 +11,7 @@
 
 不确定怎么说，看下面第一节的触发词表。细节按需查阅，不必通读。
 
-- [一、五个技能怎么选](#一五个技能怎么选)
+- [一、六个技能怎么选](#一六个技能怎么选)
 - [二、第一次接入业务](#二第一次接入业务)
 - [三、适配层写法](#三适配层写法)
 - [四、批量造数](#四批量造数)
@@ -23,16 +23,18 @@
 - [十、写报告](#十写报告)
 - [十一、代码托管](#十一代码托管)
 - [十二、团队项目接入](#十二团队项目接入)
+- [十三、浏览器测试](#十三浏览器测试)
 
 ---
 
-## 一、五个技能怎么选
+## 一、六个技能怎么选
 
 | 意图 | 说法 | 技能 |
 |---|---|---|
 | 造数 | 造、生成、批量、压测数据、补数据、跑一批 | `data-gen-core` |
 | 连库 | 查库、查一下、连、SQL、改数据 | `db-access` |
 | 接入 | 接入、新业务、第一次、打通、适配 | `adapter-bootstrap` |
+| 浏览器测试 | 测一下、走一遍、浏览器验证、点一遍、复现、回归 | `browser-test` |
 | 报告 | 日报、周报、月报、述职、汇报材料 | `report-writer` |
 | 代码托管 | 提交、推送、合并、建 MR、开分支、热修 | `git-workflow` |
 | 沉淀 | 记下来、加到坑里、更新规则 | 写 `pitfalls.md` |
@@ -42,10 +44,11 @@
 1. 含「接入 / 新业务」→ 走接入，即使同时提到造数
 2. 含「日报 / 周报 / 月报 / 述职」→ 写报告
 3. 含「提交 / 推送 / 合并 / 建 MR / 开分支 / 热修」→ 代码托管
-4. 有造数动词且带业务名词 → 批量造数
-5. 只有动词没有名词（「造点数据」）→ 追问是哪个业务
-6. 有 SQL 关键字或表名 → 数据库访问
-7. 都不命中 → 直说没听懂，不猜
+4. 含「测一下 / 走一遍 / 浏览器 / 页面 / 复现 / 回归」→ 浏览器测试
+5. 有造数动词且带业务名词 → 批量造数
+6. 只有动词没有名词（「造点数据」）→ 追问是哪个业务
+7. 有 SQL 关键字或表名 → 数据库访问
+8. 都不命中 → 直说没听懂，不猜
 
 ## 二、第一次接入业务
 
@@ -716,3 +719,37 @@ Python 3.11+，安装时勾选 **Add python.exe to PATH**，然后重跑脚本�
 **`data-tools/.venv` 存在但 Python 不可用**
 
 bootstrap 会提示删除或重命名 `data-tools/.venv` 后重跑，重新创建虚拟环境。
+
+## 十三、浏览器测试
+
+用可见 Chrome 复跑页面流程。第一次探索后把流程写进业务仓库，下次直接跑，不再重新找入口和选择器。
+
+### 准备
+
+1. 确认机器装了 Chrome；浏览器测试只用系统 Chrome，不额外下载。
+2. 在项目 `.data-tools/projects/<项目ID>/browser/browser.yaml` 配置前端根地址、登录方式和成功标志，凭据只写 `${VAR}`。
+3. 把 `browser/` 里的 `browser.yaml`、`flows/*.yaml`、`pitfalls.md` 随业务仓库提交；`.data-tools/browser/` 不提交。
+
+### 常用说法
+
+| 你说 | 它做 |
+|---|---|
+| 测一下 B2D 待发货 | 复跑 `b2d-send` 流程 |
+| 走一遍修改物流方式 | 按流程点击并断言 |
+| 浏览器验证一下这个单号 | 用 `--var order_no=` 传参数后复跑 |
+| 页面改版了，流程挂了 | 读诊断包，改选择器后重跑 |
+
+### 命令
+
+```bash
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/browser.py" doctor --project <项目ID>
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/browser.py" list --project <项目ID>
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/browser.py" run --project <项目ID> --flow <名称> --env dev
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/browser.py" probe --project <项目ID> --url ${BASE_URL}/index
+```
+
+### 失败后
+
+`run` 退出码 1 时，读诊断包里的 `diagnosis.md`、截图、DOM 和请求记录，改 `flows/<名称>.yaml` 后重跑。只以退出码 0 报通过。稳定后把新的坑按四段式写进 `browser/pitfalls.md`。
+
+详细写法见技能内的 `browser-flow-contract.md` 和 `browser-diagnosis.md`。

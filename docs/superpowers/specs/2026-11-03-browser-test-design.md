@@ -173,7 +173,7 @@ steps:
 | `name` | 必填，唯一，用于报告与诊断 |
 | `timeout` | 可选，覆盖默认超时（毫秒） |
 | `optional` | 可选，动作目标不存在时跳过本步，不执行等待与断言 |
-| 动作 | 必填且只能有一个：`goto`、`click`、`fill`、`press`、`select`、`check`、`hover`、`use_row`、`impl` |
+| 动作 | 最多一个：`goto`、`click`、`fill`、`press`、`select`、`check`、`hover`、`use_row`、`impl`；没有动作时至少包含一个 `wait_*` 或 `expect_*`（只观察/断言的步骤） |
 | `as` | 可选，把本步定位结果存为别名，供后续 `in` 使用 |
 | `wait_response` | 与动作并发等待的接口 |
 | `wait_url` / `wait_visible` / `wait_hidden` / `wait_text` | 动作完成后依次等待 |
@@ -192,7 +192,7 @@ steps:
 | `select` | `select: {label: 状态}` + `value: ...` | 下拉选择 |
 | `check` | `check: {testid: agree}` | 勾选复选框 |
 | `hover` | `hover: {text: 更多}` | 悬停 |
-| `use_row` | `use_row: {text: ${order_no}, checkbox: "input.standard-checkbox"}` | 在 `row_css`（默认 `table tbody tr`）中按文本定位行，存入别名；可断言 `wait_visible: true` |
+| `use_row` | `use_row: {text: "${order_no}", checkbox: "input.standard-checkbox"}` | 在 `row_css`（默认 `table tbody tr`）中按文本定位行，存入别名；可断言 `wait_visible: true` |
 | `impl` | `impl: scripts/xxx.py:func` | 调用项目内 Python 函数 |
 
 `impl` 约定：
@@ -241,7 +241,7 @@ steps:
 | `expect_text: {locator: {...}, contains: 物流方式已修改}` | 文本包含 |
 | `expect_text: {locator: {...}, equals: ...}` | 文本完全相等 |
 | `expect_url: {path: /wms/outbound/outboundB2d}` | pathname 相等 |
-| `expect_count: {locator: {...}, min: 1}` | 元素数量范围，支持 `eq` / `min` / `max` |
+| `expect_count: {locator: {...}, min: 1}` | 元素数量范围，支持 `eq` / `min` / `max`；统计全部命中 |
 
 断言失败即流程失败，诊断包记录期望值与实际值。
 
@@ -266,7 +266,7 @@ steps:
     wait_visible: {css: "table tbody tr"}
 
   - name: 定位目标行
-    use_row: {text: ${order_no}, checkbox: "input.standard-checkbox"}
+    use_row: {text: "${order_no}", checkbox: "input.standard-checkbox"}
     as: row
     wait_visible: true
 

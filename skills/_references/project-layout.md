@@ -23,15 +23,20 @@
 │   │   ├── report.yaml                # 提交（可选）
 │   │   ├── git_hosts.yaml             # 提交（可选，只含 token 键名）
 │   │   ├── scripts/                   # 提交：impl 步骤代码、复杂业务模块
+│   │   ├── browser/                   # 提交：浏览器测试记忆
+│   │   │   ├── browser.yaml           # 环境、登录、默认参数
+│   │   │   ├── flows/*.yaml           # 可复跑流程
+│   │   │   └── pitfalls.md            # 浏览器坑库
 │   │   ├── .env.example               # 提交：键名模板
 │   │   └── .env                       # 不提交：各人凭据
 │   ├── templates/<项目ID>/            # 提交（可选）
-│   └── reports/                       # 不提交：报告产物
+│   ├── reports/                       # 不提交：报告产物
+│   └── browser/                       # 不提交：profile、浏览器报告、诊断包、probe
 ```
 
 `data-tools/.venv/`、`.data-tools/projects/*/.env`、`ledger.csv`、`.token.json`、
-`.data-tools/projects/*/scripts/state.json`、`.data-tools/reports/` 和
-`.update-check.json` 由同步工具写入 `.gitignore`，不进仓库。
+`.data-tools/projects/*/scripts/state.json`、`.data-tools/reports/`、
+`.data-tools/browser/` 和 `.update-check.json` 由同步工具写入 `.gitignore`，不进仓库。
 
 复杂业务的 impl 模块（如登录客户端、链路封装）也放 `projects/<项目ID>/scripts/`，
 随业务仓库提交；不要写死 `C:\project\claudeTool`、`hexin-data-gen`、`hexin-db-tools`
@@ -117,6 +122,12 @@ powershell -ExecutionPolicy Bypass -File <TOOLS_DIR>/bootstrap.ps1
 更新检查成功按 `check_interval_hours`（默认 24 小时）缓存；失败按
 `failure_cooldown_minutes`（默认 15 分钟）冷却，避免离线时每次技能启动都等网络。
 在 `.data-tools/config.yaml` 的 `data_tools` 段可以设置 `update_check: false` 彻底关闭检查。
+
+## 浏览器测试的数据边界
+
+- 提交：`.data-tools/projects/<项目ID>/browser/browser.yaml`、`flows/*.yaml`、`pitfalls.md`，以及项目 `scripts/` 下的 impl。
+- 不提交：`.data-tools/browser/`（profile、reports、artifacts、probes）。
+- `browser.yaml` 只写 `${VAR}`；新增键时同步更新 `.env.example`。
 
 ## adapter-bootstrap 的额外约定
 

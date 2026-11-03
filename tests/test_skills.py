@@ -6,7 +6,7 @@ import yaml
 SKILLS = Path(__file__).resolve().parents[1] / "skills"
 
 
-@pytest.mark.parametrize("name", ["data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow"])
+@pytest.mark.parametrize("name", ["data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow", "browser-test"])
 def test_skill_has_frontmatter_and_sections(name):
     text = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
     assert text.startswith("---")
@@ -14,7 +14,7 @@ def test_skill_has_frontmatter_and_sections(name):
         assert section in text
 
 
-@pytest.mark.parametrize("name", ["data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow"])
+@pytest.mark.parametrize("name", ["data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow", "browser-test"])
 def test_skill_commands_are_single_line(name):
     """命令块里不留 bash 反斜杠续行，PowerShell（DSH on Windows）会把它断成多条命令。"""
     text = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
@@ -89,7 +89,7 @@ def test_git_skill_reports_existing_mr_on_conflict():
     assert "已存在" in text
 
 
-@pytest.mark.parametrize("name", ["data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow"])
+@pytest.mark.parametrize("name", ["data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow", "browser-test"])
 def test_skill_has_environment_preflight(name):
     text = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
     assert "## 第 0 步：环境检查" in text
@@ -103,3 +103,25 @@ def test_skill_has_environment_preflight(name):
     # 与 runtime/config.py 的 data_home() 一致：环境变量优先于向上查找。
     step2 = next(line for line in text.splitlines() if line.startswith("2. 定位 <DATA_HOME>"))
     assert step2.index("DATA_TOOLS_HOME") < step2.index(".data-tools/")
+
+
+def test_browser_skill_memory_and_safety_rules():
+    text = (SKILLS / "browser-test" / "SKILL.md").read_text(encoding="utf-8")
+    for word in ["不写固定 sleep", "probe", "diagnosis.md", "pitfalls.md", "退出码 0", "browser.py"]:
+        assert word in text
+
+
+def test_browser_examples_parse():
+    browser_cfg = yaml.safe_load(
+        (SKILLS / "_TEMPLATE" / "browser.example.yaml").read_text(encoding="utf-8")
+    )
+    flow = yaml.safe_load(
+        (SKILLS / "_TEMPLATE" / "browser-flow.example.yaml").read_text(encoding="utf-8")
+    )
+    assert browser_cfg["version"] == 1 and "login" in browser_cfg
+    assert flow["version"] == 1 and flow["steps"]
+
+
+def test_trigger_routing_includes_browser():
+    text = (SKILLS / "_references" / "trigger-routing.md").read_text(encoding="utf-8")
+    assert "浏览器" in text and "browser-test" in text

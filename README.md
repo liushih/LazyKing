@@ -1,6 +1,6 @@
 # claudeTool
 
-用白话让 AI 帮你连库、造数、写报告、管代码托管。支持 Claude Code、Cursor、Codex、DeepSeek Harness。
+用白话让 AI 帮你连库、造数、测页面、写报告、管代码托管。支持 Claude Code、Cursor、Codex、DeepSeek Harness。
 
 个人/全局模式下，业务规则存在本机适配层，凭据只存本机，都不进仓库；团队项目模式下适配层与坑库随业务仓库提交，凭据仍只存本机。
 
@@ -12,6 +12,7 @@
 | 把这个 SQL 文件跑一下 | 读取文件执行，支持多语句 |
 | 在 dev 造 100 张提货单，跑到 UPLOADED | 并发造数，逐单记台账 |
 | 同一批次重跑，把失败的补上 | 跳过已完成，只补失败 |
+| 测一下 B2D 待发货 | 打开 Chrome 复跑已沉淀流程，失败出诊断包 |
 | 写这周的周报，顺便出 Word | 采集提交与禅道任务，生成并渲染 |
 | 把这个改动提交并推到 dev | 检查提交规范，回显后推送 |
 | 接入 XX 新业务 | 陪你跑通，生成该业务的规则和坑库 |
@@ -88,13 +89,14 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 
 更新：`data-tools/update.ps1`，会刷新 `data-tools/`、生成的技能入口和 `.gitignore`；发现新版本时技能会先询问是否更新。个人全局使用仍可用插件市场，互不影响。
 
-## 五个技能
+## 六个技能
 
 | 技能 | 触发词 |
 | --- | --- |
 | `adapter-bootstrap` 接入业务 | 接入、新业务、第一次、打通 |
 | `data-gen-core` 批量造数 | 造 N 条、批量、压测数据、补数据 |
 | `db-access` 查改库 | 查一下、连 dev 库、改成、看 redis / mongo |
+| `browser-test` 浏览器测试 | 测一下、走一遍、浏览器验证、复现、回归 |
 | `report-writer` 写报告 | 日报、周报、月报、述职 |
 | `git-workflow` 代码托管 | 提交、推送、建 MR、开分支、同步热修 |
 

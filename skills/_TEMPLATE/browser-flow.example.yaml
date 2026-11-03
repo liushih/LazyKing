@@ -1,0 +1,39 @@
+# 浏览器流程模板
+# 复制到 <数据目录>/projects/<项目ID>/browser/flows/<名称>.yaml。
+# 每个步骤写清「做什么 + 等什么信号 + 断言什么」。
+
+version: 1
+flow: b2d-send
+description: B2D 待发货列表与行内操作
+env: dev
+vars:
+  order_no: {required: true, description: 出库单号}
+steps:
+  - name: 打开 B2D 出库
+    goto: ${BASE_URL}/wms/outbound/outboundB2d
+    wait_url: {path: /wms/outbound/outboundB2d}
+
+  - name: 切到待发货
+    click: {role: tab, name: 待发货}
+    wait_response: /wms/pickingPlan/list
+    wait_visible: {css: "table tbody tr"}
+
+  - name: 定位目标行
+    use_row: {text: "${order_no}", checkbox: "input.standard-checkbox"}
+    as: row
+    wait_visible: true
+
+  - name: 打开更多菜单
+    click: {in: row, role: button, name: 更多}
+    wait_visible: {text: 修改物流方式, exact: true}
+
+  - name: 打开修改物流方式
+    click: {text: 修改物流方式, exact: true, last: true}
+    wait_response: /b2dLogistics/context
+    wait_visible: {testid: b2d-update-logistics-dialog}
+    expect_text: {locator: {testid: b2d-update-logistics-dialog}, contains: 物流方式}
+
+  - name: 打开行日志
+    click: {in: row, role: button, name: 日志}
+    wait_response: /log/operlog/treeByBizKey
+    expect_visible: {css: ".el-drawer:visible"}

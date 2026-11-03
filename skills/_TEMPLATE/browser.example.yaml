@@ -1,0 +1,35 @@
+# 浏览器测试配置模板
+# 复制到 <数据目录>/projects/<项目ID>/browser/browser.yaml。
+# 值一律写 ${变量}，真实值只放项目 .env。
+# base_url 是前端页面根地址，不是接口网关。
+
+version: 1
+project: <项目ID>
+
+envs:
+  dev:
+    base_url: ${WEB_BASE_URL}
+  test:
+    base_url: ${TEST_WEB_BASE_URL}
+
+defaults:
+  env: dev
+  timeout_ms: 15000
+  headless: false
+
+login:
+  url: ${BASE_URL}/login
+  username: ${WEB_USERNAME}
+  password: ${WEB_PASSWORD}
+  steps:
+    - click: {role: button, name: 使用账号密码登录}
+      optional: true
+    - fill: {placeholder: 手机号}
+      value: ${username}
+    - fill: {placeholder: 密码}
+      value: ${password}
+    - click: {role: button, name: 登 录}
+  success:
+    url_path: /index
+    localStorage:
+      Admin-Token: ".+"

@@ -92,12 +92,12 @@ def test_scrub_text_hides_tokens_in_free_text():
 
 def test_capture_scrubs_page_url_and_error_text(page, fixture_url, tmp_path, monkeypatch):
     monkeypatch.setenv("DATA_TOOLS_HOME", str(tmp_path))
-    secret = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJsb2dpbiI6InUifQ.abcDEF123_-xyz"
+    secret = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJsb2dpbiI6InUifQ.abcDEF123_-xyz"  # noqa: secrets 脱敏测试用的合成值，非真实凭据
     page.goto(fixture_url + "/index.html?token=" + secret)
     flow = FlowDef("smoke", "", "dev", {}, [], tmp_path / "flow.yaml")
     flow.path.write_text("version: 1\nflow: smoke\nsteps: []\n", encoding="utf-8")
     result = failed_result(flow.path)
-    result.steps[1].error = "navigating to http://h/x?token=" + secret + " failed"
+    result.steps[1].error = "navigating to http://h/x?token=" + secret + " failed"  # noqa: secrets 脱敏测试用的合成值，非真实凭据
     out = capture(page, "demo", flow, result, PageCollector())
     for name in ["diagnosis.md", "run.log", "page.html", "console.log"]:
         assert secret not in (out / name).read_text(encoding="utf-8"), name
@@ -105,7 +105,7 @@ def test_capture_scrubs_page_url_and_error_text(page, fixture_url, tmp_path, mon
 
 def test_write_report_scrubs_error_text(tmp_path, monkeypatch):
     monkeypatch.setenv("DATA_TOOLS_HOME", str(tmp_path))
-    secret = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJsb2dpbiI6InUifQ.abcDEF123_-xyz"
+    secret = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJsb2dpbiI6InUifQ.abcDEF123_-xyz"  # noqa: secrets 脱敏测试用的合成值，非真实凭据
     flow_file = tmp_path / "smoke.yaml"
     flow_file.write_text("x", encoding="utf-8")
     result = failed_result(flow_file)

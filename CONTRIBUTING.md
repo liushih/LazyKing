@@ -11,6 +11,17 @@
 - 设计与计划文档：`docs/superpowers/`
 - 插件与市场清单：`.claude-plugin/`、`.cursor-plugin/`、`.codex-plugin/`
 
+## 发布新版本
+
+版本号以 `.claude-plugin/plugin.json` 为唯一来源（同事的更新检查和插件市场都读它），`marketplace.json` 里不写 `version`。
+不要手改，用脚本一次同步 Claude、Codex、Cursor 三个清单，测试 `test_version_sync.py` 会拦住不一致：
+
+```powershell
+.venv/Scripts/python.exe scripts/bump_version.py 1.5.2
+```
+
+通过插件市场安装的用户只在版本号变化时才会收到更新，所以改了行为就要升版本，再提交推送。
+
 判断标准：**换一个项目，这份代码还能用，不需要改。**
 
 ## 不进 git 的（项目衍生物）

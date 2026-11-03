@@ -157,6 +157,30 @@ def _response_predicate(value: Any) -> Callable[[Any], bool]:
     return match
 
 
+STABLE_POLLS = 4
+STABLE_INTERVAL = 0.06
+
+
+def _wait_stable(locator: Any, timeout_ms: int) -> None:
+    """等元素的位置和大小连续几次不变；异步布局期间点击会落在旧坐标上。超时不报错，交给后续动作判断。"""
+    deadline = time.monotonic() + timeout_ms / 1000
+    last = None
+    same = 0
+    while time.monotonic() < deadline:
+        try:
+            box = _first(locator).bounding_box()
+        except Exception:
+            box = None
+        if box is not None and box == last:
+            same += 1
+            if same >= STABLE_POLLS:
+                return
+        else:
+            same = 0
+        last = box
+        time.sleep(STABLE_INTERVAL)
+
+
 def load_impl(spec: str, root: Path) -> Callable:
     try:
         file_part, func_name = spec.split(":", 1)
@@ -176,6 +200,13 @@ def load_impl(spec: str, root: Path) -> Callable:
     return func
 
 
+def _target(page: Any, spec: dict, aliases: dict[str, Any]) -> Any:
+    """定位动作目标，并等它的位置稳定后再返回，避免异步布局期间点在旧坐标上。"""
+    locator = find(page, spec, aliases)
+    _wait_stable(locator, 3000)
+    return locator
+
+
 def _perform(
     page: Any,
     step: dict,
@@ -187,17 +218,17 @@ def _perform(
     if "goto" in step:
         page.goto(str(step["goto"]), wait_until="domcontentloaded")
     elif "click" in step:
-        find(page, step["click"], aliases).click()
+        _target(page, step["click"], aliases).click()
     elif "fill" in step:
-        find(page, step["fill"], aliases).fill(str(step["value"]))
+        _target(page, step["fill"], aliases).fill(str(step["value"]))
     elif "press" in step:
         page.keyboard.press(str(step["press"]))
     elif "select" in step:
-        find(page, step["select"], aliases).select_option(str(step["value"]))
+        _target(page, step["select"], aliases).select_option(str(step["value"]))
     elif "check" in step:
-        find(page, step["check"], aliases).check()
+        _target(page, step["check"], aliases).check()
     elif "hover" in step:
-        find(page, step["hover"], aliases).hover()
+        _target(page, step["hover"], aliases).hover()
     elif "use_row" in step:
         row = _row_locator(page, step["use_row"])
         if step.get("as"):

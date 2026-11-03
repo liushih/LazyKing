@@ -86,6 +86,17 @@ def test_impl_merges_vars(page, fixture_url, tmp_path):
     assert run(page, tmp_path, flow).result == "pass"
 
 
+def test_use_row_waits_for_layout_to_settle_before_next_click(page, fixture_url, tmp_path):
+    flow = make_flow(
+        {"name": "打开", "goto": fixture_url + "/jitter.html"},
+        {"name": "定位", "use_row": {"row_css": "#host", "text": "日志"}, "as": "row", "wait_visible": True},
+        {"name": "点击", "click": {"in": "row", "role": "button", "name": "日志"}},
+        {"name": "断言", "expect_text": {"locator": {"css": "#result"}, "equals": "clicked-after-settle"}},
+    )
+    result = run(page, tmp_path, flow, timeout_ms=3000)
+    assert result.result == "pass", result.failure
+
+
 def test_optional_step_is_skipped(page, fixture_url, tmp_path):
     flow = make_flow(
         {"name": "打开", "goto": fixture_url + "/index.html"},

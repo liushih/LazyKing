@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8"><title>布局抖动夹具</title>
+<style>
+  #host { position: relative; height: 120px; }
+  #target { position: absolute; left: 10px; top: 10px; }
+</style>
+</head>
+<body>
+  <div id="host"><button id="target">日志</button></div>
+  <div id="result"></div>
+  <script>
+    const target = document.querySelector('#target');
+    let settled = false;
+    const started = performance.now();
+    const timer = setInterval(() => {
+      const elapsed = performance.now() - started;
+      if (elapsed >= 600) {
+        target.style.top = '60px';
+        settled = true;
+        clearInterval(timer);
+      } else {
+        target.style.top = (10 + Math.floor(elapsed / 30) * 2) + 'px';
+      }
+    }, 30);
+    target.addEventListener('click', () => {
+      document.querySelector('#result').textContent = settled ? 'clicked-after-settle' : 'clicked-too-early';
+    });
+  </script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 import pytest
 import requests
 
-from runtime.jenkins.client import JenkinsClient, JenkinsError
+from runtime.jenkins.client import BuildCancelled, JenkinsClient, JenkinsError
 
 FAKE = "fake-jenkins-token-123"  # noqa: secrets
 BASE = "http://jenkins.example.com"
@@ -130,7 +130,7 @@ def test_wait_for_build_returns_number_after_polling():
 
 def test_wait_for_build_cancelled_and_timeout():
     cancelled = _Sess({"queue/item/12": _Resp(body={"cancelled": True})})
-    with pytest.raises(JenkinsError) as exc:
+    with pytest.raises(BuildCancelled) as exc:
         _client(cancelled).wait_for_build(QUEUE, timeout_s=60)
     assert exc.value.kind == "queue"
 

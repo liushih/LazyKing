@@ -1,7 +1,14 @@
 import pytest
 import yaml
 
-from runtime.jenkins.client import BuildStatus, InFlightBuild, JenkinsError, JobParam
+import scripts.jenkins as jenkins_cli
+from runtime.jenkins.client import (
+    BuildCancelled,
+    BuildStatus,
+    InFlightBuild,
+    JenkinsError,
+    JobParam,
+)
 from scripts.jenkins import main
 from test_jenkins_modules import _commit, _git
 
@@ -25,6 +32,9 @@ class _FakeClient:
         self.inflight = {}
         self.cancel_error = None
         self.inflight_errors = set()
+        self.cancel_jobs = set()
+        self.cancelled_queue_urls = set()
+        self.build_results = {}
 
     def job_params(self, job):
         self.calls.append(("job_params", job))
@@ -58,14 +68,24 @@ class _FakeClient:
         )
         return url
 
+    def queue_item_url(self, item_id):
+        return f"{BASE}/queue/item/{item_id}/"
+
     def wait_for_build(self, queue_url, timeout_s, poll_s=2.0):
         self.calls.append(("wait_for_build", queue_url))
         self.timeouts.append(timeout_s)
+        job = self.queue[queue_url][0]
+        if queue_url in self.cancelled_queue_urls or job in self.cancel_jobs:
+            self.cancel_jobs.discard(job)
+            self.cancelled_queue_urls.discard(queue_url)
+            item_id = int(queue_url.rstrip("/").rsplit("/", 1)[-1])
+            self.inflight[job] = [i for i in self.inflight.get(job, []) if i.item_id != item_id]
+            raise BuildCancelled(queue_url)
         return self.queue[queue_url][1]
 
     def wait_finished(self, job, number, timeout_s, poll_s=5.0):
         self.calls.append(("wait_finished", job, number))
-        result = self.results.get(job, "SUCCESS")
+        result = self.build_results.get((job, number), self.results.get(job, "SUCCESS"))
         return BuildStatus(number, False, result, f"{BASE}/job/{job}/{number}/")
 
     def console_tail(self, job, number, lines=50):
@@ -319,3 +339,65 @@ def test_one_run_does_not_cancel_its_own_queued_build(home, fake):
     assert code == 0
     assert not any(c[0] in ("stop_build", "cancel_queue_item") for c in fake.calls)
     assert fake.triggered() == ["order-dev", "order-dev"]
+
+
+def test_cancelled_queue_item_takes_over_replacement_queued_build(home, fake, capsys):
+    fake.cancel_jobs.add("order-dev")
+    replacement = fake.queue_item_url(9)
+    fake.queue[replacement] = ("order-dev", 77)
+    fake.inflight["order-dev"] = [
+        InFlightBuild("queue", "order-dev", {"BRANCH": "feature/x"}, item_id=9)
+    ]
+    code = _run(["--env", "dev", "--module", "order-service", "--branch", "feature/x"], fake)
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "[接管]" in out
+    assert "[SUCCESS] order-service → order-dev #77" in out
+    assert ("wait_for_build", replacement) in fake.calls
+
+
+def test_aborted_build_takes_over_running_replacement(home, fake, capsys):
+    fake.build_results[("order-dev", 57)] = "ABORTED"
+    fake.inflight["order-dev"] = [
+        InFlightBuild("build", "order-dev", {"BRANCH": "feature/x"}, number=77)
+    ]
+    code = _run(["--env", "dev", "--module", "order-service", "--branch", "feature/x"], fake)
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "[接管]" in out
+    assert "[SUCCESS] order-service → order-dev #77" in out
+
+
+def test_takeover_follows_a_second_cancellation_to_final_build(home, fake, capsys):
+    fake.cancel_jobs.add("order-dev")
+    first, second = fake.queue_item_url(9), fake.queue_item_url(10)
+    fake.queue[first] = ("order-dev", 77)
+    fake.queue[second] = ("order-dev", 88)
+    fake.cancelled_queue_urls.add(first)
+    fake.inflight["order-dev"] = [
+        InFlightBuild("queue", "order-dev", {"BRANCH": "feature/x"}, item_id=9),
+        InFlightBuild("queue", "order-dev", {"BRANCH": "feature/x"}, item_id=10),
+    ]
+    code = _run(["--env", "dev", "--module", "order-service", "--branch", "feature/x"], fake)
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "[SUCCESS] order-service → order-dev #88" in out
+
+
+def test_cancelled_queue_item_without_replacement_reports_failure(home, fake, capsys, monkeypatch):
+    monkeypatch.setattr(jenkins_cli, "TAKEOVER_WAIT_S", 0)
+    fake.cancel_jobs.add("order-dev")
+    code = _run(["--env", "dev", "--module", "order-service", "--branch", "feature/x"], fake)
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "[queue] order-service → order-dev" in out
+    assert "构建在排队时被取消" in out
+
+
+def test_aborted_build_without_replacement_reports_failure(home, fake, capsys, monkeypatch):
+    monkeypatch.setattr(jenkins_cli, "TAKEOVER_WAIT_S", 0)
+    fake.build_results[("order-dev", 57)] = "ABORTED"
+    code = _run(["--env", "dev", "--module", "order-service", "--branch", "feature/x"], fake)
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "[ABORTED] order-service → order-dev #57" in out

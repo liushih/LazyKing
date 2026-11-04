@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -15,7 +16,12 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from runtime.config import ConfigError  # noqa: E402
-from runtime.jenkins.client import InFlightBuild, JenkinsClient, JenkinsError  # noqa: E402
+from runtime.jenkins.client import (  # noqa: E402
+    BuildCancelled,
+    InFlightBuild,
+    JenkinsClient,
+    JenkinsError,
+)
 from runtime.jenkins.config import (  # noqa: E402
     DEFAULT_TOKEN_KEY,
     JenkinsConfigError,
@@ -308,6 +314,45 @@ def _cancel_duplicates(client, item: PlannedBuild, own_queue_ids: set[int]) -> N
         print(f"[取消] {item.module} → {item.job} {_active_label(active)}，重新触发")
 
 
+TAKEOVER_WAIT_S = 10.0
+TAKEOVER_POLL_S = 2.0
+MAX_TAKEOVERS = 5
+
+
+def _replacement(
+    client, item: PlannedBuild, own_queue_ids: set[int], exclude_build: int | None = None
+):
+    """找同任务、同参数的在途构建；对方可能还没来得及触发，观望一会儿再放弃。"""
+    deadline = time.monotonic() + TAKEOVER_WAIT_S
+    while True:
+        try:
+            active = client.in_flight(item.job)
+        except JenkinsError as exc:
+            print(f"[{exc.kind}] {item.module} → {item.job} 读取排队状态失败：{exc}")
+            return None
+        for build in active:
+            if not _same_content(item.params, build):
+                continue
+            if build.item_id is not None and build.item_id in own_queue_ids:
+                continue
+            if build.queue_id is not None and build.queue_id in own_queue_ids:
+                continue
+            if exclude_build is not None and build.number == exclude_build:
+                continue
+            return build
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(TAKEOVER_POLL_S)
+
+
+def _takeover_line(item: PlannedBuild, build: InFlightBuild, reason: str) -> str:
+    if build.kind == "queue":
+        target = f"排队中的新构建（队列 #{build.item_id}）"
+    else:
+        target = f"正在运行的构建 #{build.number}"
+    return f"[接管] {item.module} → {item.job} {reason}，改为跟踪{target}"
+
+
 def _build(cfg, client, args) -> int:
     repo = Path(args.repo)
     modules = _select_modules(cfg, args, repo)
@@ -327,21 +372,62 @@ def _build(cfg, client, args) -> int:
     own_queue_ids: set[int] = set()
 
     def finish(item: PlannedBuild, queue_url: str) -> bool:
-        try:
-            number = client.wait_for_build(queue_url, timeout_s)
-            status = client.wait_finished(item.job, number, timeout_s)
-        except JenkinsError as exc:
-            print(f"[{exc.kind}] {item.module} → {item.job} {exc} {exc.url or ''}".rstrip())
-            return False
-        result = status.result or "UNKNOWN"
-        print(f"[{result}] {item.module} → {item.job} #{status.number} {status.url}")
-        if result != "SUCCESS":
+        number: int | None = None
+        takeovers = 0
+        while True:
             try:
-                print("--- 控制台末尾 ---")
-                print(client.console_tail(item.job, status.number))
+                if queue_url is not None:
+                    number = client.wait_for_build(queue_url, timeout_s)
+                    queue_url = None
+                status = client.wait_finished(item.job, number, timeout_s)
+            except BuildCancelled as exc:
+                replacement = (
+                    _replacement(client, item, own_queue_ids)
+                    if takeovers < MAX_TAKEOVERS
+                    else None
+                )
+                if replacement is None:
+                    print(f"[queue] {item.module} → {item.job} {exc} {exc.url or ''}".rstrip())
+                    return False
+                takeovers += 1
+                print(_takeover_line(item, replacement, "原排队构建被同任务的新构建取代"))
+                number = replacement.number
+                queue_url = (
+                    None
+                    if replacement.kind == "build"
+                    else client.queue_item_url(replacement.item_id)
+                )
+                continue
             except JenkinsError as exc:
-                print(f"（读取控制台失败：{exc}）")
-        return result == "SUCCESS"
+                print(f"[{exc.kind}] {item.module} → {item.job} {exc} {exc.url or ''}".rstrip())
+                return False
+            result = status.result or "UNKNOWN"
+            if result == "ABORTED" and takeovers < MAX_TAKEOVERS:
+                replacement = _replacement(
+                    client, item, own_queue_ids, exclude_build=status.number
+                )
+                if replacement is not None:
+                    takeovers += 1
+                    print(
+                        _takeover_line(
+                            item, replacement, f"原构建 #{status.number} 被同任务的新构建取代"
+                        )
+                    )
+                    number = replacement.number
+                    queue_url = (
+                        None
+                        if replacement.kind == "build"
+                        else client.queue_item_url(replacement.item_id)
+                    )
+                    continue
+            print(f"[{result}] {item.module} → {item.job} #{status.number} {status.url}")
+            if result != "SUCCESS":
+                try:
+                    print("--- 控制台末尾 ---")
+                    print(client.console_tail(item.job, status.number))
+                except JenkinsError as exc:
+                    print(f"（读取控制台失败：{exc}）")
+            return result == "SUCCESS"
 
     def trigger(item: PlannedBuild) -> str | None:
         _cancel_duplicates(client, item, own_queue_ids)

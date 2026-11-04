@@ -24,6 +24,13 @@ class JenkinsError(Exception):
         self.url = url
 
 
+class BuildCancelled(JenkinsError):
+    """排队中的构建被取消，通常是被同任务的新构建取代。"""
+
+    def __init__(self, queue_url: str):
+        super().__init__("构建在排队时被取消", "queue", url=queue_url)
+
+
 @dataclass
 class JobParam:
     name: str
@@ -274,6 +281,9 @@ class JenkinsClient:
     def cancel_queue_item(self, item_id: int) -> None:
         self._request("POST", "/queue/cancelItem", retry=False, params={"id": item_id})
 
+    def queue_item_url(self, item_id: int) -> str:
+        return f"{self.base_url}/queue/item/{item_id}/"
+
     def stop_build(self, job: str, number: int) -> None:
         self._request("POST", f"{self.job_path(job)}/{number}/stop", job=job, retry=False)
 
@@ -297,7 +307,7 @@ class JenkinsClient:
         while True:
             data = self._request("GET", path).json()
             if data.get("cancelled"):
-                raise JenkinsError("构建在排队时被取消", "queue", url=queue_url)
+                raise BuildCancelled(queue_url)
             executable = data.get("executable")
             if executable:
                 return int(executable["number"])

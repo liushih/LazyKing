@@ -178,3 +178,21 @@ def test_cli_returns_2_for_invalid_project_id(source, project):
     )
     assert code == 2
     assert not (project / ".data-tools").exists()
+
+
+def test_jenkins_yaml_is_project_data_and_preserved(source, project):
+    from scripts.sync_project import PROJECT_DATA_FILES
+
+    assert "jenkins.yaml" in PROJECT_DATA_FILES
+    project_path = project / ".data-tools" / "projects" / "demo"
+    project_path.mkdir(parents=True)
+    (project_path / "jenkins.yaml").write_text("baseline: origin/dev\n", encoding="utf-8")
+    result = sync_project(project, "demo", ("claude",), source)
+    assert project_path / "jenkins.yaml" in result.preserved
+    assert (project_path / "jenkins.yaml").read_text(encoding="utf-8") == "baseline: origin/dev\n"
+
+
+def test_env_example_template_mentions_jenkins_token():
+    from scripts.sync_project import ENV_EXAMPLE_TEMPLATE
+
+    assert "JENKINS_TOKEN" in ENV_EXAMPLE_TEMPLATE

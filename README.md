@@ -15,6 +15,7 @@
 | 测一下 B2D 待发货 | 打开 Chrome 复跑已沉淀流程，失败出诊断包 |
 | 写这周的周报，顺便出 Word | 采集提交与禅道任务，生成并渲染 |
 | 把这个改动提交并推到 dev | 检查提交规范，回显后推送 |
+| 发版我这个需求的模块到 dev | 按改动推断模块，确认后触发 Jenkins 构建 |
 | 接入 XX 新业务 | 陪你跑通，生成该业务的规则和坑库 |
 
 ## 快速开始
@@ -91,7 +92,7 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 
 要用浏览器测试，还需要给项目配前端地址和登录方式，步骤见 [使用说明：浏览器测试](docs/usage.md#十三浏览器测试)。本机需要装 Chrome。
 
-## 六个技能
+## 七个技能
 
 | 技能 | 触发词 |
 | --- | --- |
@@ -101,6 +102,7 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 | `browser-test` 浏览器测试 | 测一下、走一遍、浏览器验证、复现、回归 |
 | `report-writer` 写报告 | 日报、周报、月报、述职 |
 | `git-workflow` 代码托管 | 提交、推送、建 MR、开分支、同步热修 |
+| `jenkins-deploy` Jenkins 发版 | 发版、构建、部署、Jenkins |
 
 ## 配置
 

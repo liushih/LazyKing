@@ -58,6 +58,7 @@ PROJECT_DATA_FILES: tuple[str, ...] = (
     "pitfalls.md",
     "report.yaml",
     "git_hosts.yaml",
+    "jenkins.yaml",
     ".env",
 )
 
@@ -71,6 +72,8 @@ ENV_EXAMPLE_TEMPLATE = """# 复制为 .env 后填写，键名与 adapter.yaml �
 # TEST_PORT=
 # TEST_USER=
 # TEST_PASSWORD=
+# 使用 Jenkins 发版时，token 由 jenkins.py setup 写入：
+# JENKINS_TOKEN=
 """
 
 IGNORE_PATTERNS = shutil.ignore_patterns("__pycache__", "*.pyc", ".venv")

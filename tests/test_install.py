@@ -178,3 +178,10 @@ def test_cli_rejects_portable_with_global_scope(tmp_path, tools, capsys):
     assert code == 2
     assert "--portable" in capsys.readouterr().err
     assert not (tmp_path / ".claude" / "skills").exists()
+
+
+def test_skill_names_discovers_jenkins_deploy(tmp_path):
+    path = tmp_path / "skills" / "jenkins-deploy"
+    path.mkdir(parents=True)
+    (path / "SKILL.md").write_text("---\nname: jenkins-deploy\ndescription: 测试\n---\n", encoding="utf-8")
+    assert "jenkins-deploy" in skill_names(tmp_path)

@@ -60,7 +60,7 @@ def test_runs_sql_and_prints_rows(project, capsys, monkeypatch):
     monkeypatch.setattr("scripts.query.db.execute", fake_execute)
     rc = main(
         ["--project", "demo", "--sql", "select status from t where no = %(no)s", "--param", "no=X"],
-        connect_fn=lambda env, prefix, db, read_only=False: conn,
+        connect_fn=lambda env, prefix, db, read_only=False, db_type="postgres": conn,
     )
     out = capsys.readouterr().out
     assert rc == 0
@@ -76,7 +76,7 @@ def test_commit_flag_commits_after_write(project, capsys, monkeypatch):
     )
     rc = main(
         ["--project", "demo", "--sql", "create table t (id int)", "--commit"],
-        connect_fn=lambda env, prefix, db, read_only=False: conn,
+        connect_fn=lambda env, prefix, db, read_only=False, db_type="postgres": conn,
     )
     assert rc == 0
     assert conn.committed is True
@@ -90,7 +90,7 @@ def test_without_commit_flag_leaves_transaction_uncommitted(project, capsys, mon
     )
     rc = main(
         ["--project", "demo", "--sql", "create table t (id int)"],
-        connect_fn=lambda env, prefix, db, read_only=False: conn,
+        connect_fn=lambda env, prefix, db, read_only=False, db_type="postgres": conn,
     )
     assert rc == 0
     assert conn.committed is False
@@ -101,7 +101,7 @@ def test_db_override_is_passed_to_connect(project, capsys, monkeypatch):
     conn = _Conn([("1",)])
     seen = {}
 
-    def connect_fn(env, prefix, db, read_only=False):
+    def connect_fn(env, prefix, db, read_only=False, db_type="postgres"):
         seen["db"] = db
         seen["prefix"] = prefix
         return conn
@@ -140,7 +140,7 @@ def test_commit_flag_does_not_commit_failed_statement(project, capsys, monkeypat
     with pytest.raises(RuntimeError):
         main(
             ["--project", "demo", "--sql", "create tble t (id int)", "--commit"],
-            connect_fn=lambda env, prefix, db, read_only=False: conn,
+            connect_fn=lambda env, prefix, db, read_only=False, db_type="postgres": conn,
         )
     assert conn.committed is False
     assert conn.closed is True
@@ -150,7 +150,7 @@ def test_without_commit_opens_read_only_connection(project, capsys, monkeypatch)
     conn = _Conn([("1",)])
     seen = {}
 
-    def connect_fn(env, prefix, db, read_only=False):
+    def connect_fn(env, prefix, db, read_only=False, db_type="postgres"):
         seen["read_only"] = read_only
         return conn
 
@@ -164,7 +164,7 @@ def test_commit_opens_writable_connection(project, capsys, monkeypatch):
     conn = _Conn([])
     seen = {}
 
-    def connect_fn(env, prefix, db, read_only=False):
+    def connect_fn(env, prefix, db, read_only=False, db_type="postgres"):
         seen["read_only"] = read_only
         return conn
 
@@ -190,8 +190,43 @@ def test_reads_sql_from_file(project, capsys, monkeypatch, tmp_path):
     sql_file.write_text("select 1; select 2;", encoding="utf-8")
     rc = main(
         ["--project", "demo", "--file", str(sql_file)],
-        connect_fn=lambda env, prefix, db, read_only=False: conn,
+        connect_fn=lambda env, prefix, db, read_only=False, db_type="postgres": conn,
     )
     assert rc == 0
     assert seen["sql"] == "select 1; select 2;"
     assert "OK" in capsys.readouterr().out
+
+
+def test_db_type_from_adapter_is_passed_to_connect(project, capsys, monkeypatch):
+    (project / "adapter.yaml").write_text(
+        (project / "adapter.yaml").read_text(encoding="utf-8").replace(
+            "    database: hexin_wms\n",
+            "    database: hexin_wms\n    db_type: mysql\n",
+        ),
+        encoding="utf-8",
+    )
+    conn = _Conn([("1",)])
+    seen = {}
+
+    def connect_fn(env, prefix, db, read_only=False, db_type="postgres"):
+        seen["db_type"] = db_type
+        return conn
+
+    monkeypatch.setattr("scripts.query.db.execute", lambda c, sql, params=None: ([("1",)], 1))
+    rc = main(["--project", "demo", "--sql", "select 1"], connect_fn=connect_fn)
+    assert rc == 0
+    assert seen["db_type"] == "mysql"
+
+
+def test_db_type_defaults_to_postgres(project, capsys, monkeypatch):
+    conn = _Conn([("1",)])
+    seen = {}
+
+    def connect_fn(env, prefix, db, read_only=False, db_type="postgres"):
+        seen["db_type"] = db_type
+        return conn
+
+    monkeypatch.setattr("scripts.query.db.execute", lambda c, sql, params=None: ([("1",)], 1))
+    rc = main(["--project", "demo", "--sql", "select 1"], connect_fn=connect_fn)
+    assert rc == 0
+    assert seen["db_type"] == "postgres"

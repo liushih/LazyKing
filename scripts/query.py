@@ -58,6 +58,7 @@ def main(argv: list[str] | None = None, connect_fn=None) -> int:
         prefix,
         database,
         read_only=not args.commit,
+        db_type=env.get("db_type", "postgres"),
     )
     try:
         rows, count = db.execute(conn, sql, params or None)

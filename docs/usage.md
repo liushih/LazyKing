@@ -245,7 +245,8 @@ verify:
 
 ## 六、数据库访问
 
-三种存储各有一个入口，配置都在项目 `.env`。
+数据库查询支持四种存储：PostgreSQL 和 MySQL 共用 `query.py`，Redis、MongoDB 各有入口。
+配置都在项目 `.env`。
 
 **PostgreSQL**
 
@@ -270,6 +271,24 @@ verify:
 
 `--sql` 与 `--file` 互斥；不加 `--commit` 时仍只读，prod 不允许 `--commit`。
 
+**MySQL**
+
+适配层 `envs.<环境>` 加 `db_type: mysql`（不写时是 `postgres`），连接键名不变，
+仍是 `db_prefix` 拼出的 `DEV_HOST` / `DEV_PORT` / `DEV_USER` / `DEV_PASSWORD`，
+库名取 `database`：
+
+```yaml
+envs:
+  dev:
+    db_prefix: DEV
+    database: acme_shop
+    db_type: mysql
+```
+
+`query.py` 的用法与 PostgreSQL 完全相同：`%(name)s` 占位符、`--param`、`--file`、
+`--commit`。不加 `--commit` 时会话以只读事务打开，写语句会被服务器拒绝；
+prod 不允许 `--commit`。`run.py` 的 `verify` 也按同一个 `db_type` 连接。
+
 **Redis**
 
 ```bash
@@ -291,7 +310,7 @@ verify:
   --collection logs --update '{"filter": {"_id": "x"}, "update": {"$set": {"a": 1}}}'
 ```
 
-规则（三种通用）：
+规则（四种通用）：
 
 - 只读（`select`、`GET`/`SCAN`/`HGETALL`、`find`/`aggregate`/`count`）直接执行
 - 写操作先回显环境、目标、命令，回显后直接执行，不再二次确认
@@ -310,7 +329,8 @@ DEV_MONGO_URI
 ```
 
 `adapter.yaml` 的 `envs.dev` 里写 `redis_prefix: DEV_REDIS`、`mongo_prefix: DEV_MONGO`、
-`mongo_database: <库名>`。缺哪个键会直接报出来，不会回退到默认地址。
+`mongo_database: <库名>`。MySQL 与 PostgreSQL 共用 `db_prefix` 拼出的
+`<prefix>_HOST` 等键，只额外写 `db_type: mysql`。缺哪个键会直接报出来，不会回退到默认地址。
 
 ## 七、坑库
 

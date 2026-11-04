@@ -1,7 +1,7 @@
 ---
 name: db-access
 description: >-
-  用自然语言查询或修改数据库、Redis、MongoDB。用户说「查一下」「连 dev 库」
+  用自然语言查询或修改 PostgreSQL / MySQL 数据库、Redis、MongoDB。用户说「查一下」「连 dev 库」
   「把 X 改成 Y」「看下 redis 的 key」「查 mongo 里的日志」时使用。
   写操作前回显环境与命令，回显不阻塞执行。
 ---
@@ -11,6 +11,7 @@ description: >-
 ## 适用场景
 
 - SQL：查、查一下、连、SQL、select、count
+- MySQL：适配层环境写了 `db_type: mysql` 时，`query.py` 自动连 MySQL，命令与 PostgreSQL 相同
 - 修改数据：改、更新、删除、insert、update、delete
 - 改结构：建表、加字段、alter、drop table（执行时带上 `--commit`）
 - Redis：缓存、key、redis、hash、GET/SET
@@ -32,7 +33,7 @@ description: >-
 
 1. 读适配层的 `envs.<环境>` 与同目录 `.env`
 2. 确认目标环境（dev / test / prod）；用户未说明时问一次
-3. 确认存储类型（PostgreSQL / Redis / MongoDB）；用户说法不明确时问一次
+3. 确认存储类型（PostgreSQL / MySQL / Redis / MongoDB）；用户说法不明确时问一次
 4. 写操作前回显：环境、库或集合、命令、预计影响范围
 
 ## 路径
@@ -61,6 +62,18 @@ description: >-
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/query.py" --project <项目ID> --env dev --db hexin_masterdata --file path/to/script.sql --commit
 ```
 
+**MySQL**
+
+适配层 `envs.<环境>` 写 `db_type: mysql`（不写时是 `postgres`），连接键名不变，仍是
+`db_prefix` 拼出的 `<prefix>_HOST` / `_PORT` / `_USER` / `_PASSWORD`，库名取 `database`。
+命令、`%(name)s` 占位符、`--param`、`--file`、`--commit` 都与 PostgreSQL 相同：
+
+```bash
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/query.py" --project <项目ID> --env dev --sql "select status from t where no = %(no)s" --param no=<单号>
+```
+
+不加 `--commit` 时会话以只读事务打开，写语句会被服务器拒绝；prod 拒绝 `--commit`。
+
 **Redis**
 
 ```bash
@@ -73,7 +86,7 @@ description: >-
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/mongo.py" --project <项目ID> --env dev --collection logs --find '{"level": "error"}' --limit 20
 ```
 
-规则（三种存储通用）：
+规则（四种存储通用）：
 
 - 只读：`select`、`GET`/`SCAN`/`HGETALL`、`find`/`aggregate`/`count` 直接执行并返回结果
 - 写入：回显后直接执行，不再二次确认

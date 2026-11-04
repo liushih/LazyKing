@@ -102,3 +102,30 @@ def test_verify_mismatch_returns_nonzero(project, monkeypatch):
         client_factory=lambda: object(),
     )
     assert rc == 1
+
+
+def test_verify_connects_with_env_db_type(project, monkeypatch):
+    text = (project / "adapter.yaml").read_text(encoding="utf-8").replace(
+        "    database: hexin_wms\n",
+        "    database: hexin_wms\n    db_type: mysql\n",
+    ).replace(
+        "    stop_at: DONE\n",
+        "    stop_at: DONE\n"
+        "    verify:\n"
+        '      sql: "select status from t where no = %(no)s"\n'
+        "      expect: NEW\n",
+    )
+    (project / "adapter.yaml").write_text(text, encoding="utf-8")
+    seen = {}
+
+    def fake_connect(env, prefix, database, **kwargs):
+        seen.update(kwargs)
+        return _Conn()
+
+    monkeypatch.setattr("scripts.run.db.connect", fake_connect)
+    rc = main(
+        ["--project", "demo", "--entity", "order", "--count", "1", "--workers", "1", "--run-id", "t"],
+        client_factory=lambda: object(),
+    )
+    assert rc == 0
+    assert seen["db_type"] == "mysql"

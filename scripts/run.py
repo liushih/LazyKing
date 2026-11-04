@@ -31,9 +31,10 @@ def _build_verify(entity, env: dict, base: Path):
     if not prefix or not database:
         return None
     db_env = load_env(base / ".env")
+    db_type = env.get("db_type", "postgres")
 
     def verify(ctx):
-        conn = db.connect(db_env, prefix, database)
+        conn = db.connect(db_env, prefix, database, db_type=db_type)
         try:
             return run_verify(conn, spec, {"no": ctx.get("external_no", "")})
         finally:

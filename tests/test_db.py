@@ -1,4 +1,5 @@
 import psycopg
+import pymysql
 import pytest
 
 from runtime.db import DbError, connect, execute
@@ -71,3 +72,40 @@ def test_connect_writable_omits_read_only_option(monkeypatch):
     env = {"DEV_HOST": "h", "DEV_PORT": "5432", "DEV_USER": "u", "DEV_PASSWORD": "p"}
     connect(env, "DEV", "db1", read_only=False)
     assert "options" not in seen
+
+
+def _mysql_env():
+    return {"DEV_HOST": "h", "DEV_PORT": "3306", "DEV_USER": "u", "DEV_PASSWORD": "p"}
+
+
+def test_mysql_connect_uses_prefixed_keys(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(pymysql, "connect", lambda **kw: seen.update(kw) or object())
+    connect(_mysql_env(), "DEV", "db1", db_type="mysql")
+    assert seen["host"] == "h"
+    assert seen["port"] == 3306
+    assert seen["user"] == "u"
+    assert seen["password"] == "p"
+    assert seen["database"] == "db1"
+    assert seen["charset"] == "utf8mb4"
+    assert seen["connect_timeout"] == 10
+    assert seen["autocommit"] is False
+
+
+def test_mysql_read_only_sets_session_transaction_read_only(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(pymysql, "connect", lambda **kw: seen.update(kw) or object())
+    connect(_mysql_env(), "DEV", "db1", read_only=True, db_type="mysql")
+    assert seen["init_command"] == "SET SESSION TRANSACTION READ ONLY"
+
+
+def test_mysql_writable_omits_read_only_command(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(pymysql, "connect", lambda **kw: seen.update(kw) or object())
+    connect(_mysql_env(), "DEV", "db1", read_only=False, db_type="mysql")
+    assert "init_command" not in seen
+
+
+def test_unknown_db_type_raises():
+    with pytest.raises(DbError, match="oracle"):
+        connect(_mysql_env(), "DEV", "db1", db_type="oracle")

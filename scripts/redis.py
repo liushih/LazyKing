@@ -13,7 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-from runtime.adapter import load_adapter  # noqa: E402
+from runtime.adapter import AdapterError, load_adapter  # noqa: E402
+from runtime.config import ConfigError  # noqa: E402
 from runtime.redis_client import DESTRUCTIVE_COMMANDS, WRITE_COMMANDS, connect  # noqa: E402
 
 
@@ -24,7 +25,11 @@ def main(argv: list[str] | None = None, connect_fn=None) -> int:
     parser.add_argument("--cmd", required=True, help='如 "GET user:1"')
     args = parser.parse_args(argv)
 
-    adapter = load_adapter(args.project)
+    try:
+        adapter = load_adapter(args.project)
+    except (AdapterError, ConfigError) as exc:
+        print(f"[配置] {exc}")
+        return 2
     env = adapter.envs.get(args.env)
     if not env:
         parser.error(f"未知环境 {args.env}")

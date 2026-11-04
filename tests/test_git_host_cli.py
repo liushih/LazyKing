@@ -229,3 +229,13 @@ def test_set_user_tag_writes_personal_in_placeholder_mode(
     assert "${USER_TAG}" in (
         placeholder_project_config / "git_hosts.yaml"
     ).read_text(encoding="utf-8")
+
+
+def test_set_user_tag_invalid_personal_yaml_exits_2(
+    placeholder_project_config, capsys
+):
+    (placeholder_project_config / "personal.yaml").write_text(
+        "a: [\n", encoding="utf-8"
+    )
+    assert main(["--project", "demo", "set-user-tag", "zhang"]) == 2
+    assert "[配置]" in capsys.readouterr().out

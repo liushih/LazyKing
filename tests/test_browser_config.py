@@ -214,3 +214,12 @@ def test_personal_yaml_supplies_login_username(browser_project):
     )
     cfg = load_browser_config("demo")
     assert cfg.login.username == "personal-admin"
+
+
+def test_missing_personal_guides_setup(browser_project):
+    (browser_project / ".env").unlink()
+    personal = browser_project / "personal.yaml"
+    if personal.exists():
+        personal.unlink()
+    with pytest.raises(BrowserConfigError, match="project-setup"):
+        load_browser_config("demo")

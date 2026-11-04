@@ -199,6 +199,12 @@ def test_load_substitutes_personal_user(tmp_path):
     assert cfg.user == "liushihao"
 
 
+def test_load_missing_personal_guides_setup(tmp_path):
+    _write(tmp_path, PLACEHOLDER_JENKINS)
+    with pytest.raises(JenkinsConfigError, match="project-setup"):
+        load_jenkins_config("demo", home=tmp_path)
+
+
 def test_save_credentials_placeholder_mode_writes_personal_and_preserves_shared(tmp_path):
     project = _write(tmp_path, PLACEHOLDER_JENKINS)
     warnings = save_credentials(

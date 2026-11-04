@@ -13,9 +13,9 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from runtime import db  # noqa: E402
-from runtime.adapter import load_adapter  # noqa: E402
+from runtime.adapter import AdapterError, load_adapter  # noqa: E402
 from runtime.auth import build_auth  # noqa: E402
-from runtime.config import load_env, project_dir  # noqa: E402
+from runtime.config import ConfigError, load_env, project_dir  # noqa: E402
 from runtime.http_client import HttpClient  # noqa: E402
 from runtime.ledger import Ledger  # noqa: E402
 from runtime.runner import run_batch  # noqa: E402
@@ -54,7 +54,11 @@ def main(argv: list[str] | None = None, client_factory=None) -> int:
     parser.add_argument("--stop-at", help="覆盖适配层的 stop_at，如 WAIT_SEND")
     args = parser.parse_args(argv)
 
-    adapter = load_adapter(args.project)
+    try:
+        adapter = load_adapter(args.project)
+    except (AdapterError, ConfigError) as exc:
+        print(f"[配置] {exc}")
+        return 2
     if args.entity not in adapter.entities:
         parser.error(f"未知业务对象 {args.entity}，可选：{', '.join(adapter.entities)}")
     entity = adapter.entities[args.entity]

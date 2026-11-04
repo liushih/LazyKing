@@ -1,6 +1,6 @@
 # 适配层模板
-# 复制到 <数据目录>/projects/<项目ID>/adapter.yaml，同目录建 .env。
-# 值一律写 ${变量}，真实值只放 .env。
+# 复制到 <数据目录>/projects/<项目ID>/adapter.yaml，同目录建 personal.yaml 与 .env。
+# 团队共用的地址直接写字面值；个人非敏感值写 ${变量} 并在 personal.yaml 填，密码令牌在 .env 填。
 #
 # 键名要加引号：YAML 会把 no / yes / on / off / true / false 解析成布尔，
 # 写成 no: 实际变成 false:，请求体字段名就对不上了。写成 "no": 才是字符串。

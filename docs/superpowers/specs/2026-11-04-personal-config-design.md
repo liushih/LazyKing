@@ -238,7 +238,7 @@ ZENTAO_AUTHORS:
 2. **重复声明**：同一个键同时出现在 `personal.example.yaml` 与 `.env.example`。错误。
 3. **共享文件里的个人值**：
    - 已知个人路径仍是字面值，如 `git_hosts.yaml` 的 `user_tag`、`repo_path`，`jenkins.yaml` 的 `jenkins.user`，`report.yaml` 的 `git.repos`、`git.authors`、`zentao.account`、`zentao.authors`；
-   - 共享 yaml 的值形如 `C:/...`、`C:\...` 或以 `/` 开头的绝对路径。警告。
+   - 共享 yaml 的值形如 `C:/...`、`C:\...`，或以 `/Users/`、`/home/`、`/root/`、`/opt/`、`/var/`、`/mnt/`、`/srv/`、`/tmp/`、`/private/`、`/Volumes/` 开头的文件系统路径。警告。URL 路径（如 `/index`）不算绝对路径。
 
 警告不阻断运行，但 `project-setup` 和维护人应优先处理。
 

@@ -318,3 +318,68 @@ def test_check_does_not_treat_url_path_as_absolute_path(tmp_path):
     assert not any(
         d.kind == "absolute_path" for d in report.capabilities["browser"].drift
     )
+
+
+def test_check_treats_empty_personal_value_as_missing(tmp_path):
+    base = _project(
+        tmp_path,
+        personal_example="version: 1\nkeys:\n  USER_TAG: {}\n",
+        env_example="",
+        personal='USER_TAG: ""\n',
+    )
+    (base / "git_hosts.yaml").write_text("user_tag: ${USER_TAG}\n", encoding="utf-8")
+    report = personal.check("demo", "git", home=tmp_path)
+    assert report.capabilities["git"].status == "missing"
+    assert [m.key for m in report.capabilities["git"].missing] == ["USER_TAG"]
+
+
+def test_check_treats_empty_secret_as_missing(tmp_path):
+    base = _project(
+        tmp_path,
+        personal_example="version: 1\nkeys: {}\n",
+        env_example="JENKINS_TOKEN=\n",
+        env="JENKINS_TOKEN=\n",
+    )
+    (base / "jenkins.yaml").write_text(
+        "jenkins:\n  base_url: http://j\n  user: u\n  token_key: JENKINS_TOKEN\n",
+        encoding="utf-8",
+    )
+    report = personal.check("demo", "jenkins", home=tmp_path)
+    assert [m.key for m in report.capabilities["jenkins"].missing] == ["JENKINS_TOKEN"]
+
+
+def test_check_allows_empty_list_value(tmp_path):
+    base = _project(
+        tmp_path,
+        personal_example="version: 1\nkeys:\n  ZENTAO_AUTHORS: {type: list}\n",
+        env_example="",
+        personal="ZENTAO_AUTHORS: []\n",
+    )
+    (base / "report.yaml").write_text(
+        "zentao:\n  authors: ${ZENTAO_AUTHORS}\n", encoding="utf-8"
+    )
+    report = personal.check("demo", "report", home=tmp_path)
+    assert report.capabilities["report"].status == "ok"
+
+
+def test_set_value_rejects_empty_scalar(tmp_path):
+    _project(
+        tmp_path,
+        personal_example="version: 1\nkeys:\n  USER_TAG: {}\n",
+        env_example="",
+    )
+    with pytest.raises(personal.PersonalConfigError, match="不能为空"):
+        personal.set_value("demo", {"USER_TAG": "  "}, home=tmp_path)
+
+
+def test_set_value_allows_empty_list(tmp_path):
+    _project(
+        tmp_path,
+        personal_example="version: 1\nkeys:\n  GIT_AUTHORS: {type: list}\n",
+        env_example="",
+    )
+    personal.set_value("demo", {"GIT_AUTHORS": ""}, home=tmp_path)
+    data = yaml.safe_load(
+        (tmp_path / "projects" / "demo" / "personal.yaml").read_text(encoding="utf-8")
+    )
+    assert data["GIT_AUTHORS"] == []

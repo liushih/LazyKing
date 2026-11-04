@@ -83,7 +83,7 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 
 1. clone 业务仓库
 2. 跑 `data-tools/bootstrap.ps1`（没有 Python 会提示下载）
-3. 复制 `.data-tools/projects/<项目ID>/.env.example` 为 `.env`
+3. 打开 AI 工具，说「初始化个人配置」，按 `project-setup` 的提示生成 `personal.yaml` 和 `.env`
 4. 直接说「造 100 张提货单」
 
 复杂业务的 impl 模块（如登录客户端、链路封装）也放 `.data-tools/projects/<项目ID>/scripts/`，随业务仓库提交；B2D/B2C 已内置，不再依赖旧 `hexin-data-gen`/`hexin-db-tools`。
@@ -92,7 +92,7 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 
 要用浏览器测试，还需要给项目配前端地址和登录方式，步骤见 [使用说明：浏览器测试](docs/usage.md#十三浏览器测试)。本机需要装 Chrome。
 
-## 七个技能
+## 八个技能
 
 | 技能 | 触发词 |
 | --- | --- |
@@ -103,6 +103,7 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 | `report-writer` 写报告 | 日报、周报、月报、述职 |
 | `git-workflow` 代码托管 | 提交、推送、建 MR、开分支、同步热修 |
 | `jenkins-deploy` Jenkins 发版 | 发版、构建、部署、Jenkins |
+| `project-setup` 个人配置 | 初始化个人配置、新同事接入、配置我的账号 |
 
 ## 配置
 

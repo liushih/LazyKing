@@ -196,3 +196,17 @@ def test_setup_placeholder_mode_writes_personal_and_env(home, fake, capsys):
         encoding="utf-8"
     )
     assert f"JENKINS_TOKEN={FAKE}" in (home / ".env").read_text(encoding="utf-8")
+
+
+def test_setup_invalid_personal_yaml_exits_2(home, fake, capsys):
+    (home / "personal.yaml").write_text("a: [\n", encoding="utf-8")
+    code = _run(["setup", "--base-url", BASE, "--user", "u"], fake, stdin=io.StringIO(FAKE))
+    assert code == 2
+    assert "[配置]" in capsys.readouterr().out
+
+
+def test_setup_reuses_env_token_when_stdin_empty(home, fake, capsys):
+    _configure(home)
+    code = _run(["setup", "--base-url", BASE, "--user", "u"], fake, stdin=io.StringIO(""))
+    assert code == 0
+    assert "登录为 u" in capsys.readouterr().out

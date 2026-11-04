@@ -98,7 +98,9 @@ def _substitute(value: Any, env: dict[str, str], where: str) -> Any:
     try:
         return substitute(value, env)
     except ConfigError as exc:
-        raise BrowserConfigError(f"{where} 变量解析失败：{exc}") from exc
+        raise BrowserConfigError(
+            f"{where} 变量解析失败：{exc}；缺少个人配置时先运行 project-setup"
+        ) from exc
 
 
 def _path(project_id: str, *parts: str) -> Path:

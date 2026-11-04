@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
+from runtime.config import ConfigError  # noqa: E402
 from runtime.jenkins.client import JenkinsClient, JenkinsError  # noqa: E402
 from runtime.jenkins.config import (  # noqa: E402
     DEFAULT_TOKEN_KEY,
@@ -89,6 +90,9 @@ def main(argv: list[str] | None = None, client_fn=None, stdin=None) -> int:
         if args.cmd == "build":
             return _build(cfg, client, args)
     except JenkinsConfigError as exc:
+        print(f"[配置] {exc}")
+        return EXIT_USAGE
+    except ConfigError as exc:
         print(f"[配置] {exc}")
         return EXIT_USAGE
     except JenkinsError as exc:

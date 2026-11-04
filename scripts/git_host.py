@@ -157,6 +157,9 @@ def main(argv: list[str] | None = None, host_fn=None, repo_fn=None) -> int:
     except GitHostConfigError as exc:
         print(f"[配置] {exc}")
         return EXIT_USAGE
+    except config.ConfigError as exc:
+        print(f"[配置] {exc}")
+        return EXIT_USAGE
 
     return EXIT_USAGE
 

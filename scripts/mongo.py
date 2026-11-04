@@ -12,7 +12,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-from runtime.adapter import load_adapter  # noqa: E402
+from runtime.adapter import AdapterError, load_adapter  # noqa: E402
+from runtime.config import ConfigError  # noqa: E402
 from runtime.mongo_client import WRITE_OPS, connect  # noqa: E402
 
 OPERATIONS = ("find", "aggregate", "count", "insert", "update", "delete")
@@ -38,7 +39,11 @@ def main(argv: list[str] | None = None, connect_fn=None) -> int:
     except ValueError as exc:
         parser.error(f"{op} 参数不是合法 JSON：{exc}")
 
-    adapter = load_adapter(args.project)
+    try:
+        adapter = load_adapter(args.project)
+    except (AdapterError, ConfigError) as exc:
+        print(f"[配置] {exc}")
+        return 2
     env = adapter.envs.get(args.env)
     if not env:
         parser.error(f"未知环境 {args.env}")

@@ -79,7 +79,11 @@ def load_adapter(project_id: str) -> Adapter:
     if version != 1:
         raise AdapterError(f"不支持的适配层版本：{version}")
 
-    data = _substitute(raw, config.load_values(base))
+    try:
+        values = config.load_values(base)
+    except config.ConfigError as exc:
+        raise AdapterError(f"{exc}；缺少个人配置时先运行 project-setup") from exc
+    data = _substitute(raw, values)
     entities: dict[str, Entity] = {}
     for eid, ent in (data.get("entities") or {}).items():
         steps_raw = ent.get("steps") or []

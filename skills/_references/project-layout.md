@@ -134,9 +134,8 @@ powershell -ExecutionPolicy Bypass -File <TOOLS_DIR>/bootstrap.ps1
 
 - 提交：`.data-tools/projects/<项目ID>/browser/browser.yaml`、`flows/*.yaml`、`pitfalls.md`，以及项目 `scripts/` 下的 impl。
 - 不提交：`.data-tools/browser/`（profile、reports、artifacts、probes）。
-- `browser.yaml` 只写 `${VAR}`；新增键时同步更新 `.env.example`。
+- `browser.yaml` 只写团队地址和 `${VAR}`；新增键时按是否密钥更新 `.env.example` 或 `personal.example.yaml`。
 
 ## adapter-bootstrap 的额外约定
 
-接入完成后，同时维护项目 `.env.example` 的键名，不写值。`.env.example` 提交进
-仓库，`.env` 只留在本机；新增或改名凭据时先更新 `.env.example`，再让用户填 `.env`。
+接入完成后，按变量是否密钥维护 `.env.example` 或 `personal.example.yaml`；只写键名与说明，不写值。两者都提交进仓库，`.env` 与 `personal.yaml` 只留在本机。新增或改名变量时先更新对应 example，再让用户运行 `project-setup` 或填 `.env`。

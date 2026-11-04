@@ -87,3 +87,12 @@ def test_loads_personal_authors_and_repos(project):
     cfg = load_report_config("demo")
     assert [p.name for p in cfg.git.repos] == ["demo"]
     assert cfg.git.authors == ["liushihao", "刘师豪"]
+
+
+def test_missing_personal_guides_setup(project):
+    (project / "report.yaml").write_text(
+        "git:\n  repos: ${REPORT_REPOS}\n  authors: ${GIT_AUTHORS}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ReportConfigError, match="project-setup"):
+        load_report_config("demo")

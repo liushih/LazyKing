@@ -18,14 +18,14 @@
 
 1. 含「个人配置 / 初始化个人配置 / 新同事接入」→ `project-setup`（先于其他）
 2. 含「新业务 / 接入」→ `adapter-bootstrap`（即使同时含造数）
-2. 含「日报 / 周报 / 月报 / 述职」→ `report-writer`
-3. 含「提交 / 推送 / 合并 / 建 MR / 开分支 / 热修」→ `git-workflow`
-4. 含「发版 / 构建 / 部署 / Jenkins」→ `jenkins-deploy`
-5. 含「测一下 / 走一遍 / 浏览器 / 页面 / 复现 / 回归」→ `browser-test`
-6. 含造数动词且带业务名词 → `data-gen-core`
-7. 只有动词没有名词（「造点数据」）→ 询问是哪个业务
-8. 含 SQL 关键字或表名 → `db-access`
-9. 都不命中 → 直说没听懂，不猜
+3. 含「日报 / 周报 / 月报 / 述职」→ `report-writer`
+4. 含「提交 / 推送 / 合并 / 建 MR / 开分支 / 热修」→ `git-workflow`
+5. 含「发版 / 构建 / 部署 / Jenkins」→ `jenkins-deploy`
+6. 含「测一下 / 走一遍 / 浏览器 / 页面 / 复现 / 回归」→ `browser-test`
+7. 含造数动词且带业务名词 → `data-gen-core`
+8. 只有动词没有名词（「造点数据」）→ 询问是哪个业务
+9. 含 SQL 关键字或表名 → `db-access`
+10. 都不命中 → 直说没听懂，不猜
 
 ## 约束
 

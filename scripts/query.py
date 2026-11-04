@@ -12,8 +12,8 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from runtime import db  # noqa: E402
-from runtime.adapter import load_adapter  # noqa: E402
-from runtime.config import load_env, project_dir  # noqa: E402
+from runtime.adapter import AdapterError, load_adapter  # noqa: E402
+from runtime.config import ConfigError, load_env, project_dir  # noqa: E402
 
 
 def main(argv: list[str] | None = None, connect_fn=None) -> int:
@@ -37,7 +37,11 @@ def main(argv: list[str] | None = None, connect_fn=None) -> int:
 
     sql = args.file.read_text(encoding="utf-8") if args.file else args.sql
 
-    adapter = load_adapter(args.project)
+    try:
+        adapter = load_adapter(args.project)
+    except (AdapterError, ConfigError) as exc:
+        print(f"[配置] {exc}")
+        return 2
     env = adapter.envs.get(args.env)
     if not env:
         parser.error(f"未知环境 {args.env}")

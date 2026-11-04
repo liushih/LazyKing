@@ -11,7 +11,7 @@
 
 不确定怎么说，看下面第一节的触发词表。细节按需查阅，不必通读。
 
-- [一、七个技能怎么选](#一七个技能怎么选)
+- [一、八个技能怎么选](#一八技能怎么选)
 - [二、第一次接入业务](#二第一次接入业务)
 - [三、适配层写法](#三适配层写法)
 - [四、批量造数](#四批量造数)
@@ -28,7 +28,7 @@
 
 ---
 
-## 一、七个技能怎么选
+## 一、八个技能怎么选
 
 | 意图 | 说法 | 技能 |
 |---|---|---|
@@ -39,6 +39,7 @@
 | 报告 | 日报、周报、月报、述职、汇报材料 | `report-writer` |
 | 代码托管 | 提交、推送、合并、建 MR、开分支、热修 | `git-workflow` |
 | 发版 | 发版、构建、部署、Jenkins | `jenkins-deploy` |
+| 个人配置 | 初始化个人配置、新同事接入、配置我的账号 | `project-setup` |
 | 沉淀 | 记下来、加到坑里、更新规则 | 写 `pitfalls.md` |
 
 同时命中多个时按这个顺序：
@@ -57,21 +58,23 @@
 
 ### 先准备什么
 
-接入前需要两套账号，都放在项目目录的 `.env` 里，不进仓库：
+接入前准备两类个人配置：非敏感值（账号、本机路径、作者）写 `personal.yaml`，密码、令牌和数据库连接键写 `.env`；两者都不进仓库。共享 `adapter.yaml` 只写团队地址和 `${VAR}`。
 
 | 配置 | 用途 | 必需 | 权限 |
 | --- | --- | --- | --- |
 | 系统登录账号 | 调接口造数 | 是 | 能执行目标业务操作即可 |
 | 数据库连接 | `verify` 校验结果 | 否 | 只读 |
 
-`.env` 的键名可以自己定，只要 `adapter.yaml` 里引用的 `${VAR}` 对得上。典型内容：
+`adapter.yaml` 里的 `${VAR}` 必须能在 `personal.yaml` 或 `.env` 找到。典型个人文件：
+
+```yaml
+# personal.yaml（不提交）
+ACME_USERNAME: your-account
+```
 
 ```dotenv
-# 接口
-ACME_BASE_URL=
-ACME_USERNAME=
+# .env（不提交）
 ACME_PASSWORD=
-
 # 数据库：DEV 对应 adapter 里 envs.dev.db_prefix
 DEV_HOST=
 DEV_PORT=
@@ -80,7 +83,7 @@ DEV_PASSWORD=
 ```
 
 `db_prefix: DEV` 会拼出 `DEV_HOST` / `DEV_PORT` / `DEV_USER` / `DEV_PASSWORD`；
-test、prod 环境同理换成 `TEST_` / `PROD_`。
+test、prod 环境同理换成 `TEST_` / `PROD_`。数据库连接键由 `db-access` 直接读 `.env`，所以留在 `.env`。
 
 两点建议：
 
@@ -483,20 +486,19 @@ YAML 把 `no` / `yes` / `on` / `off` 解析成了布尔。给键加引号，写�
 
 ```yaml
 git:
-  repos:
-    - C:/project/hexincloud
-  authors:
-    - me@example.com
+  repos: ${REPORT_REPOS}
+  authors: ${GIT_AUTHORS}
 zentao:
   api: auto          # auto | v1 | v2，当前实现 v2
-  base_url: ${ZENTAO_URL}
+  base_url: http://zentao.example.com   # 团队共用地址
   account: ${ZENTAO_ACCOUNT}
+  password: ${ZENTAO_PASSWORD}
   product_id: 31
   project_ids: [73]
+  authors: ${ZENTAO_AUTHORS}
 ```
 
-凭据写在同目录 `.env`，与适配层共用。禅道 token 缓存在 `~/.zentao-token.json`，
-登录一次后复用。
+`REPORT_REPOS`、`GIT_AUTHORS`、`ZENTAO_ACCOUNT`、`ZENTAO_AUTHORS` 在本机 `personal.yaml`；`ZENTAO_PASSWORD` 在 `.env`，与适配层共用。禅道 token 缓存在 `~/.zentao-token.json`，登录一次后复用。
 
 ### 报告存在哪
 
@@ -548,8 +550,8 @@ Markdown 是唯一内容源，Word 和 PPT 都从它渲染：
 `<DATA_HOME>/projects/<项目ID>/git_hosts.yaml`：
 
 ```yaml
-user_tag: lsh                 # 第一次使用时询问并写入，之后沿用
-repo_path: C:/project/demo    # 本地仓库路径
+user_tag: ${USER_TAG}         # 个人标识，在 personal.yaml
+repo_path: ${REPO_PATH}       # 本机仓库路径，在 personal.yaml
 host:
   kind: gitlab                # github | gitee | gitlab
   base_url: http://git.example.com   # GitHub、Gitee 可省略，使用平台默认地址
@@ -570,6 +572,8 @@ rules:
 ```dotenv
 GITLAB_TOKEN_DEMO=
 ```
+
+`set-user-tag` 只写 `personal.yaml`；共享 `git_hosts.yaml` 保持占位符。
 
 ### 常用命令
 
@@ -775,8 +779,8 @@ bootstrap 会提示删除或重命名 `data-tools/.venv` 后重跑，重新创�
 ### 接入一个项目
 
 1. **确认环境**：本机装了 Chrome 和 Python 3.11+，已按「团队项目接入」或「快速开始」装好 data-tools。
-2. **配置前端地址和登录**：在 `.data-tools/projects/<项目ID>/browser/browser.yaml` 里写各环境的前端根地址（不是接口地址）、登录步骤和登录成功的判断，模板见 `skills/_TEMPLATE/browser.example.yaml`。地址、账号、密码都写成 `${变量}`。
-3. **在 `.env` 里填变量**：例如前端地址、登录账号和密码。键名同步写进 `.env.example`，方便同事照着填。
+2. **配置前端地址和登录**：在 `.data-tools/projects/<项目ID>/browser/browser.yaml` 里写各环境的前端根地址（不是接口地址）、登录步骤和登录成功的判断，模板见 `skills/_TEMPLATE/browser.example.yaml`。地址写团队实际值或 `${变量}`，账号与密码写 `${变量}`。
+3. **填变量**：前端根地址直接在 `browser.yaml` 写团队地址；登录账号写 `personal.yaml`，密码写 `.env`。新增键时按是否密钥更新 `personal.example.yaml` 或 `.env.example`。
 4. **检查**：运行 `browser.py doctor --project <项目ID>`，确认 Chrome、依赖、配置和变量都齐全。
 5. **生成第一个流程**：对 AI 说「测一下 XX 页面」。没有现成流程时，AI 会先用 `probe` 看一遍页面，再把入口、步骤、断言写成 `browser/flows/<名称>.yaml`，并跑到通过。
 6. **提交**：把 `browser/` 下的 `browser.yaml`、`flows/`、`pitfalls.md` 随业务仓库提交，同事拉下来就能用。运行产生的截图、诊断包、浏览器 profile 在 `.data-tools/browser/`，不提交。

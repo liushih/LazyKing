@@ -171,6 +171,10 @@ def _has_literal(value: Any) -> bool:
     return False
 
 
+def _is_empty(value: Any) -> bool:
+    return value is None or (isinstance(value, str) and not value.strip())
+
+
 def _iter_strings(value: Any):
     if isinstance(value, str):
         yield value
@@ -336,12 +340,12 @@ def check(
                 )
                 continue
             if in_specs:
-                if key not in personal_values:
+                if _is_empty(personal_values.get(key)):
                     spec = specs[key]
                     missing.append(
                         MissingKey(key, "personal", spec.description, spec.default_from)
                     )
-            elif key not in env_values:
+            elif _is_empty(env_values.get(key)):
                 missing.append(MissingKey(key, "secret"))
 
         for key in sorted(token_keys):
@@ -354,7 +358,7 @@ def check(
                         f"token_key {key} 未在 .env.example 声明",
                     )
                 )
-            elif key not in env_values:
+            elif _is_empty(env_values.get(key)):
                 missing.append(MissingKey(key, "secret"))
 
         missing.sort(key=lambda item: (item.target, item.key))
@@ -467,6 +471,8 @@ def set_value(
         if key not in specs and not allow_unknown:
             raise PersonalConfigError(f"{key} 未在 personal.example.yaml 声明")
         spec = specs.get(key, KeySpec())
+        if spec.type != "list" and not raw.strip():
+            raise PersonalConfigError(f"{key} 的值不能为空")
         converted[key] = _coerce(raw, spec.type)
 
     data = _read_personal(base)

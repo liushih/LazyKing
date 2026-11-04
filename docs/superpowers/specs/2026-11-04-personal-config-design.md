@@ -234,7 +234,7 @@ ZENTAO_AUTHORS:
 `config check` 除缺失值外，报告以下漂移：
 
 0. **example 缺失**：`personal.example.yaml` 不存在时，所有未在 `.env.example` 中声明的占位符都报未声明，并提示运行 `config.py example --write` 生成草稿。
-1. **未声明变量**：共享配置里的 `${KEY}` 不在任何一个 example 中。错误。
+1. **未声明变量**：共享配置里的 `${KEY}` 不在任何一个 example 中。错误。通过 `token_key` 引用的密钥键（`git_hosts.yaml` 的 `host.token_key`、`jenkins.yaml` 的 `jenkins.token_key`）也必须出现在 `.env.example`，缺失同样按未声明报错。
 2. **重复声明**：同一个键同时出现在 `personal.example.yaml` 与 `.env.example`。错误。
 3. **共享文件里的个人值**：
    - 已知个人路径仍是字面值，如 `git_hosts.yaml` 的 `user_tag`、`repo_path`，`jenkins.yaml` 的 `jenkins.user`，`report.yaml` 的 `git.repos`、`git.authors`、`zentao.account`、`zentao.authors`；
@@ -371,8 +371,8 @@ config.py --project <ID> example [--write]
 
 ### 8.1 现有写配置命令的行为调整
 
-- `git_host.py set-user-tag`：改为调用 `config set USER_TAG=<值>`，只写 `personal.yaml`。如果共享 `git_hosts.yaml` 的 `user_tag` 仍是字面值，命令成功但输出警告，提示维护人改成 `${USER_TAG}`。项目未在 `personal.example.yaml` 声明 `USER_TAG` 时拒绝写入，提示先补 example 或运行 setup。
-- `jenkins.py setup`：token 写入 `.env`；`JENKINS_USER` 写入 `personal.yaml`；只有共享 `jenkins.yaml` 不存在时才创建它并写入 `base_url`、`token_key`、空的 `modules`。文件已存在时绝不覆盖 `base_url` 或 `modules`，发现 `jenkins.user` 仍是字面值就输出警告。
+- `git_host.py set-user-tag`：共享 `git_hosts.yaml` 使用 `${USER_TAG}` 时，通过工具内置键写入 `personal.yaml` 的 `USER_TAG`（不要求 example 已声明，便于首次接入）；共享文件里 `user_tag` 仍是字面值时，保持旧行为就地更新，并输出迁移警告，避免个人/全局模式回归。
+- `jenkins.py setup`：token 写入 `.env`；共享文件使用 `${JENKINS_USER}` 时，账号写入 `personal.yaml`；只有共享 `jenkins.yaml` 不存在时才创建它并写入 `base_url`、`token_key`、`${JENKINS_USER}` 和空的 `modules`。文件已存在时绝不覆盖 `base_url` 或 `modules`。共享文件里 `jenkins.user` 仍是字面值时，保持旧行为就地更新并输出迁移警告。
 - `scripts/config.py` 是命令入口，内部逻辑放在 `runtime/personal.py`，避免与 `runtime/config.py` 混淆。脚本不导入同名模块，所有运行时逻辑通过 `runtime.*` 导入。
 
 ## 9. 同步工具改动

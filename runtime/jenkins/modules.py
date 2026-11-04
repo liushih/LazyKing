@@ -68,3 +68,7 @@ def unpushed_commits(repo: Path, branch: str) -> int | None:
     if not _git(repo, "rev-parse", "--verify", "-q", f"origin/{branch}", check=False):
         return None
     return int(_git(repo, "rev-list", "--count", f"origin/{branch}..HEAD"))
+
+
+def current_branch(repo: Path) -> str:
+    return _git(repo, "rev-parse", "--abbrev-ref", "HEAD")

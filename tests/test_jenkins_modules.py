@@ -105,3 +105,11 @@ def test_unpushed_commits(repo, tmp_path):
     assert unpushed_commits(repo, "feat") == 0
     _commit(repo, "svc/b.py")
     assert unpushed_commits(repo, "feat") == 1
+
+
+def test_current_branch(repo):
+    from runtime.jenkins.modules import current_branch
+
+    assert current_branch(repo) == "main"
+    _git(repo, "checkout", "-q", "-b", "feature/x")
+    assert current_branch(repo) == "feature/x"

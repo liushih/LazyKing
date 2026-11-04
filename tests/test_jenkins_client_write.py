@@ -157,3 +157,52 @@ def test_wait_finished_timeout_carries_build_url():
         _client(sess).wait_finished("job1", 57, timeout_s=0)
     assert exc.value.kind == "timeout"
     assert exc.value.url == f"{BASE}/job/job1/57/"
+
+
+def test_queue_items_parses_job_params_and_folder_job():
+    sess = _Sess({"/queue/api/json": _Resp(body={"items": [
+        {"id": 3, "params": "BRANCH=dev", "task": {"name": "oms", "url": f"{BASE}/job/erp/job/oms/"}},
+        {"id": 4, "params": "", "task": {"name": "pay", "url": f"{BASE}/job/pay/"}},
+    ]})})
+    items = _client(sess).queue_items()
+    assert [(i.job, i.params, i.item_id) for i in items] == [
+        ("erp/oms", {"BRANCH": "dev"}, 3),
+        ("pay", {}, 4),
+    ]
+
+
+def test_in_flight_lists_queue_items_and_running_builds_for_job():
+    sess = _Sess({
+        "/queue/api/json": _Resp(body={"items": [
+            {"id": 3, "params": "BRANCH=dev", "task": {"name": "order", "url": f"{BASE}/job/order/"}},
+            {"id": 5, "params": "BRANCH=dev", "task": {"name": "other", "url": f"{BASE}/job/other/"}},
+        ]}),
+        "/job/order/api/json": _Resp(body={"builds": [
+            {"number": 57, "building": True, "queueId": 2, "actions": [
+                {"_class": "hudson.model.ParametersAction",
+                 "parameters": [{"name": "BRANCH", "value": "dev"}]},
+            ]},
+            {"number": 56, "building": False, "actions": []},
+        ]}),
+    })
+    items = _client(sess).in_flight("order")
+    assert [(i.kind, i.number, i.item_id, i.params) for i in items] == [
+        ("queue", None, 3, {"BRANCH": "dev"}),
+        ("build", 57, None, {"BRANCH": "dev"}),
+    ]
+    assert items[1].queue_id == 2
+
+
+def test_cancel_queue_item_posts_cancel_item_with_id():
+    sess = _Sess({"/queue/cancelItem": _Resp(200)})
+    _client(sess).cancel_queue_item(12)
+    method, url, kwargs = sess.calls[0]
+    assert method == "POST"
+    assert url == f"{BASE}/queue/cancelItem"
+    assert kwargs["params"] == {"id": 12}
+
+
+def test_stop_build_posts_stop():
+    sess = _Sess({"/job/order/57/stop": _Resp(200)})
+    _client(sess).stop_build("order", 57)
+    assert sess.calls[0][1] == f"{BASE}/job/order/57/stop"

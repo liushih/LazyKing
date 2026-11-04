@@ -1,7 +1,7 @@
 import pytest
 import yaml
 
-from runtime.jenkins.client import BuildStatus, JenkinsError, JobParam
+from runtime.jenkins.client import BuildStatus, InFlightBuild, JenkinsError, JobParam
 from scripts.jenkins import main
 from test_jenkins_modules import _commit, _git
 
@@ -22,17 +22,40 @@ class _FakeClient:
         self.results = {}
         self.queue = {}
         self.timeouts = []
+        self.inflight = {}
+        self.cancel_error = None
+        self.inflight_errors = set()
 
     def job_params(self, job):
         self.calls.append(("job_params", job))
         return self.params[job]
 
+    def in_flight(self, job):
+        self.calls.append(("in_flight", job))
+        if job in self.inflight_errors:
+            raise JenkinsError(f"当前账号无权访问 {job}", "permission", job)
+        return list(self.inflight.get(job, []))
+
+    def cancel_queue_item(self, item_id):
+        self.calls.append(("cancel_queue_item", item_id))
+        if self.cancel_error:
+            raise self.cancel_error
+
+    def stop_build(self, job, number):
+        self.calls.append(("stop_build", job, number))
+        if self.cancel_error:
+            raise self.cancel_error
+
     def trigger(self, job, params):
         self.calls.append(("trigger", job, params))
         if job in self.trigger_errors:
             raise self.trigger_errors[job]
-        url = f"{BASE}/queue/item/{len(self.queue) + 1}/"
+        item_id = len(self.queue) + 1
+        url = f"{BASE}/queue/item/{item_id}/"
         self.queue[url] = (job, 57 + len(self.queue))
+        self.inflight.setdefault(job, []).append(
+            InFlightBuild("queue", job, dict(params or {}), item_id=item_id)
+        )
         return url
 
     def wait_for_build(self, queue_url, timeout_s, poll_s=2.0):
@@ -207,3 +230,92 @@ def test_build_infers_modules_and_branch_from_repo(home, tmp_path, fake, capsys)
     assert "order-service → order-dev" in out
     assert "BRANCH=feat" in out
     assert "pay-service" not in out
+
+
+def test_duplicate_running_build_is_stopped_and_retriggered(home, fake, capsys):
+    fake.inflight["order-dev"] = [
+        InFlightBuild("build", "order-dev", {"BRANCH": "feature/x"}, number=10)
+    ]
+    code = _run(["--env", "dev", "--module", "order-service", "--branch", "feature/x", "--no-wait"], fake)
+    out = capsys.readouterr().out
+    assert code == 0
+    assert ("stop_build", "order-dev", 10) in fake.calls
+    assert fake.triggered() == ["order-dev"]
+    assert "[取消]" in out and "停止正在运行的构建 #10" in out
+
+
+def test_queued_duplicate_is_cancelled_and_retriggered(home, fake, capsys):
+    fake.inflight["order-dev"] = [
+        InFlightBuild("queue", "order-dev", {"BRANCH": "feature/x"}, item_id=7)
+    ]
+    code = _run(["--env", "dev", "--module", "order-service", "--branch", "feature/x", "--no-wait"], fake)
+    out = capsys.readouterr().out
+    assert code == 0
+    assert ("cancel_queue_item", 7) in fake.calls
+    assert fake.triggered() == ["order-dev"]
+    assert "取消排队中的构建（队列 #7）" in out
+
+
+def test_in_flight_build_with_other_params_is_left_alone(home, fake):
+    fake.inflight["order-dev"] = [
+        InFlightBuild("build", "order-dev", {"BRANCH": "someone-else"}, number=10)
+    ]
+    assert _run(["--env", "dev", "--module", "order-service", "--branch", "feature/x", "--no-wait"], fake) == 0
+    assert not any(c[0] in ("stop_build", "cancel_queue_item") for c in fake.calls)
+    assert fake.triggered() == ["order-dev"]
+
+
+def test_job_without_params_treats_any_in_flight_build_as_duplicate(home, fake):
+    fake.inflight["pay-dev"] = [InFlightBuild("build", "pay-dev", {}, number=3)]
+    assert _run(["--env", "dev", "--module", "pay-service", "--branch", "b", "--no-wait"], fake) == 0
+    assert ("stop_build", "pay-dev", 3) in fake.calls
+
+
+def test_dry_run_reports_planned_cancel_without_cancelling(home, fake, capsys):
+    fake.inflight["order-dev"] = [
+        InFlightBuild("build", "order-dev", {"BRANCH": "feature/x"}, number=10)
+    ]
+    code = _run(["--env", "dev", "--module", "order-service", "--branch", "feature/x", "--dry-run"], fake)
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "[将取消]" in out and "正在运行的构建 #10" in out
+    assert fake.triggered() == []
+    assert not any(c[0] in ("stop_build", "cancel_queue_item") for c in fake.calls)
+
+
+def test_cancel_failure_warns_and_still_triggers(home, fake, capsys):
+    fake.inflight["order-dev"] = [
+        InFlightBuild("build", "order-dev", {"BRANCH": "feature/x"}, number=10)
+    ]
+    fake.cancel_error = JenkinsError("当前账号无权访问任务 order-dev", "permission", "order-dev")
+    code = _run(["--env", "dev", "--module", "order-service", "--branch", "feature/x", "--no-wait"], fake)
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "[取消失败]" in out
+    assert fake.triggered() == ["order-dev"]
+
+
+def test_queue_check_failure_warns_and_still_triggers(home, fake, capsys):
+    fake.inflight_errors.add("order-dev")
+    code = _run(["--env", "dev", "--module", "order-service", "--branch", "feature/x", "--no-wait"], fake)
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "读取排队状态失败" in out
+    assert fake.triggered() == ["order-dev"]
+
+
+def test_one_run_does_not_cancel_its_own_queued_build(home, fake):
+    data = yaml.safe_load((home / "jenkins.yaml").read_text(encoding="utf-8"))
+    data["modules"]["order-alias"] = {
+        "paths": ["order-alias/"],
+        "jobs": {"dev": "order-dev"},
+        "params": {"BRANCH": "{branch}"},
+    }
+    (home / "jenkins.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
+    code = _run([
+        "--env", "dev", "--module", "order-service", "--module", "order-alias",
+        "--branch", "feature/x", "--no-wait",
+    ], fake)
+    assert code == 0
+    assert not any(c[0] in ("stop_build", "cancel_queue_item") for c in fake.calls)
+    assert fake.triggered() == ["order-dev", "order-dev"]

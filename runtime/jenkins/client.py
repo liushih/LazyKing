@@ -44,6 +44,37 @@ class BuildStatus:
     url: str
 
 
+@dataclass
+class InFlightBuild:
+    """Jenkins 队列项或正在运行的构建；params 是触发参数，无参数任务为空字典。"""
+
+    kind: str  # "queue" | "build"
+    job: str
+    params: dict[str, str]
+    number: int | None = None
+    item_id: int | None = None
+    queue_id: int | None = None
+
+
+def _parse_params(text: object) -> dict[str, str]:
+    if isinstance(text, dict):
+        return {str(k): str(v) for k, v in text.items()}
+    params: dict[str, str] = {}
+    for line in str(text or "").splitlines():
+        key, sep, value = line.partition("=")
+        if sep:
+            params[key.strip()] = value.strip()
+    return params
+
+
+def _build_params(raw: dict) -> dict[str, str]:
+    for action in raw.get("actions") or []:
+        parameters = action.get("parameters")
+        if parameters:
+            return {str(p["name"]): str(p.get("value", "")) for p in parameters}
+    return {}
+
+
 class JenkinsClient:
     def __init__(
         self,
@@ -194,6 +225,57 @@ class JenkinsClient:
         return self._redact("\n".join(text.splitlines()[-lines:]))
 
     # ---- 触发与等待 ----
+
+    @staticmethod
+    def _job_from_url(url: str) -> str | None:
+        parts = [part for part in urlsplit(url).path.split("/") if part]
+        names = [parts[i + 1] for i in range(0, len(parts) - 1, 2) if parts[i] == "job"]
+        return "/".join(names) or None
+
+    def queue_items(self) -> list[InFlightBuild]:
+        data = self._request(
+            "GET", "/queue/api/json", params={"tree": "items[id,params,task[name,url]]"}
+        ).json()
+        items: list[InFlightBuild] = []
+        for raw in data.get("items") or []:
+            job = self._job_from_url(str((raw.get("task") or {}).get("url") or ""))
+            if job is None:
+                continue
+            item_id = int(raw["id"])
+            items.append(
+                InFlightBuild(
+                    "queue", job, _parse_params(raw.get("params")), item_id=item_id, queue_id=item_id
+                )
+            )
+        return items
+
+    def in_flight(self, job: str) -> list[InFlightBuild]:
+        """该任务排队中的项和正在运行的构建。"""
+        active = [item for item in self.queue_items() if item.job == job]
+        tree = "builds[number,building,queueId,actions[parameters[name,value]]]"
+        data = self._request(
+            "GET", f"{self.job_path(job)}/api/json", job=job, params={"tree": tree}
+        ).json()
+        for raw in data.get("builds") or []:
+            if not raw.get("building"):
+                continue
+            queue_id = raw.get("queueId")
+            active.append(
+                InFlightBuild(
+                    "build",
+                    job,
+                    _build_params(raw),
+                    number=int(raw["number"]),
+                    queue_id=None if queue_id is None else int(queue_id),
+                )
+            )
+        return active
+
+    def cancel_queue_item(self, item_id: int) -> None:
+        self._request("POST", "/queue/cancelItem", retry=False, params={"id": item_id})
+
+    def stop_build(self, job: str, number: int) -> None:
+        self._request("POST", f"{self.job_path(job)}/{number}/stop", job=job, retry=False)
 
     def trigger(self, job: str, params: dict[str, str] | None) -> str:
         """params 为 None 走 /build（无参数任务）；否则走 /buildWithParameters。返回队列项地址。"""

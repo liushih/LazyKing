@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -13,7 +15,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from runtime.config import ConfigError  # noqa: E402
-from runtime.jenkins.client import JenkinsClient, JenkinsError  # noqa: E402
+from runtime.jenkins.client import InFlightBuild, JenkinsClient, JenkinsError  # noqa: E402
 from runtime.jenkins.config import (  # noqa: E402
     DEFAULT_TOKEN_KEY,
     JenkinsConfigError,
@@ -259,6 +261,53 @@ def _describe(item: PlannedBuild) -> str:
     return f"{item.module} → {item.job} 参数={params}"
 
 
+_QUEUE_ITEM_PATH = re.compile(r"/queue/item/(\d+)/?$")
+
+
+def _queue_item_id(queue_url: str) -> int | None:
+    match = _QUEUE_ITEM_PATH.search(urlsplit(queue_url).path)
+    return int(match.group(1)) if match else None
+
+
+def _same_content(wanted: dict[str, str] | None, active: InFlightBuild) -> bool:
+    """无参数任务分不出内容，同任务的在途构建都算重复；有参数时按参数判断。"""
+    return wanted is None or active.params == wanted
+
+
+def _active_label(active: InFlightBuild) -> str:
+    if active.kind == "queue":
+        return f"取消排队中的构建（队列 #{active.item_id}）"
+    return f"停止正在运行的构建 #{active.number}"
+
+
+def _duplicates(client, item: PlannedBuild, own_queue_ids: set[int]) -> list[InFlightBuild]:
+    try:
+        active = client.in_flight(item.job)
+    except JenkinsError as exc:
+        print(f"[{exc.kind}] {item.module} → {item.job} 读取排队状态失败，照常触发：{exc}")
+        return []
+    return [
+        build
+        for build in active
+        if _same_content(item.params, build)
+        and build.item_id not in own_queue_ids
+        and build.queue_id not in own_queue_ids
+    ]
+
+
+def _cancel_duplicates(client, item: PlannedBuild, own_queue_ids: set[int]) -> None:
+    for active in _duplicates(client, item, own_queue_ids):
+        try:
+            if active.kind == "queue":
+                client.cancel_queue_item(active.item_id)
+            else:
+                client.stop_build(item.job, active.number)
+        except JenkinsError as exc:
+            print(f"[取消失败] {item.module} → {item.job} {_active_label(active)}：{exc}")
+            continue
+        print(f"[取消] {item.module} → {item.job} {_active_label(active)}，重新触发")
+
+
 def _build(cfg, client, args) -> int:
     repo = Path(args.repo)
     modules = _select_modules(cfg, args, repo)
@@ -269,10 +318,13 @@ def _build(cfg, client, args) -> int:
         print(f"分支：{branch}  环境：{args.env}  Jenkins：{cfg.base_url}")
         for item in planned:
             print(_describe(item))
+            for active in _duplicates(client, item, set()):
+                print(f"[将取消] {item.module} → {item.job} {_active_label(active)}")
         return EXIT_OK
 
     timeout_s = cfg.build_timeout_minutes * 60
     ok = True
+    own_queue_ids: set[int] = set()
 
     def finish(item: PlannedBuild, queue_url: str) -> bool:
         try:
@@ -292,11 +344,16 @@ def _build(cfg, client, args) -> int:
         return result == "SUCCESS"
 
     def trigger(item: PlannedBuild) -> str | None:
+        _cancel_duplicates(client, item, own_queue_ids)
         try:
-            return client.trigger(item.job, item.params)
+            queue_url = client.trigger(item.job, item.params)
         except JenkinsError as exc:
             print(f"[{exc.kind}] {item.module} → {item.job} {exc}")
             return None
+        item_id = _queue_item_id(queue_url)
+        if item_id is not None:
+            own_queue_ids.add(item_id)
+        return queue_url
 
     if args.sequential:
         for index, item in enumerate(planned):

@@ -6,7 +6,7 @@ import yaml
 SKILLS = Path(__file__).resolve().parents[1] / "skills"
 
 
-@pytest.mark.parametrize("name", ["data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow", "browser-test"])
+@pytest.mark.parametrize("name", ["data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow", "browser-test", "jenkins-deploy"])
 def test_skill_has_frontmatter_and_sections(name):
     text = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
     assert text.startswith("---")
@@ -14,7 +14,7 @@ def test_skill_has_frontmatter_and_sections(name):
         assert section in text
 
 
-@pytest.mark.parametrize("name", ["data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow", "browser-test"])
+@pytest.mark.parametrize("name", ["data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow", "browser-test", "jenkins-deploy"])
 def test_skill_commands_are_single_line(name):
     """命令块里不留 bash 反斜杠续行，PowerShell（DSH on Windows）会把它断成多条命令。"""
     text = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
@@ -89,7 +89,7 @@ def test_git_skill_reports_existing_mr_on_conflict():
     assert "已存在" in text
 
 
-@pytest.mark.parametrize("name", ["data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow", "browser-test"])
+@pytest.mark.parametrize("name", ["data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow", "browser-test", "jenkins-deploy"])
 def test_skill_has_environment_preflight(name):
     text = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
     assert "## 第 0 步：环境检查" in text
@@ -125,3 +125,27 @@ def test_browser_examples_parse():
 def test_trigger_routing_includes_browser():
     text = (SKILLS / "_references" / "trigger-routing.md").read_text(encoding="utf-8")
     assert "浏览器" in text and "browser-test" in text
+
+
+def test_jenkins_skill_confirms_before_build_and_protects_token():
+    text = (SKILLS / "jenkins-deploy" / "SKILL.md").read_text(encoding="utf-8")
+    for word in ["--dry-run", "确认", "stdin", "不回显", "403", "discover", "jenkins.py"]:
+        assert word in text
+
+
+def test_trigger_routing_includes_jenkins():
+    text = (SKILLS / "_references" / "trigger-routing.md").read_text(encoding="utf-8")
+    assert "发版" in text and "Jenkins" in text and "jenkins-deploy" in text
+    assert "七个 skill" in text and "六个 skill" not in text
+
+
+def test_jenkins_example_parses():
+    data = yaml.safe_load((SKILLS / "_TEMPLATE" / "jenkins.example.yaml").read_text(encoding="utf-8"))
+    assert {"base_url", "user", "token_key"} <= set(data["jenkins"])
+    assert data["baseline"]
+    module = next(iter(data["modules"].values()))
+    assert {"paths", "jobs", "params"} <= set(module)
+
+
+def test_env_example_has_jenkins_token():
+    assert "JENKINS_TOKEN" in (SKILLS / "_TEMPLATE" / "env.example").read_text(encoding="utf-8")

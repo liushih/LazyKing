@@ -1,0 +1,27 @@
+# Jenkins 发版配置模板
+# 复制到 <数据目录>/projects/<项目ID>/jenkins.yaml，随业务仓库提交。
+# 不要在这里写 token：token 只放本机项目 .env 的 JENKINS_TOKEN（由 setup 命令写入）。
+
+jenkins:
+  base_url: http://jenkins.example.com   # Jenkins 根地址
+  user: your-account                     # 账号
+  token_key: JENKINS_TOKEN               # .env 里存 token 的键名
+
+# 推断"本次需求改了哪些模块"时的对比基线
+baseline: origin/dev
+
+# 等待单个构建完成的上限（分钟）
+build_timeout_minutes: 30
+
+# 书写顺序即触发顺序
+modules:
+  order-service:
+    # 改动文件命中这些路径前缀，就认为涉及该模块（最长前缀优先）
+    paths: [order-service/]
+    # 环境 -> Jenkins 任务名；文件夹里的任务写 folder/job
+    jobs:
+      dev: b2d-order-dev
+      test: b2d-order-test
+    # 构建参数；{branch} 会替换为分支名。参数名须与任务定义一致，可用 discover 查看
+    params:
+      BRANCH: "{branch}"

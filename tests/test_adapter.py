@@ -83,3 +83,13 @@ def test_boolean_like_body_key_raises(monkeypatch, tmp_path):
     monkeypatch.setenv("DATA_TOOLS_HOME", str(tmp_path))
     with pytest.raises(adapter.AdapterError, match="引号"):
         adapter.load_adapter("demo")
+
+
+def test_loads_value_from_personal_yaml(monkeypatch, tmp_path):
+    _write_adapter(tmp_path, MINIMAL)
+    (tmp_path / "projects" / "demo" / ".env").write_text("", encoding="utf-8")
+    (tmp_path / "projects" / "demo" / "personal.yaml").write_text(
+        "BASE: http://personal\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("DATA_TOOLS_HOME", str(tmp_path))
+    assert adapter.load_adapter("demo").envs["dev"]["base_url"] == "http://personal"

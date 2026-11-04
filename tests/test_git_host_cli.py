@@ -192,3 +192,40 @@ def test_set_user_tag_persists(project_config, capsys):
 def test_set_user_tag_refuses_to_overwrite(project_config, capsys):
     assert main(["--project", "demo", "set-user-tag", "zhang"]) == 2
     assert "user_tag: lsh" in (project_config / "git_hosts.yaml").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def placeholder_project_config(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_TOOLS_HOME", str(tmp_path))
+    proj = tmp_path / "projects" / "demo"
+    proj.mkdir(parents=True, exist_ok=True)
+    (proj / "git_hosts.yaml").write_text(
+        "user_tag: ${USER_TAG}\n"
+        "repo_path: C:/x\n"
+        "host:\n"
+        "  kind: gitlab\n"
+        "  base_url: http://g\n"
+        "  project_path: a/b\n"
+        "  token_key: TOKEN_KEY\n"
+        "branches: {dev: dev, test: test, prod: prod}\n"
+        "rules:\n"
+        "  forbid_commit_paths: [pom.xml]\n",
+        encoding="utf-8",
+    )
+    (proj / "personal.example.yaml").write_text(
+        "version: 1\nkeys: {USER_TAG: {description: 标识}}\n", encoding="utf-8"
+    )
+    (proj / ".env").write_text("TOKEN_KEY=fake-x\n", encoding="utf-8")
+    return proj
+
+
+def test_set_user_tag_writes_personal_in_placeholder_mode(
+    placeholder_project_config, capsys
+):
+    assert main(["--project", "demo", "set-user-tag", "zhang"]) == 0
+    assert "USER_TAG: zhang" in (
+        placeholder_project_config / "personal.yaml"
+    ).read_text(encoding="utf-8")
+    assert "${USER_TAG}" in (
+        placeholder_project_config / "git_hosts.yaml"
+    ).read_text(encoding="utf-8")

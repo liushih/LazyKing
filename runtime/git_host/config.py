@@ -8,7 +8,7 @@ from pathlib import Path
 
 import yaml
 
-from runtime import config
+from runtime import config, personal
 
 HOST_KINDS = ("github", "gitee", "gitlab")
 
@@ -39,6 +39,12 @@ def load_git_host_config(project_id: str, home: Path | None = None) -> GitHostCo
         raise GitHostConfigError(f"未找到 git_hosts.yaml：{path}")
 
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    try:
+        data = config.substitute(data, config.load_values(_base(project_id, home)))
+    except config.ConfigError as exc:
+        raise GitHostConfigError(
+            f"git_hosts.yaml 变量解析失败：{exc}；缺少个人配置时先运行 project-setup"
+        ) from exc
     host = data.get("host") or {}
     kind = str(host.get("kind") or "")
     if kind not in HOST_KINDS:
@@ -68,6 +74,13 @@ def read_token(project_id: str, token_key: str, home: Path | None = None) -> str
 def save_user_tag(project_id: str, user_tag: str, home: Path | None = None) -> None:
     path = _base(project_id, home) / "git_hosts.yaml"
     text = path.read_text(encoding="utf-8")
+    data = yaml.safe_load(text) or {}
+    if not isinstance(data, dict):
+        raise GitHostConfigError(f"git_hosts.yaml 顶层必须是映射：{path}")
+    if str(data.get("user_tag") or "").strip() == "${USER_TAG}":
+        personal.write_known_value(project_id, "USER_TAG", user_tag, home=home)
+        return
+
     updated, count = re.subn(r"^user_tag:.*$", f"user_tag: {user_tag}", text, count=1, flags=re.M)
     if count == 0:
         updated = f"user_tag: {user_tag}\n" + text

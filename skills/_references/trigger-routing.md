@@ -1,6 +1,6 @@
 # 触发词路由
 
-七个 skill 的 frontmatter 都引用本表。判断顺序：命中即停。
+八个 skill 的 frontmatter 都引用本表。判断顺序：命中即停。
 
 | 意图 | 中文触发 | 英文触发 | 目标 skill |
 |---|---|---|---|
@@ -12,10 +12,12 @@
 | 浏览器测试 | 测一下、走一遍、浏览器验证、点一遍、复现一下、回归 | browser, UI test, e2e, regression | `browser-test` |
 | 发版 | 发版、构建、部署、Jenkins、上线构建 | deploy, build, jenkins, release | `jenkins-deploy` |
 | 沉淀 | 记下来、加到坑里、更新规则 | remember, add pitfall | 写 `pitfalls.md` |
+| 个人配置 | 初始化个人配置、新同事接入、配置我的账号、配一下环境 | setup, personal config | `project-setup` |
 
 ## 消歧顺序
 
-1. 含「新业务 / 接入」→ `adapter-bootstrap`（即使同时含造数）
+1. 含「个人配置 / 初始化个人配置 / 新同事接入」→ `project-setup`（先于其他）
+2. 含「新业务 / 接入」→ `adapter-bootstrap`（即使同时含造数）
 2. 含「日报 / 周报 / 月报 / 述职」→ `report-writer`
 3. 含「提交 / 推送 / 合并 / 建 MR / 开分支 / 热修」→ `git-workflow`
 4. 含「发版 / 构建 / 部署 / Jenkins」→ `jenkins-deploy`

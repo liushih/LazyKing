@@ -4,9 +4,19 @@ import pytest
 import yaml
 
 SKILLS = Path(__file__).resolve().parents[1] / "skills"
+SKILL_NAMES = [
+    "data-gen-core",
+    "db-access",
+    "adapter-bootstrap",
+    "report-writer",
+    "git-workflow",
+    "browser-test",
+    "jenkins-deploy",
+    "project-setup",
+]
 
 
-@pytest.mark.parametrize("name", ["data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow", "browser-test", "jenkins-deploy"])
+@pytest.mark.parametrize("name", SKILL_NAMES)
 def test_skill_has_frontmatter_and_sections(name):
     text = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
     assert text.startswith("---")
@@ -14,7 +24,7 @@ def test_skill_has_frontmatter_and_sections(name):
         assert section in text
 
 
-@pytest.mark.parametrize("name", ["data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow", "browser-test", "jenkins-deploy"])
+@pytest.mark.parametrize("name", SKILL_NAMES)
 def test_skill_commands_are_single_line(name):
     """命令块里不留 bash 反斜杠续行，PowerShell（DSH on Windows）会把它断成多条命令。"""
     text = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
@@ -51,8 +61,9 @@ def test_data_gen_requires_adapter_and_forbids_improvisation():
 
 def test_trigger_routing_covers_all_intents():
     text = (SKILLS / "_references" / "trigger-routing.md").read_text(encoding="utf-8")
-    for word in ["造数", "连库", "接入", "报告", "沉淀"]:
+    for word in ["造数", "连库", "接入", "报告", "沉淀", "个人配置"]:
         assert word in text
+    assert "project-setup" in text
     assert "report-writer" in text
 
 
@@ -89,7 +100,7 @@ def test_git_skill_reports_existing_mr_on_conflict():
     assert "已存在" in text
 
 
-@pytest.mark.parametrize("name", ["data-gen-core", "db-access", "adapter-bootstrap", "report-writer", "git-workflow", "browser-test", "jenkins-deploy"])
+@pytest.mark.parametrize("name", SKILL_NAMES)
 def test_skill_has_environment_preflight(name):
     text = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
     assert "## 第 0 步：环境检查" in text
@@ -136,7 +147,7 @@ def test_jenkins_skill_confirms_before_build_and_protects_token():
 def test_trigger_routing_includes_jenkins():
     text = (SKILLS / "_references" / "trigger-routing.md").read_text(encoding="utf-8")
     assert "发版" in text and "Jenkins" in text and "jenkins-deploy" in text
-    assert "七个 skill" in text and "六个 skill" not in text
+    assert "七个 skill" not in text and "八个 skill" in text
 
 
 def test_jenkins_example_parses():
@@ -149,3 +160,18 @@ def test_jenkins_example_parses():
 
 def test_env_example_has_jenkins_token():
     assert "JENKINS_TOKEN" in (SKILLS / "_TEMPLATE" / "env.example").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("name", SKILL_NAMES)
+def test_every_capability_skill_checks_personal_config(name):
+    if name == "project-setup":
+        return
+    text = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
+    assert "config.py" in text and "check" in text
+    assert "project-setup" in text
+
+
+def test_project_setup_skill_documents_flow():
+    text = (SKILLS / "project-setup" / "SKILL.md").read_text(encoding="utf-8")
+    for word in ["config.py", "check", "set-secret", "personal.yaml", "不猜", "不回显"]:
+        assert word in text

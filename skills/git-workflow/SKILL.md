@@ -33,8 +33,10 @@ description: >-
 
 ## 前置检查
 
+0. 运行 `"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/config.py" --project <项目ID> check --capability git`。有缺失时用 `project-setup` 补齐；不现场猜个人值，不修改共享 yaml；密钥只提示用户在自己的终端运行 `set-secret`。
+
 1. 读 `<数据目录>/projects/<项目ID>/git_hosts.yaml`
-2. 若 `user_tag` 为空：**询问用户**一次，然后用 `set-user-tag <标识>` 写入配置，之后沿用，不再询问
+2. 若共享 `git_hosts.yaml` 的 `user_tag` 用 `${USER_TAG}` 且 `personal.yaml` 缺值：走 `project-setup` 补齐。`set-user-tag` 只写 `personal.yaml`，不再修改共享文件；共享文件仍是字面值时保持旧行为并提示迁移。
 3. 确认项目 ID；无法确定就问，不猜
 4. 确认目标：dev、test 还是 prod
 

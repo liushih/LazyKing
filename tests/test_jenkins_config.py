@@ -111,12 +111,18 @@ def test_save_credentials_creates_yaml_and_env(tmp_path):
     data = yaml.safe_load(text)
     assert data["jenkins"] == {
         "base_url": "http://jenkins.example.com",
-        "user": "liushihao",
+        "user": "${JENKINS_USER}",
         "token_key": "JENKINS_TOKEN",
     }
     assert data["modules"] == {}
     assert data["baseline"] == "origin/dev"
     assert FAKE not in text
+    assert (
+        yaml.safe_load((project / "personal.yaml").read_text(encoding="utf-8"))[
+            "JENKINS_USER"
+        ]
+        == "liushihao"
+    )
     assert f"JENKINS_TOKEN={FAKE}" in (project / ".env").read_text(encoding="utf-8")
 
 
@@ -170,3 +176,52 @@ def test_malformed_yaml_raises_config_error_not_traceback(tmp_path, text):
     _write(tmp_path, text)
     with pytest.raises(JenkinsConfigError):
         load_jenkins_config("demo", home=tmp_path)
+
+
+PLACEHOLDER_JENKINS = """
+jenkins:
+  base_url: http://jenkins.example.com
+  user: ${JENKINS_USER}
+  token_key: JENKINS_TOKEN
+modules:
+  order-service:
+    paths: [order-service/]
+    jobs: {dev: b2d-order-dev}
+"""
+
+
+def test_load_substitutes_personal_user(tmp_path):
+    project = _write(tmp_path, PLACEHOLDER_JENKINS)
+    (project / "personal.yaml").write_text(
+        "JENKINS_USER: liushihao\n", encoding="utf-8"
+    )
+    cfg = load_jenkins_config("demo", home=tmp_path)
+    assert cfg.user == "liushihao"
+
+
+def test_save_credentials_placeholder_mode_writes_personal_and_preserves_shared(tmp_path):
+    project = _write(tmp_path, PLACEHOLDER_JENKINS)
+    warnings = save_credentials(
+        "demo", "http://jenkins.example.com", "liushihao", FAKE, home=tmp_path
+    )
+    data = yaml.safe_load((project / "jenkins.yaml").read_text(encoding="utf-8"))
+    assert data["jenkins"]["user"] == "${JENKINS_USER}"
+    assert data["modules"]
+    assert (
+        yaml.safe_load((project / "personal.yaml").read_text(encoding="utf-8"))[
+            "JENKINS_USER"
+        ]
+        == "liushihao"
+    )
+    assert warnings == []
+
+
+def test_save_credentials_legacy_literal_mode_updates_shared(tmp_path):
+    project = _write(tmp_path, FULL_YAML)
+    warnings = save_credentials(
+        "demo", "http://new.example.com", "newuser", FAKE, home=tmp_path
+    )
+    assert "${JENKINS_USER}" not in (project / "jenkins.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert warnings and "占位符" in warnings[0]

@@ -10,7 +10,7 @@ from typing import Any
 
 import yaml
 
-from runtime.config import ConfigError, data_home, load_env, project_dir, substitute
+from runtime.config import ConfigError, data_home, load_values, project_dir, substitute
 
 from .apiwatch import ApiWatchConfig
 
@@ -247,8 +247,13 @@ def load_browser_config(project_id: str) -> BrowserConfig:
     if not envs_raw:
         raise BrowserConfigError("browser.yaml envs 不能为空")
 
-    dotenv = load_env(project_dir(project_id) / ".env")
-    lookup = {**os.environ, **dotenv}
+    try:
+        values = load_values(project_dir(project_id))
+    except ConfigError as exc:
+        raise BrowserConfigError(
+            f"个人配置缺失或非法：{exc}；先运行 project-setup"
+        ) from exc
+    lookup = {**os.environ, **values}
     envs: dict[str, EnvConfig] = {}
     for name, raw in envs_raw.items():
         raw = _check_mapping(raw, f"browser.yaml envs.{name}")

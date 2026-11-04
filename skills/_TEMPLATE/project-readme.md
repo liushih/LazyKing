@@ -6,8 +6,9 @@
 
 1. 确认本机有 Python 3.11+（没有则到 https://www.python.org/downloads/ 下载安装，勾选 Add to PATH）。
 2. 在业务仓库根目录运行 `powershell -ExecutionPolicy Bypass -File data-tools/bootstrap.ps1`。
-3. 复制 `.data-tools/projects/<PROJECT_ID>/.env.example` 为 `.env`，填入账号。
-4. 打开 AI 工具，直接说「造 100 张 <业务对象>」。
+3. 打开 AI 工具，说「初始化个人配置」，按提示生成 `personal.yaml` 和 `.env`。
+4. `personal.yaml` 与 `.env` 不要提交；共享 yaml 不要写个人值。
+5. 说「造 100 张 <业务对象>」开始使用。
 
 ## 业务模块
 

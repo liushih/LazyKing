@@ -6,6 +6,8 @@ import argparse
 import sys
 from pathlib import Path
 
+import yaml
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -160,9 +162,17 @@ def main(argv: list[str] | None = None, host_fn=None, repo_fn=None) -> int:
 
 
 def _set_user_tag(project: str, tag: str) -> int:
-    cfg = load_git_host_config(project)
-    if cfg.user_tag:
-        print(f"[配置] user_tag 已是 {cfg.user_tag}，如需修改请手工编辑 git_hosts.yaml")
+    path = config.project_dir(project) / "git_hosts.yaml"
+    if not path.exists():
+        print(f"[配置] 未找到 git_hosts.yaml：{path}")
+        return EXIT_USAGE
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(raw, dict):
+        print(f"[配置] git_hosts.yaml 顶层必须是映射：{path}")
+        return EXIT_USAGE
+    current = str(raw.get("user_tag") or "").strip()
+    if current and current != "${USER_TAG}":
+        print(f"[配置] user_tag 已是 {current}，如需修改请手工编辑 git_hosts.yaml")
         return EXIT_USAGE
     save_user_tag(project, tag)
     print(f"user_tag: {tag}")

@@ -27,6 +27,7 @@ GITIGNORE_BLOCK = f"""{GITIGNORE_BEGIN}
 data-tools/.venv/
 data-tools/**/__pycache__/
 .data-tools/projects/*/.env
+.data-tools/projects/*/personal.yaml
 .data-tools/projects/*/ledger.csv
 .data-tools/projects/*/.token*.json
 .data-tools/projects/*/scripts/.token*.json
@@ -59,6 +60,8 @@ PROJECT_DATA_FILES: tuple[str, ...] = (
     "report.yaml",
     "git_hosts.yaml",
     "jenkins.yaml",
+    "personal.yaml",
+    "personal.example.yaml",
     ".env",
 )
 

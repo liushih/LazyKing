@@ -32,16 +32,18 @@ description: >-
 
 ## 前置检查
 
+0. 运行 `"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/config.py" --project <项目ID> check --capability jenkins`。有缺失时用 `project-setup` 补齐；不现场猜个人值，不修改共享 yaml；密钥只提示用户在自己的终端运行 `set-secret`。
+
 1. 确认项目 ID；无法确定就问，不猜。
-2. 读 `<DATA_HOME>/projects/<项目ID>/jenkins.yaml` 和同目录 `.env` 里的 `JENKINS_TOKEN`。任一缺失，走下面的**首次流程**。
+2. 读共享 `jenkins.yaml`。共享文件缺失 = 维护人任务；`JENKINS_USER` 或 `JENKINS_TOKEN` 缺失 = 用 `project-setup`，token 只让用户在自己的终端运行 `set-secret`。
 3. 确认目标环境（dev、test 等，取自 `jenkins.yaml` 里模块的 `jobs` 键）。用户没说就问，不猜。
 
 ### 首次流程
 
 1. 问 Jenkins 地址。
-2. 账号：用 `git config user.name` 或 `git_hosts.yaml` 的 `user_tag` 作候选，问「账号是 xxx 吗」。用户也可以一次给出 `账号:token`，由你拆开。
-3. 请用户在对话中提供 token，并建议使用单独生成、可随时吊销的 API token。
-4. 通过 stdin 调 `setup`，把 token 交给命令，**不要放进命令行参数**；之后的回复、总结、日志里都不回显、不复述 token。
+2. 账号：用 `git config user.name` 或 `git_hosts.yaml` 的 `user_tag` 作候选，问「账号是 xxx 吗」。
+3. 请用户在自己的终端运行 `set-secret JENKINS_TOKEN`（或直接编辑项目 `.env`），建议使用单独生成、可随时吊销的 API token。不要把 token 贴进对话。
+4. 确认 `.env` 已有 token 后运行 `setup`；`setup` 在 stdin 为空时会复用 `.env` 里的 token。不要把 token 放进命令行参数；之后的回复、总结、日志里都不回显、不复述 token。
 5. `setup` 成功后运行 `discover` 列出任务和参数，与用户核对，按目录 → 模块 → 任务的对应关系写 `jenkins.yaml` 的 `modules`（格式见 `skills/_TEMPLATE/jenkins.example.yaml`）。
 6. 提醒用户提交 `jenkins.yaml`（不含密钥）；`.env` 不提交。
 
@@ -56,7 +58,7 @@ description: >-
 所有操作通过命令行入口 `jenkins.py`：
 
 ```bash
-printf '%s' '<TOKEN>' | "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/jenkins.py" --project <项目ID> setup --base-url <地址> --user <账号>
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/jenkins.py" --project <项目ID> setup --base-url <地址> --user <账号>
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/jenkins.py" --project <项目ID> discover --filter <关键字>
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/jenkins.py" --project <项目ID> modules --repo <业务仓库根目录>
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/jenkins.py" --project <项目ID> build --env <环境> --dry-run
@@ -64,7 +66,7 @@ printf '%s' '<TOKEN>' | "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scri
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/jenkins.py" --project <项目ID> status --job <任务名> --number <构建号>
 ```
 
-PowerShell 里把第一条的前半段换成 `'<TOKEN>' | & "<TOOLS_DIR>/.venv/Scripts/python.exe" ...`。`setup` 这条命令文本里含有 token，执行后不要在任何回复里引用它。
+PowerShell 里同样直接运行这两条命令；`setup` 会从 `.env` 读取已保存的 token，不再通过命令行参数或对话传递。执行后不要在任何回复里引用 token。
 
 `build` 的可选参数：
 

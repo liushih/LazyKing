@@ -61,11 +61,11 @@ def _check_keys(step_id: str, where: str, value: Any) -> None:
             _check_keys(step_id, where, item)
 
 
-def _substitute(value: Any, env: dict[str, str]) -> Any:
+def _substitute(value: Any, env: dict[str, Any]) -> Any:
     try:
         return config.substitute(value, env)
     except config.ConfigError as exc:
-        raise AdapterError(str(exc)) from exc
+        raise AdapterError(f"{exc}；缺少个人配置时先运行 project-setup") from exc
 
 
 def load_adapter(project_id: str) -> Adapter:
@@ -79,7 +79,7 @@ def load_adapter(project_id: str) -> Adapter:
     if version != 1:
         raise AdapterError(f"不支持的适配层版本：{version}")
 
-    data = _substitute(raw, config.load_env(base / ".env"))
+    data = _substitute(raw, config.load_values(base))
     entities: dict[str, Entity] = {}
     for eid, ent in (data.get("entities") or {}).items():
         steps_raw = ent.get("steps") or []

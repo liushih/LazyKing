@@ -30,6 +30,8 @@ description: >-
 
 ## 前置检查
 
+0. 运行 `"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/config.py" --project <项目ID> check --capability adapter`。有缺失时用 `project-setup` 补齐；不现场猜个人值，不修改共享 yaml；密钥只提示用户在自己的终端运行 `set-secret`。
+
 1. 读 `<数据目录>/projects/<项目ID>/adapter.yaml`
 2. `entities` 中存在对应业务对象
 3. 同目录 `.env` 含 `envs.dev` 引用的全部变量

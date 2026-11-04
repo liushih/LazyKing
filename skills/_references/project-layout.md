@@ -28,14 +28,16 @@
 │   │   │   ├── browser.yaml           # 环境、登录、默认参数
 │   │   │   ├── flows/*.yaml           # 可复跑流程
 │   │   │   └── pitfalls.md            # 浏览器坑库
-│   │   ├── .env.example               # 提交：键名模板
-│   │   └── .env                       # 不提交：各人凭据
+│   │   ├── personal.example.yaml      # 提交：个人键清单
+│   │   ├── personal.yaml              # 不提交：本人个人值
+│   │   ├── .env.example               # 提交：密钥键名模板
+│   │   └── .env                       # 不提交：各人密钥
 │   ├── templates/<项目ID>/            # 提交（可选）
 │   ├── reports/                       # 不提交：报告产物
 │   └── browser/                       # 不提交：profile、浏览器报告、诊断包、probe
 ```
 
-`data-tools/.venv/`、`.data-tools/projects/*/.env`、`ledger.csv`、`.token*.json`（含 `scripts/` 下的环境令牌缓存）、
+`data-tools/.venv/`、`.data-tools/projects/*/.env`、`.data-tools/projects/*/personal.yaml`、`ledger.csv`、`.token*.json`（含 `scripts/` 下的环境令牌缓存）、
 `.data-tools/projects/*/scripts/state.json`、`.data-tools/reports/`、
 `.data-tools/browser/` 和 `.update-check.json` 由同步工具写入 `.gitignore`，不进仓库。
 
@@ -123,6 +125,10 @@ powershell -ExecutionPolicy Bypass -File <TOOLS_DIR>/bootstrap.ps1
 更新检查成功按 `check_interval_hours`（默认 24 小时）缓存；失败按
 `failure_cooldown_minutes`（默认 15 分钟）冷却，避免离线时每次技能启动都等网络。
 在 `.data-tools/config.yaml` 的 `data_tools` 段可以设置 `update_check: false` 彻底关闭检查。
+
+## 个人配置
+
+共享 yaml 只写团队事实与 `${KEY}`；个人非敏感值写 `personal.yaml`，密钥写 `.env`。`personal.yaml` 与 `.env` 都不提交，`personal.example.yaml` 与 `.env.example` 提交。新增变量时按是否密钥更新对应 example；`config.py check` 会校验共享配置与 example 的覆盖关系。首次使用或提示缺个人配置时运行 `project-setup`，不要让用户修改共享 yaml。
 
 ## 浏览器测试的数据边界
 

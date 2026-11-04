@@ -31,6 +31,8 @@ description: >-
 
 ## 前置检查
 
+0. 运行 `"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/config.py" --project <项目ID> check --capability browser`。有缺失时用 `project-setup` 补齐；不现场猜个人值，不修改共享 yaml；密钥只提示用户在自己的终端运行 `set-secret`。
+
 1. 读 `<DATA_HOME>/projects/<项目ID>/browser/browser.yaml`。
 2. 没有就按 `<TOOLS_DIR>/skills/_TEMPLATE/browser.example.yaml` 建档，确认前端根地址和登录方式；凭据只写 `${VAR}`。
 3. 读同目录 `browser/pitfalls.md`，先看已有坑。
@@ -96,5 +98,5 @@ description: >-
 
 - 提交：`browser/browser.yaml`、`browser/flows/*.yaml`、`browser/pitfalls.md`、项目 `scripts/` 的 impl。
 - 不提交：`.data-tools/browser/` 下的 profile、截图、报告、诊断包。
-- 凭据只放项目 `.env`；新增键时同步更新 `.env.example`。
+- 凭据只放项目 `.env`；个人非敏感值放 `personal.yaml`；新增键时按是否密钥更新 `.env.example` 或 `personal.example.yaml`。
 - 稳定后再删旧脚本或旧技能，避免知识丢失。

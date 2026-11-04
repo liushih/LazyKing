@@ -7,7 +7,7 @@ from pathlib import Path
 
 import yaml
 
-from runtime import config
+from runtime import config, personal
 
 DEFAULT_TOKEN_KEY = "JENKINS_TOKEN"
 DEFAULT_BASELINE = "origin/dev"
@@ -69,6 +69,12 @@ def load_jenkins_config(project_id: str, home: Path | None = None) -> JenkinsCon
         raise JenkinsConfigError(f"jenkins.yaml 不是合法的 YAML：{path}") from exc
     if not isinstance(data, dict):
         raise JenkinsConfigError("jenkins.yaml 顶层必须是映射")
+    try:
+        data = config.substitute(data, config.load_values(_base(project_id, home)))
+    except config.ConfigError as exc:
+        raise JenkinsConfigError(
+            f"jenkins.yaml 变量解析失败：{exc}；缺少个人配置时先运行 project-setup"
+        ) from exc
     section = data.get("jenkins") or {}
     if not isinstance(section, dict):
         raise JenkinsConfigError("jenkins.yaml 的 jenkins 必须是映射")
@@ -105,23 +111,6 @@ def read_token(project_id: str, token_key: str, home: Path | None = None) -> str
     return value
 
 
-def _write_env_key(path: Path, key: str, value: str) -> None:
-    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
-    entry = f"{key}={value}"
-    replaced = False
-    out: list[str] = []
-    for line in lines:
-        if line.split("=", 1)[0].strip() == key and "=" in line:
-            if not replaced:
-                out.append(entry)
-                replaced = True
-            continue
-        out.append(line)
-    if not replaced:
-        out.append(entry)
-    path.write_text("\n".join(out) + "\n", encoding="utf-8")
-
-
 def save_credentials(
     project_id: str,
     base_url: str,
@@ -129,15 +118,44 @@ def save_credentials(
     token: str,
     token_key: str = DEFAULT_TOKEN_KEY,
     home: Path | None = None,
-) -> None:
+) -> list[str]:
     project = _base(project_id, home)
     project.mkdir(parents=True, exist_ok=True)
 
     yaml_path = project / "jenkins.yaml"
-    data = (yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}) if yaml_path.exists() else {}
-    data["jenkins"] = {"base_url": base_url.strip(), "user": user.strip(), "token_key": token_key}
+    data = (
+        (yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {})
+        if yaml_path.exists()
+        else {}
+    )
+    if not isinstance(data, dict):
+        raise JenkinsConfigError("jenkins.yaml 顶层必须是映射")
+    section = data.get("jenkins")
+    if not isinstance(section, dict):
+        section = {}
+        data["jenkins"] = section
+
+    warnings: list[str] = []
+    current_user = str(section.get("user") or "").strip()
+    if current_user in ("", "${JENKINS_USER}"):
+        personal.write_known_value(
+            project_id, "JENKINS_USER", user.strip(), home=home
+        )
+        section["user"] = "${JENKINS_USER}"
+        section.setdefault("base_url", base_url.strip())
+        section.setdefault("token_key", token_key)
+    else:
+        section["base_url"] = base_url.strip()
+        section["user"] = user.strip()
+        section["token_key"] = token_key
+        warnings.append(
+            "共享 jenkins.yaml 的 user 仍是字面值，建议改成占位符 ${JENKINS_USER}"
+        )
+
     data.setdefault("baseline", DEFAULT_BASELINE)
     data.setdefault("modules", {})
-    yaml_path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
-
-    _write_env_key(project / ".env", token_key, token.strip())
+    yaml_path.write_text(
+        yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8"
+    )
+    config.write_env_key(project / ".env", token_key, token.strip())
+    return warnings

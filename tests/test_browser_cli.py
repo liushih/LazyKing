@@ -197,3 +197,8 @@ def test_browser_closed_mid_run_is_env_error_without_diagnostics(monkeypatch, ca
 def test_stop_without_resident_browser(browser_project, capsys):
     assert cli.main(["stop", "--project", "demo"]) == 0
     assert "没有运行中的常驻浏览器" in capsys.readouterr().out
+
+
+def test_missing_browser_variables_ignores_login_steps_builtins(browser_project):
+    (browser_project / "personal.yaml").write_text("USER: u\n", encoding="utf-8")
+    assert cli._missing_browser_variables("demo") == []

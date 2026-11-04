@@ -47,9 +47,9 @@ def load_report_config(project_id: str, home: Path | None = None) -> ReportConfi
 
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     try:
-        data = config.substitute(raw, config.load_env(base / ".env"))
+        data = config.substitute(raw, config.load_values(base))
     except config.ConfigError as exc:
-        raise ReportConfigError(str(exc)) from exc
+        raise ReportConfigError(f"{exc}；缺少个人配置时先运行 project-setup") from exc
 
     git_raw = data.get("git") or {}
     zentao_raw = data.get("zentao") or {}

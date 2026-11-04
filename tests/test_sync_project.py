@@ -196,3 +196,31 @@ def test_env_example_template_mentions_jenkins_token():
     from scripts.sync_project import ENV_EXAMPLE_TEMPLATE
 
     assert "JENKINS_TOKEN" in ENV_EXAMPLE_TEMPLATE
+
+
+def test_personal_files_are_project_data():
+    from scripts.sync_project import PROJECT_DATA_FILES
+
+    assert "personal.yaml" in PROJECT_DATA_FILES
+    assert "personal.example.yaml" in PROJECT_DATA_FILES
+
+
+def test_gitignore_ignores_personal_yaml(project):
+    upsert_gitignore(project)
+    text = (project / ".gitignore").read_text(encoding="utf-8")
+    assert ".data-tools/projects/*/personal.yaml" in text
+
+
+def test_sync_preserves_personal_files(source, project):
+    project_path = project / ".data-tools" / "projects" / "demo"
+    project_path.mkdir(parents=True)
+    (project_path / "personal.yaml").write_text("USER_TAG: lsh\n", encoding="utf-8")
+    (project_path / "personal.example.yaml").write_text(
+        "version: 1\nkeys: {}\n", encoding="utf-8"
+    )
+    result = sync_project(project, "demo", ("claude",), source)
+    assert project_path / "personal.yaml" in result.preserved
+    assert project_path / "personal.example.yaml" in result.preserved
+    assert (
+        project_path / "personal.yaml"
+    ).read_text(encoding="utf-8") == "USER_TAG: lsh\n"

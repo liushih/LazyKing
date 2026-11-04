@@ -38,7 +38,7 @@ from runtime.browser.driver import (
 )
 from runtime.browser.flow import FlowRunError, ensure_login, run_flow
 from runtime.browser.report import artifacts_dir, write_report
-from runtime.config import data_home, load_env, project_dir, resolve_project, substitute
+from runtime.config import ConfigError, data_home, load_values, project_dir, resolve_project, substitute
 
 PASS = 0
 FLOW_FAIL = 1
@@ -47,6 +47,17 @@ FLOW_NOT_FOUND = 3
 ENV_ERROR = 4
 
 _RUNTIME_VARS = {"BASE_URL", "username", "password"}
+
+
+def _missing_browser_variables(project: str) -> list[str]:
+    browser_yaml = project_dir(project) / "browser" / "browser.yaml"
+    try:
+        text = browser_yaml.read_text(encoding="utf-8")
+    except OSError:
+        text = ""
+    referenced = set(re.findall(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", text)) - _RUNTIME_VARS
+    values = {**os.environ, **load_values(project_dir(project))}
+    return sorted(name for name in referenced if name not in values)
 _PROBE_JS = """
 () => {
   const text = (el) => (el.innerText || '').trim();
@@ -167,15 +178,13 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     profile = profile_path(cfg, cfg.default_env)
     checks.append(("profile 可写", _writable(profile), str(profile)))
 
-    browser_yaml = project_dir(project) / "browser" / "browser.yaml"
     try:
-        text = browser_yaml.read_text(encoding="utf-8")
-    except OSError:
-        text = ""
-    referenced = set(re.findall(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", text)) - _RUNTIME_VARS
-    dotenv = load_env(project_dir(project) / ".env")
-    missing = sorted(name for name in referenced if name not in dotenv and name not in os.environ)
-    checks.append(("变量齐全", not missing, ", ".join(missing) if missing else "OK"))
+        missing = _missing_browser_variables(project)
+        checks.append(("变量齐全", not missing, ", ".join(missing) if missing else "OK"))
+    except ConfigError as exc:
+        checks.append(
+            ("变量齐全", False, f"个人配置缺失或非法，运行 project-setup：{exc}")
+        )
 
     ok = True
     for name, passed, detail in checks:

@@ -54,15 +54,20 @@
 
 - `projects/<项目ID>/adapter.yaml`：业务规则
 - `projects/<项目ID>/pitfalls.md`：坑库
-- `projects/<项目ID>/report.yaml`、`projects/<项目ID>/git_hosts.yaml`：报告与代码托管配置（`git_hosts.yaml` 只写 token 键名）
+- `projects/<项目ID>/report.yaml`、`projects/<项目ID>/git_hosts.yaml`、`projects/<项目ID>/jenkins.yaml`：报告、代码托管与发版配置；只写团队事实与 `${KEY}` 占位符，不写个人值
+- `projects/<项目ID>/personal.example.yaml`：个人键清单（键名、说明、默认值来源），不写值
+- `projects/<项目ID>/.env.example`：密钥键名清单，不写值
 - `projects/<项目ID>/scripts/`：`impl` 步骤代码，包括 `chain.py`、`hexin_client.py` 等复杂业务模块
 - `templates/<项目ID>/`：报告模板（即 `.data-tools/templates/<项目ID>/`，与 `projects/` 平级）
+
+划分规则：身份（`USER_TAG`）、本机路径（`REPO_PATH`、`REPORT_REPOS`）、个人账号（`JENKINS_USER`、`ZENTAO_ACCOUNT`）、作者列表进个人；服务器地址、项目/产品 ID、模块映射、分支规则、流程步骤留共享；密码与令牌进 `.env`。
 
 业务脚本不要依赖旧 `claudeTool`、`hexin-data-gen`、`hexin-db-tools`；需要的模块复制到 `projects/<项目ID>/scripts/`，凭据读项目 `.env`，token 缓存写 `projects/<项目ID>/.token.json`。
 
 **不提交（本机私有或运行产物）**
 
-- `projects/<项目ID>/.env`：凭据，每人一份
+- `projects/<项目ID>/personal.yaml`：个人值，每人一份
+- `projects/<项目ID>/.env`：密钥，每人一份
 - `projects/<项目ID>/ledger.csv`：运行台账
 - `projects/<项目ID>/.token.json`：登录 token 缓存
 - `projects/<项目ID>/scripts/state.json`：探针状态

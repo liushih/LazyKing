@@ -14,6 +14,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from runtime.jenkins.client import JenkinsClient, JenkinsError  # noqa: E402
 from runtime.jenkins.config import (  # noqa: E402
+    DEFAULT_TOKEN_KEY,
     JenkinsConfigError,
     load_jenkins_config,
     read_token,
@@ -103,10 +104,20 @@ def main(argv: list[str] | None = None, client_fn=None, stdin=None) -> int:
 def _setup(args, client_fn, stdin) -> int:
     token = stdin.read().strip()
     if not token:
-        print("[配置] stdin 中没有 token：请通过标准输入传入，不要放在命令行参数里")
+        try:
+            token = read_token(args.project, DEFAULT_TOKEN_KEY)
+        except JenkinsConfigError:
+            token = ""
+    if not token:
+        print(
+            "[配置] stdin 中没有 token，项目 .env 也没有 JENKINS_TOKEN："
+            "请先运行 config.py set-secret JENKINS_TOKEN"
+        )
         return EXIT_USAGE
 
-    save_credentials(args.project, args.base_url, args.user, token)
+    warnings = save_credentials(args.project, args.base_url, args.user, token)
+    for warning in warnings:
+        print(warning)
     cfg = load_jenkins_config(args.project)
     client = client_fn(cfg, token)
     try:

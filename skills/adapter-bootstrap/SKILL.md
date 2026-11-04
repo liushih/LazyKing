@@ -24,6 +24,8 @@ description: >-
 
 ## 前置检查
 
+0. 运行 `"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/config.py" --project <项目ID> check --capability adapter`。有缺失时用 `project-setup` 补齐；不现场猜个人值，不修改共享 yaml；密钥只提示用户在自己的终端运行 `set-secret`。
+
 1. 确认项目 ID 与数据目录（默认使用第 0 步解析的 <DATA_HOME>）
 2. 收集：接口地址、认证方式、目标状态
 3. 逐项确认：字段映射、枚举取值、异步时序
@@ -43,7 +45,7 @@ description: >-
 4. 跑通后补 `verify` 段，格式见 `<TOOLS_DIR>/skills/_TEMPLATE/adapter.example.yaml`
 5. 每条坑按四段（现象 / 原因 / 绕法 / 适用）追加到 `pitfalls.md`；追加前先读现有条目，按「现象」去重
 6. 用同一批次号重跑，确认幂等
-7. 接入完成后同步维护项目 `.env.example` 的键名，不写值
+7. 接入完成后按变量是否密钥更新 `.env.example` 或 `personal.example.yaml`，只写键名与说明，不写值
 
 ## 失败处理
 

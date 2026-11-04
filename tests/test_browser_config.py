@@ -202,3 +202,15 @@ def test_allow_api_error_rejects_other_types(browser_project):
     )
     with pytest.raises(BrowserConfigError, match="allow_api_error"):
         load_flow("demo", "smoke")
+
+
+def test_personal_yaml_supplies_login_username(browser_project):
+    (browser_project / ".env").write_text(
+        "WEB=http://localhost\nAPI=http://localhost/api\nPASS=secret\n",
+        encoding="utf-8",
+    )
+    (browser_project / "personal.yaml").write_text(
+        "USER: personal-admin\n", encoding="utf-8"
+    )
+    cfg = load_browser_config("demo")
+    assert cfg.login.username == "personal-admin"

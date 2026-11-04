@@ -31,7 +31,9 @@ description: >-
 
 ## 前置检查
 
-1. 读 `<数据目录>/projects/<项目ID>/report.yaml`
+0. 运行 `"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/config.py" --project <项目ID> check --capability report`。有缺失时用 `project-setup` 补齐；不现场猜个人值，不修改共享 yaml；密钥只提示用户在自己的终端运行 `set-secret`。
+
+1. 读 `<数据目录>/projects/<项目ID>/report.yaml`。共享文件缺失 = 维护人任务；个人账号、作者、仓库列表缺失 = 用 `project-setup` 补齐。
 2. 项目未指定时，用当前工作目录匹配项目；匹配不到或命中多个就**问用户，不猜**
 3. 确认报告类型与时间区间
 4. 询问受众（给谁看），再决定语气
@@ -111,7 +113,7 @@ description: >-
 
 | 情况 | 动作 |
 |---|---|
-| 缺 `report.yaml` | 报路径，引导补配置，不现场猜仓库与禅道 ID |
+| 缺 `report.yaml` | 共享文件缺失：报路径，交维护人；个人值缺失：用 `project-setup`。不现场猜仓库与禅道 ID |
 | 项目无法确定 | 停下来问，列出候选 |
 | 禅道连不上或未授权 | 只用 git 数据，报告开头写明缺失 |
 | 某个仓库不存在 | 跳过该仓库并提示，其余照常 |

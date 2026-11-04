@@ -390,6 +390,10 @@ DSH 的 `workspace-write` 沙箱只允许写工作区和临时目录。个人/�
 
 检查 `%USERPROFILE%\.data-tools\config.yaml` 的 `tools_dir`，或设置 `DATA_TOOLS_DIR`。
 
+**提示缺少个人配置**
+
+运行 `data-tools/scripts/config.py --project <项目ID> check`，按提示运行 `project-setup` 生成 `personal.yaml` 与 `.env`；不要修改共享 yaml。
+
 **业务接口报 token 无效**
 
 项目内模式删掉 `.data-tools/projects/<项目ID>/.token.json` 后重跑；旧工具模式删 `hexin-data-gen\.token.json`。会重新登录。
@@ -650,17 +654,21 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
     └── projects/<项目ID>/
         ├── adapter.yaml               # 提交：团队共享业务规则
         ├── pitfalls.md                # 提交：团队共享坑库
-        ├── report.yaml                # 提交（可选）
-        ├── git_hosts.yaml             # 提交（可选，只含 token 键名）
+        ├── report.yaml                # 提交（可选，团队事实 + 占位符）
+        ├── git_hosts.yaml             # 提交（可选，团队事实 + 占位符）
+        ├── jenkins.yaml               # 提交（可选，团队事实 + 占位符）
+        ├── personal.example.yaml      # 提交：个人键清单
+        ├── personal.yaml              # 不提交：本人个人值
         ├── scripts/                   # 提交：impl 步骤代码、复杂业务模块
-        ├── .env.example               # 提交：键名模板
-        └── .env                       # 不提交：各人凭据
+        ├── .env.example               # 提交：密钥键名模板
+        └── .env                       # 不提交：各人密钥
 ```
 
 复杂业务的 impl 模块（如 `chain.py`、`hexin_client.py`）也放在 `projects/<项目ID>/scripts/`，随业务仓库提交；B2D/B2C 已内置，不再依赖旧 `hexin-data-gen`/`hexin-db-tools`。
 
 同步工具会把 `data-tools/.venv/`、`.data-tools/projects/*/.env`、
-`.data-tools/projects/*/ledger.csv`、`.data-tools/projects/*/.token*.json`、`.data-tools/projects/*/scripts/.token*.json`、
+`.data-tools/projects/*/personal.yaml`、`.data-tools/projects/*/ledger.csv`、
+`.data-tools/projects/*/.token*.json`、`.data-tools/projects/*/scripts/.token*.json`、
 `.data-tools/projects/*/scripts/state.json`、`.data-tools/reports/` 和
 `.data-tools/.update-check.json` 写进业务仓库的 `.gitignore`。
 
@@ -677,8 +685,10 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
    `requirements.txt`。幂等：`.venv` 已存在时只补装依赖。需要同时创建项目目录时
    加 `-ProjectId <项目ID>`。
 
-3. 复制 `.data-tools\projects\<项目ID>\.env.example` 为 `.env`，按里面的键名填账号
-4. 打开 AI 工具，新开会话，直接说「造 100 张提货单」
+3. 打开 AI 工具，新开会话，说「初始化个人配置」，按 `project-setup` 的提示生成 `personal.yaml` 与 `.env`
+4. 直接说「造 100 张提货单」
+
+`personal.yaml` 与 `.env` 不提交；共享 yaml 不要写个人值。
 
 技能每次启动会先做环境检查：解释器优先用 `data-tools/.venv`，没有 venv 但有
 Python 3.11+ 时提示运行 `bootstrap.ps1`；同时用 `update.ps1 -CheckOnly -Quiet`
@@ -798,7 +808,7 @@ bootstrap 会提示删除或重命名 `data-tools/.venv` 后重跑，重新创�
 ### 常见问题
 
 - **提示「请关闭占用该 profile 的 Chrome」**：另一个 Chrome 在用同一个 profile（不是工具自己的常驻浏览器）。关掉它，或加 `--profile` 换一个目录。
-- **提示「流程引用了未定义的变量」**：流程里的 `${变量}` 没有来源。在 `.env`、`browser.yaml` 的环境里补上，或用 `--var` 传入。
+- **提示「流程引用了未定义的变量」**：流程里的 `${变量}` 没有来源。在 `personal.yaml`、`.env`、`browser.yaml` 的环境里补上，或用 `--var` 传入。
 - **`doctor` 提示 Playwright 未安装**：重跑 `data-tools/bootstrap.ps1` 补装依赖。
 - **`doctor` 提示找不到 Chrome**：本机需要自己安装 Chrome，bootstrap 不会装它。
 
@@ -815,12 +825,12 @@ bootstrap 会提示删除或重命名 `data-tools/.venv` 后重跑，重新创�
 第一次说「发版」时，AI 会依次问：
 
 1. **Jenkins 地址**。
-2. **账号**：默认拿你的 git 用户标识问你「是不是这个」，也可以一次发 `账号:token`。
-3. **token**：在对话里发给 AI。建议在 Jenkins 个人设置里单独生成一个 API token，随时可以吊销。
+2. **账号**：默认拿你的 git 用户标识问你「是不是这个」，确认后写入本机 `personal.yaml`。
+3. **token**：不要发在对话里。在 Jenkins 个人设置里单独生成一个可随时吊销的 API token，然后在自己的终端运行 `config.py --project <项目ID> set-secret JENKINS_TOKEN`。
 
-AI 会把 token 经标准输入写进本机项目 `.env` 的 `JENKINS_TOKEN`，不写进命令行，也不会在回复里复述。`jenkins.yaml` 里只有地址和账号，没有密钥。
+token 只写进本机 `.env` 的 `JENKINS_TOKEN`，不经过对话、不写进命令行，也不会在回复里复述。共享 `jenkins.yaml` 只有地址与 `${JENKINS_USER}` 占位符；账号在本机 `personal.yaml`。
 
-接着 AI 用 `discover` 列出 Jenkins 上的任务和参数，和你一起把「目录 → 模块 → 任务」对应起来写进 `jenkins.yaml`。这一份随业务仓库提交，同事不用重配（但每人要在自己的 `.env` 里放自己的 token）。
+接着 AI 用 `discover` 列出 Jenkins 上的任务和参数，和你一起把「目录 → 模块 → 任务」对应起来写进 `jenkins.yaml`。这一份随业务仓库提交，同事 pull 后直接复用；每人只需运行 `project-setup` 生成自己的 `personal.yaml`，并在 `.env` 里放自己的 token。
 
 ### `jenkins.yaml` 写法
 
@@ -829,7 +839,7 @@ AI 会把 token 经标准输入写进本机项目 `.env` 的 `JENKINS_TOKEN`，�
 ```yaml
 jenkins:
   base_url: http://jenkins.example.com
-  user: your-account
+  user: ${JENKINS_USER}
   token_key: JENKINS_TOKEN
 baseline: origin/dev
 build_timeout_minutes: 30

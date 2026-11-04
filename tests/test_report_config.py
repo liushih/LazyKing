@@ -73,3 +73,17 @@ def test_match_project_returns_none_when_ambiguous(tmp_path):
             f"git:\n  repos: [{tmp_path.as_posix()}]\n  authors: [me@x.com]\n", encoding="utf-8"
         )
     assert match_project(tmp_path / "sub", tmp_path) is None
+
+
+def test_loads_personal_authors_and_repos(project):
+    (project / "personal.yaml").write_text(
+        "REPORT_REPOS: [C:/project/demo]\nGIT_AUTHORS: [liushihao, 刘师豪]\n",
+        encoding="utf-8",
+    )
+    (project / "report.yaml").write_text(
+        "git:\n  repos: ${REPORT_REPOS}\n  authors: ${GIT_AUTHORS}\n",
+        encoding="utf-8",
+    )
+    cfg = load_report_config("demo")
+    assert [p.name for p in cfg.git.repos] == ["demo"]
+    assert cfg.git.authors == ["liushihao", "刘师豪"]

@@ -67,3 +67,50 @@ def test_data_home_env_beats_project_local(monkeypatch, tmp_path):
     monkeypatch.chdir(project)
     monkeypatch.setenv("DATA_TOOLS_HOME", str(override))
     assert config.data_home() == override
+
+
+def test_load_values_merges_personal_and_env(tmp_path):
+    (tmp_path / "personal.yaml").write_text(
+        "USER_TAG: lsh\nGIT_AUTHORS: [liushihao, 刘师豪]\nFROM_ENV: personal\n",
+        encoding="utf-8",
+    )
+    (tmp_path / ".env").write_text("FROM_ENV=dotenv\nTOKEN=secret\n", encoding="utf-8")
+    assert config.load_values(tmp_path) == {
+        "USER_TAG": "lsh",
+        "GIT_AUTHORS": ["liushihao", "刘师豪"],
+        "FROM_ENV": "dotenv",
+        "TOKEN": "secret",
+    }
+
+
+def test_load_values_without_personal_reads_env_only(tmp_path):
+    (tmp_path / ".env").write_text("TOKEN=x\n", encoding="utf-8")
+    assert config.load_values(tmp_path) == {"TOKEN": "x"}
+
+
+def test_load_values_rejects_non_mapping(tmp_path):
+    (tmp_path / "personal.yaml").write_text("- a\n- b\n", encoding="utf-8")
+    with pytest.raises(config.ConfigError, match="personal.yaml"):
+        config.load_values(tmp_path)
+
+
+def test_load_values_rejects_bad_yaml(tmp_path):
+    (tmp_path / "personal.yaml").write_text("a: [\n", encoding="utf-8")
+    with pytest.raises(config.ConfigError, match="personal.yaml"):
+        config.load_values(tmp_path)
+
+
+def test_substitute_whole_value_returns_list():
+    assert config.substitute("${AUTHORS}", {"AUTHORS": ["a", "b"]}) == ["a", "b"]
+
+
+def test_substitute_rejects_list_inside_string():
+    with pytest.raises(config.ConfigError, match="AUTHORS"):
+        config.substitute("x-${AUTHORS}", {"AUTHORS": ["a"]})
+
+
+def test_write_env_key_replaces_and_preserves_others(tmp_path):
+    path = tmp_path / ".env"
+    path.write_text("OTHER=1\nJENKINS_TOKEN=old\n", encoding="utf-8")
+    config.write_env_key(path, "JENKINS_TOKEN", "new")
+    assert path.read_text(encoding="utf-8").splitlines() == ["OTHER=1", "JENKINS_TOKEN=new"]

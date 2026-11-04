@@ -183,3 +183,16 @@ def test_modules_reports_uncommitted_files_separately(home, tmp_path, fake, caps
     assert _run(["modules", "--repo", str(repo)], fake) == 0
     out = capsys.readouterr().out
     assert "未提交" in out and "order-service/wip.py" in out
+
+
+def test_setup_placeholder_mode_writes_personal_and_env(home, fake, capsys):
+    code = _run(
+        ["setup", "--base-url", BASE, "--user", "liushihao"],
+        fake,
+        stdin=io.StringIO(FAKE),
+    )
+    assert code == 0
+    assert "JENKINS_USER: liushihao" in (home / "personal.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert f"JENKINS_TOKEN={FAKE}" in (home / ".env").read_text(encoding="utf-8")

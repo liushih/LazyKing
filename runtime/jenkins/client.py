@@ -6,6 +6,7 @@ import base64
 import re
 import time
 from dataclasses import dataclass, field
+from urllib.parse import urlsplit
 
 import requests
 
@@ -63,6 +64,7 @@ class JenkinsClient:
         self.retries = retries
         self.retry_delay = retry_delay
         self.sleep = sleep
+        self._crumb: dict[str, str] | None = None
 
     # ---- 内部 ----
 
@@ -77,25 +79,44 @@ class JenkinsClient:
     def job_path(job: str) -> str:
         return "".join(f"/job/{part}" for part in job.split("/") if part)
 
-    def _request(self, method: str, path: str, *, job: str | None = None, retry: bool = True, **kwargs):
+    def _send(self, method: str, path: str, job: str | None, attempts: int, kwargs: dict):
         url = f"{self.base_url}{path}"
-        attempts = self.retries + 1 if retry else 1
         last: Exception | None = None
         for attempt in range(attempts):
             try:
-                resp = self.session.request(
+                return self.session.request(
                     method, url, auth=(self.user, self.token), timeout=self.timeout, **kwargs
                 )
             except requests.RequestException as exc:
                 last = exc
                 if attempt + 1 < attempts:
                     self.sleep(self.retry_delay)
-                continue
-            self._raise_for_status(resp, method, path, job, url)
-            return resp
         raise JenkinsError(
             self._redact(f"{method} {path} 连接失败：{type(last).__name__}"), "network", job, url
         ) from None
+
+    def _crumb_headers(self) -> dict[str, str]:
+        if self._crumb is None:
+            try:
+                data = self._request("GET", "/crumbIssuer/api/json").json()
+                self._crumb = {str(data["crumbRequestField"]): str(data["crumb"])}
+            except (JenkinsError, KeyError, ValueError):
+                self._crumb = {}
+        return self._crumb
+
+    def _request(self, method: str, path: str, *, job: str | None = None, retry: bool = True, **kwargs):
+        """读请求可重试网络错误；写请求只发一次，仅在 crumb 被拒时带 crumb 重发一次。"""
+        attempts = self.retries + 1 if retry else 1
+        if method != "GET" and self._crumb:
+            kwargs["headers"] = {**kwargs.get("headers", {}), **self._crumb}
+        resp = self._send(method, path, job, attempts, kwargs)
+        if method != "GET" and resp.status_code == 403 and "crumb" in (resp.text or "").lower():
+            crumb = self._crumb_headers()
+            if crumb:
+                kwargs["headers"] = {**kwargs.get("headers", {}), **crumb}
+                resp = self._send(method, path, job, 1, kwargs)
+        self._raise_for_status(resp, method, path, job, f"{self.base_url}{path}")
+        return resp
 
     def _raise_for_status(self, resp, method: str, path: str, job: str | None, url: str) -> None:
         status = resp.status_code
@@ -171,3 +192,43 @@ class JenkinsClient:
     def console_tail(self, job: str, number: int, lines: int = 50) -> str:
         text = self._request("GET", f"{self.job_path(job)}/{number}/consoleText", job=job).text
         return self._redact("\n".join(text.splitlines()[-lines:]))
+
+    # ---- 触发与等待 ----
+
+    def trigger(self, job: str, params: dict[str, str] | None) -> str:
+        """params 为 None 走 /build（无参数任务）；否则走 /buildWithParameters。返回队列项地址。"""
+        base = self.job_path(job)
+        if params is None:
+            resp = self._request("POST", f"{base}/build", job=job, retry=False)
+        else:
+            resp = self._request(
+                "POST", f"{base}/buildWithParameters", job=job, retry=False, data=params
+            )
+        location = resp.headers.get("Location")
+        if not location:
+            raise JenkinsError(f"触发 {job} 后未返回队列地址", "queue", job)
+        return location
+
+    def wait_for_build(self, queue_url: str, timeout_s: float, poll_s: float = 2.0) -> int:
+        path = urlsplit(queue_url).path.rstrip("/") + "/api/json"
+        start = time.monotonic()
+        while True:
+            data = self._request("GET", path).json()
+            if data.get("cancelled"):
+                raise JenkinsError("构建在排队时被取消", "queue", url=queue_url)
+            executable = data.get("executable")
+            if executable:
+                return int(executable["number"])
+            if time.monotonic() - start >= timeout_s:
+                raise JenkinsError("等待构建开始超时", "timeout", url=queue_url)
+            self.sleep(poll_s)
+
+    def wait_finished(self, job: str, number: int, timeout_s: float, poll_s: float = 5.0) -> BuildStatus:
+        start = time.monotonic()
+        while True:
+            status = self.build_status(job, number)
+            if not status.building:
+                return status
+            if time.monotonic() - start >= timeout_s:
+                raise JenkinsError(f"等待 {job} #{number} 完成超时", "timeout", job, status.url)
+            self.sleep(poll_s)

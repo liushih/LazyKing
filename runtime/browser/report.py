@@ -105,9 +105,9 @@ def prune(root: Path, keep: int = KEEP, max_age: float | None = None) -> int:
 
 
 def cleanup(project_id: str | None = None) -> dict[str, int]:
-    """清理运行产物：报告、诊断包、探索快照、trace。
+    """按保留期清理运行产物：报告、诊断包、探索快照、trace。
 
-    浏览器命令开始时自动调用，也可由 `browser.py clean` 手动触发。
+    浏览器命令开始时自动调用，保证目录不会无限增长。
     报告很小只按份数保留；截图、页面 HTML、trace 这类大文件同时按时间清理。
     """
     project_id = project_id or ""
@@ -116,4 +116,40 @@ def cleanup(project_id: str | None = None) -> dict[str, int]:
         "artifacts": prune(artifacts_dir(project_id), ARTIFACT_KEEP, ARTIFACT_MAX_AGE),
         "probes": prune(probes_dir(project_id), PROBE_KEEP, PROBE_MAX_AGE),
         "traces": prune(traces_dir(project_id), TRACE_KEEP, TRACE_MAX_AGE),
+    }
+
+
+def clear(root: Path, prefix: str | None = None) -> int:
+    """删除 `root` 下全部条目；`prefix` 非空时只删该前缀的条目。返回删除数。"""
+    if not root.is_dir():
+        return 0
+    removed = 0
+    for entry in _by_recency(root):
+        if prefix is not None and not entry.name.startswith(prefix):
+            continue
+        try:
+            if entry.is_dir() and not entry.is_symlink():
+                shutil.rmtree(entry)
+            else:
+                entry.unlink()
+            removed += 1
+        except OSError:
+            pass
+    return removed
+
+
+def clear_artifacts(project_id: str | None = None, flow: str | None = None) -> int:
+    """删除诊断包；给了 `flow` 只删该流程的。流程通过后清理自己的旧诊断包。"""
+    prefix = f"{flow}-" if flow else None
+    return clear(artifacts_dir(project_id or ""), prefix)
+
+
+def clean_all(project_id: str | None = None) -> dict[str, int]:
+    """立即清空诊断包、探索快照和 trace；报告只保留最近 KEEP 份。"""
+    project_id = project_id or ""
+    return {
+        "reports": prune(reports_dir(project_id), KEEP),
+        "artifacts": clear(artifacts_dir(project_id)),
+        "probes": clear(probes_dir(project_id)),
+        "traces": clear(traces_dir(project_id)),
     }

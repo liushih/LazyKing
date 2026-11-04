@@ -242,7 +242,7 @@ defaults:
 | `--trace` | run | 录制 Playwright trace；只在失败时随诊断包保留，通过后自动删除 |
 | `--json` | list / run | 机器可读输出 |
 | `--label 名称` | probe | 探索快照名称 |
-| `--all` | stop / clean | stop：关闭本机所有项目的常驻浏览器；clean：清理本机所有 profile 缓存 |
+| `--all` | stop / clean | stop：关闭本机所有项目的常驻浏览器；clean：清空运行产物并清理本机所有 profile 缓存 |
 
 ### 常驻浏览器
 

@@ -64,7 +64,7 @@ description: >-
 
 **浏览器默认在后台常驻**：测试连的是工具自己开的专用无头 Chrome，不弹窗，不碰用户日常的 Chrome。第一次 `run` 自动拉起，之后每次只连接、跑完断开，不要在每次测试前后手动开关浏览器。用户要看页面才加 `--headed`；不用时 `browser.py stop --project <项目ID>` 关掉（`--all` 关本机全部）。
 
-**运行产物会自动清理**：报告保留最近 20 份，诊断包和探索快照各保留 10 份且最多 7 天，`--trace` 录制的 trace 只在失败时随诊断包保留。每次 `run` / `probe` 开始时会清理旧产物；需要立即释放空间时运行：
+**运行产物会自动清理**：报告保留最近 20 份，诊断包和探索快照各保留 10 份且最多 7 天，`--trace` 录制的 trace 只在失败时随诊断包保留。每次 `run` / `probe` 开始时会清理旧产物；流程通过时会立即删掉该流程之前的失败诊断包。测试任务收尾、不再需要诊断时，运行 `clean` 清空全部诊断包、探索快照和 trace：
 
 ```bash
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/browser.py" clean --project <项目ID>

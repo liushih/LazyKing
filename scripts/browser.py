@@ -320,6 +320,9 @@ def cmd_run(args: argparse.Namespace) -> int:
                 pass
 
     report_path = write_report(project, result)
+    if result.result == "pass":
+        # 流程已经修好，之前的失败诊断包对这次任务没用了，立即删掉。
+        report_mod.clear_artifacts(project, flow.name)
     if browser_lost:
         print(
             f"[环境] 测试浏览器在运行 {result.flow} 的过程中被关闭，本次结果无效，请重跑；"
@@ -465,7 +468,7 @@ def _mb(size: int) -> str:
 
 
 def cmd_clean(args: argparse.Namespace) -> int:
-    counts = report_mod.cleanup(args.project)
+    counts = report_mod.clean_all(args.project)
     if args.all:
         profiles = _all_profiles()
     else:

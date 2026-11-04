@@ -3,7 +3,7 @@ import time
 from pathlib import Path
 
 from runtime.browser.driver import clear_profile_cache
-from runtime.browser.report import ARTIFACT_KEEP, cleanup
+from runtime.browser.report import ARTIFACT_KEEP, clean_all, cleanup
 
 
 def _touch(path: Path, age_days: float = 0) -> Path:
@@ -54,6 +54,24 @@ def test_cleanup_keeps_newest_artifacts_up_to_count(tmp_path, monkeypatch):
     remaining = sorted(path.name for path in artifacts.iterdir())
     assert len(remaining) == ARTIFACT_KEEP
     assert "pkg-0" not in remaining and f"pkg-{ARTIFACT_KEEP + 2}" in remaining
+
+
+def test_clean_all_removes_fresh_artifacts_and_probes(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_TOOLS_HOME", str(tmp_path))
+    artifact = _touch(tmp_path / "browser" / "artifacts" / "pkg" / "failure.png")
+    probe = _touch(tmp_path / "browser" / "probes" / "snap" / "page.png")
+    trace = _touch(tmp_path / "browser" / "traces" / "run.zip")
+    report = _touch(tmp_path / "browser" / "reports" / "smoke.json")
+
+    counts = clean_all()
+
+    assert not artifact.exists()
+    assert not probe.exists()
+    assert not trace.exists()
+    assert report.exists()
+    assert counts["artifacts"] == 1
+    assert counts["probes"] == 1
+    assert counts["traces"] == 1
 
 
 def test_clear_profile_cache_keeps_login_state(tmp_path):

@@ -199,12 +199,36 @@ def test_run_prunes_stale_artifacts_before_running(monkeypatch, tmp_path):
     assert not stale.parent.exists()
 
 
-def test_clean_command_prunes_artifacts_and_profile_cache(browser_project, tmp_path, capsys):
+def test_pass_run_removes_earlier_diagnostics_of_same_flow(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_TOOLS_HOME", str(tmp_path))
+    _patch_pass_or_fail(monkeypatch, result="pass")
+    monkeypatch.setattr(cli, "close", lambda *args, **kwargs: None)
+    same = tmp_path / "browser" / "artifacts" / "smoke-20260101-000000-000" / "failure.png"
+    same.parent.mkdir(parents=True)
+    same.write_text("x", encoding="utf-8")
+    other = tmp_path / "browser" / "artifacts" / "other-20260101-000000-000" / "failure.png"
+    other.parent.mkdir(parents=True)
+    other.write_text("x", encoding="utf-8")
+
+    code = cli.main(["run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1"])
+
+    assert code == 0
+    assert not same.parent.exists()
+    assert other.parent.exists()
+
+
+def test_clean_command_removes_runtime_artifacts_and_profile_cache(browser_project, tmp_path, capsys):
     old = tmp_path / "browser" / "artifacts" / "old" / "failure.png"
     old.parent.mkdir(parents=True)
     old.write_text("x", encoding="utf-8")
     stamp = time.time() - 8 * 86400
     os.utime(old.parent, (stamp, stamp))
+    fresh = tmp_path / "browser" / "artifacts" / "fresh" / "failure.png"
+    fresh.parent.mkdir(parents=True)
+    fresh.write_text("x", encoding="utf-8")
+    probe = tmp_path / "browser" / "probes" / "snap" / "page.png"
+    probe.parent.mkdir(parents=True)
+    probe.write_text("x", encoding="utf-8")
     cache = tmp_path / "browser" / "profiles" / "demo" / "dev" / "Default" / "Cache" / "data_0"
     cache.parent.mkdir(parents=True)
     cache.write_text("x" * 1024, encoding="utf-8")
@@ -212,6 +236,8 @@ def test_clean_command_prunes_artifacts_and_profile_cache(browser_project, tmp_p
     assert cli.main(["clean", "--project", "demo"]) == 0
 
     assert not old.parent.exists()
+    assert not fresh.parent.exists()
+    assert not probe.parent.exists()
     assert not cache.parent.exists()
     assert "清理" in capsys.readouterr().out
 

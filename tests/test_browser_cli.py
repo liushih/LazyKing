@@ -2,6 +2,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from runtime.browser.config import BrowserConfig, EnvConfig, FlowDef, VarDef
 from runtime.browser.flow import FlowResult, StepResult
 from scripts import browser as cli
@@ -62,7 +64,7 @@ def test_run_success_writes_report_and_returns_0(monkeypatch, capsys):
     monkeypatch.setattr(cli, "resolve_project", lambda project: project)
     monkeypatch.setattr(cli, "load_browser_config", lambda project: fake_config())
     monkeypatch.setattr(cli, "load_flow", lambda project, flow: fake_flow())
-    monkeypatch.setattr(cli, "launch", lambda headless, profile, tracing=False: _Session())
+    monkeypatch.setattr(cli, "launch", lambda profile, tracing=False, **kw: _Session())
     monkeypatch.setattr(cli, "PageCollector", _Collector)
     monkeypatch.setattr(cli, "ensure_login", lambda *args, **kwargs: True)
     monkeypatch.setattr(
@@ -80,7 +82,7 @@ def test_run_failure_captures_diagnostics_and_returns_1(monkeypatch, capsys):
     monkeypatch.setattr(cli, "resolve_project", lambda project: project)
     monkeypatch.setattr(cli, "load_browser_config", lambda project: fake_config())
     monkeypatch.setattr(cli, "load_flow", lambda project, flow: fake_flow())
-    monkeypatch.setattr(cli, "launch", lambda headless, profile, tracing=False: _Session())
+    monkeypatch.setattr(cli, "launch", lambda profile, tracing=False, **kw: _Session())
     monkeypatch.setattr(cli, "PageCollector", _Collector)
     monkeypatch.setattr(cli, "ensure_login", lambda *args, **kwargs: True)
     monkeypatch.setattr(
@@ -108,7 +110,7 @@ def test_undeclared_placeholder_is_config_error_before_launch(browser_project, m
 
 def test_trace_dir_failure_still_closes_browser(browser_project, monkeypatch, tmp_path):
     closed = []
-    monkeypatch.setattr(cli, "launch", lambda headless, profile, tracing=False: _Session())
+    monkeypatch.setattr(cli, "launch", lambda profile, tracing=False, **kw: _Session())
     monkeypatch.setattr(cli, "PageCollector", _Collector)
     monkeypatch.setattr(cli, "close", lambda *args, **kwargs: closed.append(1))
     monkeypatch.setattr(
@@ -147,3 +149,51 @@ def test_diagnose_shows_most_recent_across_flows(browser_project, tmp_path):
     with contextlib.redirect_stdout(buf):
         assert cli.main(["diagnose", "--project", "demo"]) == 0
     assert "NEW" in buf.getvalue() and "OLD" not in buf.getvalue()
+
+
+def _patch_run(monkeypatch, session, launched, result="pass"):
+    monkeypatch.setattr(cli, "resolve_project", lambda project: project)
+    monkeypatch.setattr(cli, "load_browser_config", lambda project: fake_config())
+    monkeypatch.setattr(cli, "load_flow", lambda project, flow: fake_flow())
+    monkeypatch.setattr(cli, "launch", lambda **kw: launched.append(kw) or session)
+    monkeypatch.setattr(cli, "PageCollector", _Collector)
+    monkeypatch.setattr(cli, "ensure_login", lambda *args, **kwargs: True)
+    steps = [StepResult("断言", result, 1)]
+    monkeypatch.setattr(
+        cli, "run_flow",
+        lambda *a, **k: FlowResult("smoke", "dev", result, "now", 1, "smoke.yaml", steps),
+    )
+    monkeypatch.setattr(cli, "write_report", lambda project, res: Path("report.json"))
+    monkeypatch.setattr(cli, "close", lambda *args, **kwargs: None)
+
+
+def test_run_uses_resident_browser_by_default(monkeypatch):
+    launched = []
+    _patch_run(monkeypatch, _Session(), launched)
+    assert cli.main(["run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1"]) == 0
+    assert launched[0]["resident"] is True
+
+
+def test_headed_runs_one_shot_visible_window(monkeypatch):
+    launched = []
+    _patch_run(monkeypatch, _Session(), launched)
+    cli.main(["run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1", "--headed"])
+    assert launched[0]["resident"] is False
+    assert launched[0]["headless"] is False
+
+
+def test_browser_closed_mid_run_is_env_error_without_diagnostics(monkeypatch, capsys):
+    class Lost(_Session):
+        disconnected = True
+
+    launched = []
+    _patch_run(monkeypatch, Lost(), launched, result="fail")
+    monkeypatch.setattr(cli, "capture", lambda *a, **k: pytest.fail("浏览器已关闭，不应生成诊断包"))
+    code = cli.main(["run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1"])
+    assert code == 4
+    assert "被关闭" in capsys.readouterr().out
+
+
+def test_stop_without_resident_browser(browser_project, capsys):
+    assert cli.main(["stop", "--project", "demo"]) == 0
+    assert "没有运行中的常驻浏览器" in capsys.readouterr().out

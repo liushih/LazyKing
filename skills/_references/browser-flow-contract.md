@@ -17,7 +17,8 @@ envs:
 defaults:
   env: dev
   timeout_ms: 15000
-  headless: false
+  headless: false   # 仅 resident: false 时生效；常驻浏览器固定无头
+  # resident: 可选；默认 true，后台常驻无头 Chrome 不弹窗；false 回到每次启动、跑完关闭
   # profile: 可选；默认 <DATA_HOME>/browser/profiles/<项目ID>/<env>
   # api_watch: 可选；接口异常快速失败，见第 5.1 节
 
@@ -235,13 +236,24 @@ defaults:
 |---|---|---|
 | `--var 名称=值` | run | 流程参数，可重复；必填变量缺失在启动浏览器前报错 |
 | `--env 名称` | run / probe | 指定环境；默认取流程的 `env`，再取 `defaults.env` |
-| `--headless` | run / probe | 不显示窗口；视口固定 1280x720。默认有窗口、最大化 |
+| `--headless` | run / probe | 一次性启动（`resident: false`）时不显示窗口；常驻模式本来就是无头，此项无影响 |
+| `--headed` | run / probe | 本次显示窗口（最大化）；一次性启动，会先关掉该 profile 的常驻浏览器 |
 | `--profile 路径` | run / probe | 换浏览器 profile，用于绕开被占用的 profile 或强制重新登录 |
 | `--trace` | run | 录制 Playwright trace，失败时放进诊断包 |
 | `--json` | list / run | 机器可读输出 |
 | `--label 名称` | probe | 探索快照名称 |
+| `--all` | stop | 关闭本机所有项目的常驻浏览器；不加则只关当前项目和环境的 |
 
-有窗口和无头的页面尺寸不同，对比失败时要用同一种模式。
+### 常驻浏览器
+
+默认（`defaults.resident: true`）：`run` / `probe` 连接一个后台常驻的专用无头 Chrome，跑完只关自己开的页面并断开，浏览器留着给下一次用。
+
+- 状态文件：`<profile>.resident.json`（pid、调试端口），与 profile 目录同级；调试端口只监听 `127.0.0.1`，每次随机。
+- 不存在或已被关闭时，下一次 `run` 自动拉起；`stop` 关闭它。
+- 同一 profile 同时只能被一个 Chrome 占用：`--headed` 和 `resident: false` 的一次性启动会先关掉该 profile 的常驻浏览器。
+- 运行中浏览器被关：退出码 4，提示「测试浏览器在运行过程中被关闭」，不生成诊断包。
+
+视口：常驻和 `--headless` 固定 1280x720，`--headed` 最大化。两者页面尺寸不同，对比失败时要用同一种模式。
 
 | 退出码 | 含义 |
 |---|---|
@@ -249,4 +261,4 @@ defaults:
 | 1 | 流程失败 |
 | 2 | 配置错误（含流程引用了未定义的变量） |
 | 3 | 流程不存在 |
-| 4 | 环境错误 |
+| 4 | 环境错误（含运行中测试浏览器被关闭） |

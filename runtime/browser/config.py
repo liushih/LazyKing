@@ -68,9 +68,10 @@ class BrowserConfig:
     profile: Path | None
     login: LoginConfig | None
     api_watch: ApiWatchConfig = field(default_factory=ApiWatchConfig)
+    resident: bool = True
 
 _BROWSER_FIELDS = {"version", "project", "envs", "defaults", "login"}
-_DEFAULT_FIELDS = {"env", "timeout_ms", "headless", "profile", "api_watch"}
+_DEFAULT_FIELDS = {"env", "timeout_ms", "headless", "profile", "api_watch", "resident"}
 _API_WATCH_FIELDS = {"enabled", "ignore", "success_codes", "grace_ms"}
 _LOGIN_FIELDS = {"url", "username", "password", "steps", "impl", "success"}
 _SUCCESS_FIELDS = {"url_path", "localStorage"}
@@ -272,6 +273,9 @@ def load_browser_config(project_id: str) -> BrowserConfig:
     headless = defaults.get("headless", False)
     if not isinstance(headless, bool):
         raise BrowserConfigError("browser.yaml defaults.headless 必须是布尔值")
+    resident = defaults.get("resident", True)
+    if not isinstance(resident, bool):
+        raise BrowserConfigError("browser.yaml defaults.resident 必须是布尔值")
     profile = defaults.get("profile")
     if profile is not None:
         profile = Path(str(_substitute(profile, lookup, "browser.yaml defaults.profile")))
@@ -286,6 +290,7 @@ def load_browser_config(project_id: str) -> BrowserConfig:
         profile=profile,
         login=login,
         api_watch=_load_api_watch(defaults.get("api_watch")),
+        resident=resident,
     )
 
 

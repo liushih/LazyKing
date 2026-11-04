@@ -27,7 +27,15 @@ from runtime.browser.config import (
     resolve_variables,
 )
 from runtime.browser.diagnose import PageCollector, capture
-from runtime.browser.driver import BrowserEnvError, close, launch
+from runtime.browser.driver import (
+    BrowserEnvError,
+    close,
+    find_chrome,
+    launch,
+    resident_profiles,
+    session_lost,
+    stop_resident,
+)
 from runtime.browser.flow import FlowRunError, ensure_login, run_flow
 from runtime.browser.report import artifacts_dir, write_report
 from runtime.config import data_home, load_env, project_dir, resolve_project, substitute
@@ -77,6 +85,7 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--env")
     run.add_argument("--var", action="append", default=[])
     run.add_argument("--headless", action="store_true")
+    run.add_argument("--headed", action="store_true", help="显示窗口（一次性启动，会先关掉常驻浏览器）")
     run.add_argument("--trace", action="store_true")
     run.add_argument("--json", action="store_true")
     run.add_argument("--profile")
@@ -87,7 +96,14 @@ def _parser() -> argparse.ArgumentParser:
     probe.add_argument("--label", default="probe")
     probe.add_argument("--env")
     probe.add_argument("--headless", action="store_true")
+    probe.add_argument("--headed", action="store_true")
     probe.add_argument("--profile")
+
+    stop = sub.add_parser("stop", help="关闭常驻浏览器")
+    stop.add_argument("--project")
+    stop.add_argument("--env")
+    stop.add_argument("--profile")
+    stop.add_argument("--all", action="store_true", help="关闭本机所有项目的常驻浏览器")
 
     diagnose = sub.add_parser("diagnose", help="查看最近诊断包")
     diagnose.add_argument("--project")
@@ -108,17 +124,14 @@ def _parse_vars(items: list[str]) -> dict[str, str]:
 
 
 def _chrome_path() -> str | None:
-    candidates = [
-        shutil.which("chrome"),
-        shutil.which("google-chrome"),
-        shutil.which("chromium"),
-        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-    ]
-    for candidate in candidates:
-        if candidate and Path(candidate).exists():
-            return candidate
-    return None
+    return find_chrome()
+
+
+def _launch_options(args: argparse.Namespace, cfg: object) -> dict:
+    """常驻（无头、不弹窗）是默认；--headed 或 resident: false 回到一次性启动。"""
+    resident = bool(cfg.resident) and not args.headed
+    headless = False if args.headed else bool(args.headless or cfg.headless)
+    return {"headless": headless, "resident": resident}
 
 
 def _writable(path: Path) -> bool:
@@ -225,21 +238,29 @@ def cmd_run(args: argparse.Namespace) -> int:
     result = None
     artifacts = None
     trace_path = None
+    browser_lost = False
     try:
         session = launch(
-            headless=bool(args.headless or cfg.headless),
             profile=profile,
             tracing=args.trace,
+            **_launch_options(args, cfg),
         )
         collector.attach(session.page)
         if cfg.login is not None:
-            ensure_login(
-                session.page,
-                cfg.login,
-                variables=variables,
-                project_dir=project_dir(project),
-                timeout_ms=cfg.timeout_ms,
-            )
+            try:
+                ensure_login(
+                    session.page,
+                    cfg.login,
+                    variables=variables,
+                    project_dir=project_dir(project),
+                    timeout_ms=cfg.timeout_ms,
+                )
+            except FlowRunError:
+                raise
+            except Exception as exc:
+                if session_lost(session):
+                    raise FlowRunError("测试浏览器已被关闭，登录中断") from exc
+                raise
         result = run_flow(
             session.page,
             flow,
@@ -250,11 +271,15 @@ def cmd_run(args: argparse.Namespace) -> int:
             api_watch=cfg.api_watch,
         )
         if result.result == "fail":
-            try:
-                artifacts = capture(session.page, project, flow, result, collector)
-                result.artifacts = str(artifacts)
-            except Exception as exc:
-                print(f"[诊断] 生成失败：{exc}")
+            if session_lost(session):
+                # 浏览器被手动关了，后面的失败都是连带的，不是流程本身的问题，也取不到有用的诊断。
+                browser_lost = True
+            else:
+                try:
+                    artifacts = capture(session.page, project, flow, result, collector)
+                    result.artifacts = str(artifacts)
+                except Exception as exc:
+                    print(f"[诊断] 生成失败：{exc}")
     finally:
         if session is not None:
             if args.trace:
@@ -272,6 +297,12 @@ def cmd_run(args: argparse.Namespace) -> int:
             pass
 
     report_path = write_report(project, result)
+    if browser_lost:
+        print(
+            f"[环境] 测试浏览器在运行 {result.flow} 的过程中被关闭，本次结果无效，请重跑；"
+            f"报告 {report_path}"
+        )
+        return ENV_ERROR
     if args.json:
         print(json.dumps(asdict(result), ensure_ascii=False))
     elif result.result == "pass":
@@ -300,7 +331,7 @@ def cmd_probe(args: argparse.Namespace) -> int:
     out = data_home() / "browser" / "probes" / f"{report_mod.timestamp()}-{args.label}"
     out.mkdir(parents=True, exist_ok=True)
     collector = PageCollector()
-    session = launch(headless=bool(args.headless or cfg.headless), profile=profile)
+    session = launch(profile=profile, **_launch_options(args, cfg))
     try:
         collector.attach(session.page)
         if cfg.login is not None:
@@ -367,6 +398,27 @@ def _probe_markdown(page: object, elements: dict) -> str:
     return "\n".join(lines)
 
 
+def cmd_stop(args: argparse.Namespace) -> int:
+    if args.all:
+        profiles = resident_profiles(data_home() / "browser" / "profiles")
+    else:
+        project = resolve_project(args.project)
+        cfg = load_browser_config(project)
+        env_name = args.env or cfg.default_env
+        if env_name not in cfg.envs:
+            raise BrowserConfigError(f"未知环境：{env_name}")
+        profiles = [profile_path(cfg, env_name, Path(args.profile) if args.profile else None)]
+
+    stopped = 0
+    for profile in profiles:
+        if stop_resident(profile):
+            stopped += 1
+            print(f"已关闭常驻浏览器：{profile}")
+    if not stopped:
+        print("没有运行中的常驻浏览器")
+    return PASS
+
+
 def cmd_diagnose(args: argparse.Namespace) -> int:
     project = resolve_project(args.project)
     directory = artifacts_dir(project)
@@ -397,6 +449,8 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_run(args)
         if args.command == "probe":
             return cmd_probe(args)
+        if args.command == "stop":
+            return cmd_stop(args)
         return cmd_diagnose(args)
     except FlowNotFoundError as exc:
         print(f"[流程] {exc}")

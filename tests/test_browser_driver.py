@@ -41,6 +41,80 @@ def test_second_launch_on_same_profile_reports_actionable_error(tmp_path):
         close(first)
 
 
+@pytest.fixture
+def resident_profile(tmp_path):
+    """常驻浏览器测试用的 profile；无论测试成败，结束时都关掉它，避免残留 Chrome。"""
+    from runtime.browser.driver import stop_resident
+
+    profile = tmp_path / "profile"
+    yield profile
+    stop_resident(profile)
+
+
+def test_resident_browser_is_reused_across_runs_and_survives_close(resident_profile, fixture_url):
+    from runtime.browser.driver import _read_state, stop_resident
+
+    profile = resident_profile
+    first = launch(headless=True, profile=profile, resident=True)
+    try:
+        first.page.goto(fixture_url + "/index.html")
+        assert "浏览器测试夹具" in first.page.title()
+        pid = _read_state(profile)["pid"]
+        close(first)
+
+        second = launch(headless=True, profile=profile, resident=True)
+        try:
+            # 上一次 close 只断开连接，浏览器进程还是同一个
+            assert _read_state(profile)["pid"] == pid
+            second.page.goto(fixture_url + "/index.html")
+            assert "浏览器测试夹具" in second.page.title()
+        finally:
+            close(second)
+    finally:
+        assert stop_resident(profile) is True
+    assert stop_resident(profile) is False
+    assert _read_state(profile) is None
+
+
+def test_session_lost_when_resident_browser_is_closed_by_hand(resident_profile):
+    from runtime.browser.driver import session_lost, stop_resident
+
+    profile = resident_profile
+    session = launch(headless=True, profile=profile, resident=True)
+    try:
+        assert session_lost(session) is False
+        stop_resident(profile)  # 等同于用户手动把浏览器关了
+        # 同步版 Playwright 只在调用它的接口时才处理断开事件：和真实流程一样，让下一次页面操作去撞上它。
+        with pytest.raises(Exception):
+            session.page.evaluate("1 + 1")
+        assert session_lost(session) is True
+    finally:
+        close(session)
+
+    # 下一次会自动重新拉起
+    again = launch(headless=True, profile=profile, resident=True)
+    try:
+        assert session_lost(again) is False
+    finally:
+        close(again)
+        stop_resident(profile)
+
+
+def test_one_shot_launch_releases_profile_held_by_resident_browser(resident_profile):
+    from runtime.browser.driver import _read_state, stop_resident
+
+    profile = resident_profile
+    close(launch(headless=True, profile=profile, resident=True))
+    assert _read_state(profile) is not None
+    session = launch(headless=True, profile=profile)
+    try:
+        assert _read_state(profile) is None
+        assert session.resident is False
+    finally:
+        close(session)
+        stop_resident(profile)
+
+
 def test_login_success_ignores_query_string(page, fixture_url):
     login = LoginConfig(
         url=fixture_url + "/login.html",

@@ -6,6 +6,39 @@ from runtime.browser.config import BrowserConfig, EnvConfig, FlowDef, LoginConfi
 from runtime.browser.flow import FlowRunError, ensure_login, run_flow
 
 
+class TargetClosedError(Exception):
+    """与 Playwright 同名的替身：_wait_until 按类名识别。"""
+
+
+def test_wait_until_stops_immediately_when_browser_is_closed():
+    import time
+
+    from runtime.browser.flow import _wait_until
+
+    def predicate():
+        raise TargetClosedError("Target page, context or browser has been closed")
+
+    started = time.monotonic()
+    with pytest.raises(TargetClosedError):
+        _wait_until(predicate, timeout_ms=10000)
+    assert time.monotonic() - started < 1
+
+
+def test_wait_until_still_retries_ordinary_errors():
+    from runtime.browser.flow import _wait_until
+
+    calls = []
+
+    def predicate():
+        calls.append(1)
+        if len(calls) < 3:
+            raise RuntimeError("元素还没出现")
+        return True
+
+    assert _wait_until(predicate, timeout_ms=2000) is True
+    assert len(calls) == 3
+
+
 def make_flow(*steps):
     return FlowDef(
         name="test",

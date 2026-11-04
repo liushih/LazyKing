@@ -15,7 +15,7 @@ from runtime.config import ConfigError, data_home, substitute
 
 from .apiwatch import ApiFailure, ApiWatch, ApiWatchConfig
 from .config import FlowDef, LoginConfig
-from .driver import check_login_success
+from .driver import check_login_success, page_closed
 from .locator import LocatorMatchError, find, find_all
 
 
@@ -100,8 +100,11 @@ def _wait_until(
         try:
             if predicate():
                 return True
-        except Exception:
-            pass
+        except Exception as exc:
+            # 页面/浏览器已被关闭，再等也不会好：立刻抛出，别等满超时。
+            # 按类名判断，避免 flow.py 依赖 playwright 的内部异常模块。
+            if type(exc).__name__ == "TargetClosedError":
+                raise
         if watch is not None:
             watch.check()
         if time.monotonic() >= deadline:
@@ -542,6 +545,8 @@ def ensure_login(
     page.goto(str(url), wait_until="domcontentloaded")
     deadline = time.monotonic() + timeout_ms / 1000
     while time.monotonic() < deadline:
+        if page_closed(page):
+            raise FlowRunError("测试浏览器已被关闭，登录中断")
         if check_login_success(page, login):
             return True
         if _login_ready(page, login, login_path):

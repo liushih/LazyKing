@@ -58,7 +58,9 @@ description: >-
 
 按 `<TOOLS_DIR>/skills/_references/browser-flow-contract.md` 把入口、步骤、等待信号、断言写成 `browser/flows/<流程名>.yaml`，再 `run` 到通过。
 
-常用选项（完整表见 `browser-flow-contract.md` 第 10 节）：`--headless` 不显示窗口（视口固定 1280x720，默认有窗口且最大化）；`--profile <路径>` 换浏览器 profile，用于绕开被占用的 profile 或强制重新登录；`--trace` 录制 trace；`--json` 机器可读输出。有窗口和无头的页面尺寸不同，对比失败时用同一种模式。
+常用选项（完整表见 `browser-flow-contract.md` 第 10 节）：`--headed` 本次显示窗口（默认不显示，见下）；`--profile <路径>` 换浏览器 profile，用于绕开被占用的 profile 或强制重新登录；`--trace` 录制 trace；`--json` 机器可读输出。常驻和无头的视口固定 1280x720，`--headed` 是最大化，两者页面尺寸不同，对比失败时用同一种模式。
+
+**浏览器默认在后台常驻**：测试连的是工具自己开的专用无头 Chrome，不弹窗，不碰用户日常的 Chrome。第一次 `run` 自动拉起，之后每次只连接、跑完断开，不要在每次测试前后手动开关浏览器。用户要看页面才加 `--headed`；不用时 `browser.py stop --project <项目ID>` 关掉（`--all` 关本机全部）。
 
 环境不完整时先跑：
 
@@ -72,7 +74,7 @@ description: >-
 |---|---|
 | 退出码 2 | 配置错误：按提示补 `browser.yaml`、流程文件或变量，不启动浏览器 |
 | 退出码 3 | 流程不存在：`list` 看可选项，或先 `probe` 建流程 |
-| 退出码 4 | 环境错误：按提示检查 Chrome、Playwright、profile 占用或登录 |
+| 退出码 4 | 环境错误：按提示检查 Chrome、Playwright、profile 占用或登录。提示「测试浏览器被关闭」是浏览器在运行中被手动关了，结果无效，直接重跑，不要去改流程 |
 | 退出码 1 | 流程失败：读诊断包 `diagnosis.md`，改流程后重跑 |
 | 出现新坑 | 按四段（现象 / 原因 / 绕法 / 适用）追加到 `browser/pitfalls.md`，按「现象」去重 |
 
@@ -87,7 +89,7 @@ description: >-
 - 先查流程和坑库，不重复探索。
 - 不写固定 sleep；等接口、URL、元素或文本。
 - 选择器必须唯一，优先 `data-testid`，其次角色/精确文本；多命中要收窄范围。
-- 一条流程一次连接，不在步骤间重开浏览器。
+- 一条流程一次连接，不在步骤间重开浏览器；也不要在两次测试之间关浏览器，它是常驻的。
 - 业务逻辑只进项目 `scripts/`，不进 `runtime/`。
 
 ## 记忆规则

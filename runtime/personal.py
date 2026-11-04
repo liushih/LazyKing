@@ -85,7 +85,9 @@ BROWSER_SCAN_PATHS = (
 )
 BROWSER_RUNTIME_VARS = {"BASE_URL", "username", "password"}
 PLACEHOLDER = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
-ABSOLUTE_PATH = re.compile(r"^(?:[A-Za-z]:[\\/]|/)")
+ABSOLUTE_PATH = re.compile(
+    r"^(?:[A-Za-z]:[\\/]|/(?:Users|home|root|opt|var|mnt|srv|tmp|private|Volumes)/)"
+)
 KEY_DEFAULTS = {
     "USER_TAG": KeySpec("Git 分支与提交使用的个人标识", "string", "git_user_name"),
     "REPO_PATH": KeySpec("本机业务仓库根目录", "string", "repo_root"),

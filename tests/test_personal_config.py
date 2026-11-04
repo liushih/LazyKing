@@ -302,3 +302,19 @@ def test_write_known_value_works_without_example(tmp_path):
         (tmp_path / "projects" / "demo" / "personal.yaml").read_text(encoding="utf-8")
     )
     assert data["USER_TAG"] == "lsh"
+
+
+def test_check_does_not_treat_url_path_as_absolute_path(tmp_path):
+    base = _project(
+        tmp_path,
+        personal_example="version: 1\nkeys: {}\n",
+        env_example="",
+    )
+    (base / "browser").mkdir()
+    (base / "browser" / "browser.yaml").write_text(
+        "login:\n  success:\n    url_path: /index\n", encoding="utf-8"
+    )
+    report = personal.check("demo", "browser", home=tmp_path)
+    assert not any(
+        d.kind == "absolute_path" for d in report.capabilities["browser"].drift
+    )

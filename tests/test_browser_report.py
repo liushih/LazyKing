@@ -114,6 +114,23 @@ def test_write_report_scrubs_error_text(tmp_path, monkeypatch):
     assert secret not in path.read_text(encoding="utf-8")
 
 
+def test_prune_removes_entries_older_than_max_age(tmp_path):
+    import os
+    import time
+
+    old = tmp_path / "old"
+    old.mkdir()
+    stamp = time.time() - 8 * 86400
+    os.utime(old, (stamp, stamp))
+    new = tmp_path / "new"
+    new.mkdir()
+
+    prune(tmp_path, keep=10, max_age=7 * 86400)
+
+    assert not old.exists()
+    assert new.exists()
+
+
 def test_prune_orders_by_modified_time_not_name(tmp_path):
     import os
 

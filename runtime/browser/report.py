@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import time
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +14,12 @@ from runtime.config import data_home
 from .flow import FlowResult
 
 KEEP = 20
+ARTIFACT_KEEP = 10
+ARTIFACT_MAX_AGE = 7 * 24 * 60 * 60
+PROBE_KEEP = 10
+PROBE_MAX_AGE = 7 * 24 * 60 * 60
+TRACE_KEEP = 3
+TRACE_MAX_AGE = 3 * 24 * 60 * 60
 
 
 def timestamp() -> str:
@@ -20,12 +27,24 @@ def timestamp() -> str:
     return f"{now:%Y%m%d-%H%M%S}-{now.microsecond // 1000:03d}"
 
 
+def browser_dir() -> Path:
+    return data_home() / "browser"
+
+
 def reports_dir(project_id: str) -> Path:
-    return data_home() / "browser" / "reports"
+    return browser_dir() / "reports"
 
 
 def artifacts_dir(project_id: str) -> Path:
-    return data_home() / "browser" / "artifacts"
+    return browser_dir() / "artifacts"
+
+
+def probes_dir(project_id: str) -> Path:
+    return browser_dir() / "probes"
+
+
+def traces_dir(project_id: str) -> Path:
+    return browser_dir() / "traces"
 
 
 def write_report(project_id: str, result: FlowResult) -> Path:
@@ -64,15 +83,37 @@ def latest_entry(root: Path) -> Path | None:
     return entries[0] if entries else None
 
 
-def prune(root: Path, keep: int = KEEP) -> None:
+def prune(root: Path, keep: int = KEEP, max_age: float | None = None) -> int:
+    """按修改时间保留最新 `keep` 个条目；超过 `max_age` 秒的条目也删掉。返回删除数。"""
     if not root.is_dir():
-        return
-    entries = _by_recency(root)
-    for entry in entries[keep:]:
+        return 0
+    now = time.time()
+    removed = 0
+    for index, entry in enumerate(_by_recency(root)):
         try:
-            if entry.is_dir():
+            expired = max_age is not None and now - entry.stat().st_mtime > max_age
+            if index < keep and not expired:
+                continue
+            if entry.is_dir() and not entry.is_symlink():
                 shutil.rmtree(entry)
             else:
                 entry.unlink()
+            removed += 1
         except OSError:
             pass
+    return removed
+
+
+def cleanup(project_id: str | None = None) -> dict[str, int]:
+    """清理运行产物：报告、诊断包、探索快照、trace。
+
+    浏览器命令开始时自动调用，也可由 `browser.py clean` 手动触发。
+    报告很小只按份数保留；截图、页面 HTML、trace 这类大文件同时按时间清理。
+    """
+    project_id = project_id or ""
+    return {
+        "reports": prune(reports_dir(project_id), KEEP),
+        "artifacts": prune(artifacts_dir(project_id), ARTIFACT_KEEP, ARTIFACT_MAX_AGE),
+        "probes": prune(probes_dir(project_id), PROBE_KEEP, PROBE_MAX_AGE),
+        "traces": prune(traces_dir(project_id), TRACE_KEEP, TRACE_MAX_AGE),
+    }

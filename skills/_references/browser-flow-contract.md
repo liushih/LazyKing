@@ -239,10 +239,10 @@ defaults:
 | `--headless` | run / probe | 一次性启动（`resident: false`）时不显示窗口；常驻模式本来就是无头，此项无影响 |
 | `--headed` | run / probe | 本次显示窗口（最大化）；一次性启动，会先关掉该 profile 的常驻浏览器 |
 | `--profile 路径` | run / probe | 换浏览器 profile，用于绕开被占用的 profile 或强制重新登录 |
-| `--trace` | run | 录制 Playwright trace，失败时放进诊断包 |
+| `--trace` | run | 录制 Playwright trace；只在失败时随诊断包保留，通过后自动删除 |
 | `--json` | list / run | 机器可读输出 |
 | `--label 名称` | probe | 探索快照名称 |
-| `--all` | stop | 关闭本机所有项目的常驻浏览器；不加则只关当前项目和环境的 |
+| `--all` | stop / clean | stop：关闭本机所有项目的常驻浏览器；clean：清理本机所有 profile 缓存 |
 
 ### 常驻浏览器
 

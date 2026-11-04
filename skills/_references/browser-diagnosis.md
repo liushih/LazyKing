@@ -15,7 +15,9 @@
 | `console.log` | 前端报错与告警 |
 | `flow.snapshot.yaml` | 本次执行的流程副本 |
 | `run.log` | 每步状态与耗时 |
-| `trace.zip` | 加 `--trace` 时生成 |
+| `trace.zip` | 加 `--trace` 且流程失败时生成 |
+
+诊断包最多保留 10 份、7 天；探索快照同样按 10 份 / 7 天清理，报告保留最近 20 份。每次 `run` / `probe` 开始时会自动清理，`browser.py clean --project <项目ID>` 可立即清理运行产物并清空 profile 缓存（登录态保留）。
 
 ## 自愈顺序
 

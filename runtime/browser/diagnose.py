@@ -11,7 +11,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from .config import FlowDef
 from .flow import FlowResult
-from .report import KEEP, artifacts_dir, prune, timestamp
+from .report import ARTIFACT_KEEP, ARTIFACT_MAX_AGE, artifacts_dir, prune, timestamp
 
 _SENSITIVE_HEADER_PARTS = ("authorization", "cookie", "token", "secret", "api-key", "apikey", "password")
 _SENSITIVE_QUERY_PARTS = ("token", "authorization", "password", "secret", "passwd", "cookie")
@@ -197,5 +197,5 @@ def capture(
         except Exception:
             pass
 
-    prune(directory, KEEP)
+    prune(directory, ARTIFACT_KEEP, ARTIFACT_MAX_AGE)
     return out

@@ -48,6 +48,94 @@ def find_chrome() -> str | None:
     return None
 
 
+# ---------------------------------------------------------------- profile 缓存
+
+# Chrome 可以随时重建的缓存目录；删除它们不影响登录态（Cookies、Local Storage 等）。
+_PROFILE_CACHE_DIRS = (
+    "GPUPersistentCache",
+    "GrShaderCache",
+    "ShaderCache",
+    "GraphiteDawnCache",
+    "DawnGraphiteCache",
+    "component_crx_cache",
+    "extensions_crx_cache",
+    "Crashpad",
+    "BrowserMetrics",
+)
+_BROWSER_CACHE_DIRS = (
+    "Cache",
+    "Code Cache",
+    "GPUCache",
+    "DawnCache",
+    "DawnGraphiteCache",
+    "DawnWebGPUCache",
+    "Media Cache",
+    "Application Cache",
+)
+_SERVICE_WORKER_CACHE_DIRS = ("CacheStorage", "ScriptCache")
+
+
+def _path_size(path: Path) -> int:
+    total = 0
+    try:
+        entries = list(path.rglob("*"))
+    except OSError:
+        return 0
+    for entry in entries:
+        try:
+            if entry.is_file():
+                total += entry.stat().st_size
+        except OSError:
+            pass
+    return total
+
+
+def _browser_dirs(profile: Path) -> list[Path]:
+    try:
+        children = list(profile.iterdir())
+    except OSError:
+        return []
+    return [
+        child
+        for child in children
+        if child.is_dir() and (child.name == "Default" or child.name.startswith("Profile "))
+    ]
+
+
+def clear_profile_cache(profile: Path) -> int:
+    """删除 profile 里 Chrome 可重建的缓存，保留 Cookies、Local Storage 等登录态。
+
+    调用方必须保证该 profile 的 Chrome 已经关闭。返回释放的字节数。
+    """
+    profile = Path(profile)
+    targets = [profile / name for name in _PROFILE_CACHE_DIRS]
+    for browser_dir in _browser_dirs(profile):
+        targets.extend(browser_dir / name for name in _BROWSER_CACHE_DIRS)
+        targets.extend(
+            browser_dir / "Service Worker" / name for name in _SERVICE_WORKER_CACHE_DIRS
+        )
+    freed = 0
+    for target in targets:
+        if not target.exists():
+            continue
+        size = _path_size(target)
+        try:
+            if target.is_dir() and not target.is_symlink():
+                shutil.rmtree(target)
+            else:
+                target.unlink()
+            freed += size
+        except OSError:
+            pass
+    return freed
+
+
+def profile_in_use(profile: Path) -> bool:
+    """该 profile 的常驻 Chrome 是否正在运行。"""
+    state = _read_state(Path(profile))
+    return bool(state and _ws_url(state["port"]))
+
+
 # ---------------------------------------------------------------- 一次性启动
 
 def launch(
@@ -276,6 +364,8 @@ def ensure_resident(profile: Path) -> str:
             if ws:
                 return ws
             _drop_state(profile)
+            # 上次的 Chrome 已经不在了，顺手清掉遗留缓存再启动。
+            clear_profile_cache(profile)
 
         port = _free_port()
         proc = _spawn_chrome(profile, port)
@@ -365,6 +455,8 @@ def stop_resident(profile: Path) -> bool:
         if _ws_url(port, timeout=0.5) and isinstance(pid, int):
             _kill(pid)
     _drop_state(profile)
+    # 浏览器已关，缓存可以安全删除；登录态保留，下次打开仍是登录状态。
+    clear_profile_cache(profile)
     return was_running
 
 

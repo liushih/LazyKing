@@ -1,5 +1,7 @@
+import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -129,6 +131,89 @@ def test_trace_dir_failure_still_closes_browser(browser_project, monkeypatch, tm
     code = cli.main(["run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1", "--trace"])
     assert closed == [1]
     assert code == 0
+
+
+def _patch_pass_or_fail(monkeypatch, result="pass"):
+    monkeypatch.setattr(cli, "resolve_project", lambda project: project)
+    monkeypatch.setattr(cli, "load_browser_config", lambda project: fake_config())
+    monkeypatch.setattr(cli, "load_flow", lambda project, flow: fake_flow())
+    monkeypatch.setattr(cli, "launch", lambda profile, tracing=False, **kw: _Session())
+    monkeypatch.setattr(cli, "PageCollector", _Collector)
+    monkeypatch.setattr(cli, "ensure_login", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        cli, "run_flow",
+        lambda *args, **kwargs: FlowResult("smoke", "dev", result, "now", 1, "smoke.yaml", [StepResult("打开", result, 1)]),
+    )
+    monkeypatch.setattr(cli, "write_report", lambda project, res: Path("report.json"))
+
+
+def test_trace_is_discarded_after_pass(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_TOOLS_HOME", str(tmp_path))
+    _patch_pass_or_fail(monkeypatch, result="pass")
+
+    def fake_close(session, trace_path=None):
+        assert trace_path is not None
+        trace_path.parent.mkdir(parents=True, exist_ok=True)
+        trace_path.write_bytes(b"trace")
+
+    monkeypatch.setattr(cli, "close", fake_close)
+    code = cli.main(["run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1", "--trace"])
+    assert code == 0
+    assert list((tmp_path / "browser" / "traces").glob("*.zip")) == []
+
+
+def test_trace_kept_only_inside_artifact_package_on_failure(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_TOOLS_HOME", str(tmp_path))
+    _patch_pass_or_fail(monkeypatch, result="fail")
+    package = tmp_path / "browser" / "artifacts" / "pkg"
+
+    def fake_capture(*args, **kwargs):
+        package.mkdir(parents=True, exist_ok=True)
+        return package
+
+    def fake_close(session, trace_path=None):
+        assert trace_path is not None
+        trace_path.parent.mkdir(parents=True, exist_ok=True)
+        trace_path.write_bytes(b"trace")
+
+    monkeypatch.setattr(cli, "capture", fake_capture)
+    monkeypatch.setattr(cli, "close", fake_close)
+    code = cli.main(["run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1", "--trace"])
+    assert code == 1
+    assert (package / "trace.zip").read_bytes() == b"trace"
+    assert list((tmp_path / "browser" / "traces").glob("*.zip")) == []
+
+
+def test_run_prunes_stale_artifacts_before_running(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_TOOLS_HOME", str(tmp_path))
+    _patch_pass_or_fail(monkeypatch, result="pass")
+    monkeypatch.setattr(cli, "close", lambda *args, **kwargs: None)
+    stale = tmp_path / "browser" / "artifacts" / "old" / "failure.png"
+    stale.parent.mkdir(parents=True)
+    stale.write_text("x", encoding="utf-8")
+    stamp = time.time() - 8 * 86400
+    os.utime(stale.parent, (stamp, stamp))
+
+    code = cli.main(["run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1"])
+    assert code == 0
+    assert not stale.parent.exists()
+
+
+def test_clean_command_prunes_artifacts_and_profile_cache(browser_project, tmp_path, capsys):
+    old = tmp_path / "browser" / "artifacts" / "old" / "failure.png"
+    old.parent.mkdir(parents=True)
+    old.write_text("x", encoding="utf-8")
+    stamp = time.time() - 8 * 86400
+    os.utime(old.parent, (stamp, stamp))
+    cache = tmp_path / "browser" / "profiles" / "demo" / "dev" / "Default" / "Cache" / "data_0"
+    cache.parent.mkdir(parents=True)
+    cache.write_text("x" * 1024, encoding="utf-8")
+
+    assert cli.main(["clean", "--project", "demo"]) == 0
+
+    assert not old.parent.exists()
+    assert not cache.parent.exists()
+    assert "清理" in capsys.readouterr().out
 
 
 def test_diagnose_shows_most_recent_across_flows(browser_project, tmp_path):

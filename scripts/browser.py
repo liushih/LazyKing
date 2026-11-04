@@ -29,9 +29,11 @@ from runtime.browser.config import (
 from runtime.browser.diagnose import PageCollector, capture
 from runtime.browser.driver import (
     BrowserEnvError,
+    clear_profile_cache,
     close,
     find_chrome,
     launch,
+    profile_in_use,
     resident_profiles,
     session_lost,
     stop_resident,
@@ -115,6 +117,12 @@ def _parser() -> argparse.ArgumentParser:
     stop.add_argument("--env")
     stop.add_argument("--profile")
     stop.add_argument("--all", action="store_true", help="关闭本机所有项目的常驻浏览器")
+
+    clean = sub.add_parser("clean", help="清理运行产物与 profile 缓存")
+    clean.add_argument("--project")
+    clean.add_argument("--env")
+    clean.add_argument("--profile")
+    clean.add_argument("--all", action="store_true", help="清理本机所有 profile 缓存")
 
     diagnose = sub.add_parser("diagnose", help="查看最近诊断包")
     diagnose.add_argument("--project")
@@ -242,6 +250,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         raise BrowserConfigError(f"流程引用了未定义的变量：{', '.join(unresolved)}")
     profile = profile_path(cfg, env_name, Path(args.profile) if args.profile else None)
 
+    report_mod.cleanup(project)
     collector = PageCollector()
     session = None
     result = None
@@ -293,17 +302,22 @@ def cmd_run(args: argparse.Namespace) -> int:
         if session is not None:
             if args.trace:
                 try:
-                    trace_path = data_home() / "browser" / "traces" / f"{flow.name}-{report_mod.timestamp()}.zip"
+                    trace_path = report_mod.traces_dir(project) / f"{flow.name}-{report_mod.timestamp()}.zip"
                     trace_path.parent.mkdir(parents=True, exist_ok=True)
                 except OSError:
                     trace_path = None
             close(session, trace_path)
-
-    if args.trace and trace_path and artifacts and trace_path.exists():
-        try:
-            shutil.copyfile(trace_path, Path(artifacts) / "trace.zip")
-        except OSError:
-            pass
+        if trace_path is not None:
+            if artifacts and trace_path.exists():
+                try:
+                    shutil.copyfile(trace_path, Path(artifacts) / "trace.zip")
+                except OSError:
+                    pass
+            # trace 只在失败时随诊断包保留；通过、异常或复制失败都不留原始压缩包。
+            try:
+                trace_path.unlink()
+            except OSError:
+                pass
 
     report_path = write_report(project, result)
     if browser_lost:
@@ -337,7 +351,8 @@ def cmd_probe(args: argparse.Namespace) -> int:
         raise BrowserConfigError(f"URL 变量解析失败：{exc}") from exc
     profile = profile_path(cfg, env_name, Path(args.profile) if args.profile else None)
 
-    out = data_home() / "browser" / "probes" / f"{report_mod.timestamp()}-{args.label}"
+    report_mod.cleanup(project)
+    out = report_mod.probes_dir(project) / f"{report_mod.timestamp()}-{args.label}"
     out.mkdir(parents=True, exist_ok=True)
     collector = PageCollector()
     session = launch(profile=profile, **_launch_options(args, cfg))
@@ -376,7 +391,6 @@ def cmd_probe(args: argparse.Namespace) -> int:
     finally:
         close(session)
 
-    report_mod.prune(out.parent, 20)
     print(f"探索快照：{out}")
     return PASS
 
@@ -422,9 +436,63 @@ def cmd_stop(args: argparse.Namespace) -> int:
     for profile in profiles:
         if stop_resident(profile):
             stopped += 1
-            print(f"已关闭常驻浏览器：{profile}")
+            print(f"已关闭常驻浏览器（缓存已清理）：{profile}")
     if not stopped:
         print("没有运行中的常驻浏览器")
+    return PASS
+
+
+def _all_profiles() -> list[Path]:
+    """<DATA_HOME>/browser/profiles 下的 profile 目录（支持 <项目>/<环境> 与直接平铺两种）。"""
+    root = data_home() / "browser" / "profiles"
+    if not root.is_dir():
+        return []
+    found: list[Path] = []
+    for child in sorted(root.iterdir()):
+        if not child.is_dir():
+            continue
+        if (child / "Local State").exists() or (child / "Default").is_dir():
+            found.append(child)
+            continue
+        for nested in sorted(child.iterdir()):
+            if nested.is_dir() and ((nested / "Local State").exists() or (nested / "Default").is_dir()):
+                found.append(nested)
+    return found
+
+
+def _mb(size: int) -> str:
+    return f"{size / 1024 / 1024:.1f} MB"
+
+
+def cmd_clean(args: argparse.Namespace) -> int:
+    counts = report_mod.cleanup(args.project)
+    if args.all:
+        profiles = _all_profiles()
+    else:
+        project = resolve_project(args.project)
+        cfg = load_browser_config(project)
+        env_name = args.env or cfg.default_env
+        if env_name not in cfg.envs:
+            raise BrowserConfigError(f"未知环境：{env_name}")
+        profiles = [profile_path(cfg, env_name, Path(args.profile) if args.profile else None)]
+
+    freed = 0
+    skipped = 0
+    for profile in profiles:
+        if profile_in_use(profile):
+            skipped += 1
+            continue
+        freed += clear_profile_cache(profile)
+
+    removed = sum(counts.values())
+    print(
+        f"运行产物：清理 {removed} 项"
+        f"（报告 {counts['reports']}，诊断包 {counts['artifacts']}，"
+        f"探索快照 {counts['probes']}，trace {counts['traces']}）"
+    )
+    if profiles:
+        note = f"；{skipped} 个正在使用，已跳过" if skipped else ""
+        print(f"profile 缓存：释放 {_mb(freed)}{note}")
     return PASS
 
 
@@ -460,6 +528,8 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_probe(args)
         if args.command == "stop":
             return cmd_stop(args)
+        if args.command == "clean":
+            return cmd_clean(args)
         return cmd_diagnose(args)
     except FlowNotFoundError as exc:
         print(f"[流程] {exc}")

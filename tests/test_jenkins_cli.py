@@ -169,3 +169,17 @@ def test_missing_token_exits_2_and_names_key_only(home, fake, capsys):
     out = capsys.readouterr().out
     assert "JENKINS_TOKEN" in out
     assert "secret-other-value" not in out
+
+
+def test_modules_reports_uncommitted_files_separately(home, tmp_path, fake, capsys):
+    _configure(home)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "main")
+    _commit(repo, "README.md")
+    _git(repo, "checkout", "-q", "-b", "feat")
+    _commit(repo, "order-service/x.py")
+    (repo / "order-service" / "wip.py").write_text("x", encoding="utf-8")
+    assert _run(["modules", "--repo", str(repo)], fake) == 0
+    out = capsys.readouterr().out
+    assert "未提交" in out and "order-service/wip.py" in out

@@ -150,3 +150,23 @@ def test_save_credentials_env_edge_cases(tmp_path):
     save_credentials("demo", "http://j.example.com", "u", FAKE + "\n", home=tmp_path)  # 换行被去掉
     assert f"JENKINS_TOKEN={FAKE}\n" in env.read_text(encoding="utf-8")
     assert f"JENKINS_TOKEN={FAKE}\n\n" not in env.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "jenkins: [unclosed",
+        "- just\n- a list\n",
+        "jenkins: oops\n",
+        "jenkins: {base_url: http://j.example.com, user: u, token_key: K}\nmodules: oops\n",
+        "jenkins: {base_url: http://j.example.com, user: u, token_key: K}\nbuild_timeout_minutes: soon\n",
+        "jenkins: {base_url: http://j.example.com, user: u, token_key: K}\n"
+        "modules: {m: {paths: oops, jobs: {dev: j}}}\n",
+        "jenkins: {base_url: http://j.example.com, user: u, token_key: K}\n"
+        "modules: {m: {paths: [a/], jobs: oops}}\n",
+    ],
+)
+def test_malformed_yaml_raises_config_error_not_traceback(tmp_path, text):
+    _write(tmp_path, text)
+    with pytest.raises(JenkinsConfigError):
+        load_jenkins_config("demo", home=tmp_path)

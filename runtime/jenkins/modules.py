@@ -72,3 +72,10 @@ def unpushed_commits(repo: Path, branch: str) -> int | None:
 
 def current_branch(repo: Path) -> str:
     return _git(repo, "rev-parse", "--abbrev-ref", "HEAD")
+
+
+def uncommitted_files(repo: Path) -> list[str]:
+    """工作区里已修改或未跟踪的文件；Jenkins 构建远端代码，这些不会被构建。"""
+    tracked = _git(repo, "diff", "--name-only", "HEAD")
+    untracked = _git(repo, "ls-files", "--others", "--exclude-standard")
+    return [line for line in (tracked + "\n" + untracked).splitlines() if line.strip()]

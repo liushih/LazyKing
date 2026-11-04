@@ -43,13 +43,18 @@ def _base(project_id: str, home: Path | None) -> Path:
 def _parse_module(name: str, raw: object) -> ModuleSpec:
     if not isinstance(raw, dict):
         raise JenkinsConfigError(f"模块 {name} 的配置必须是映射")
-    paths = [str(p) for p in (raw.get("paths") or [])]
+    raw_paths, raw_jobs, raw_params = raw.get("paths") or [], raw.get("jobs") or {}, raw.get("params") or {}
+    if not isinstance(raw_paths, list):
+        raise JenkinsConfigError(f"模块 {name} 的 paths 必须是列表")
+    if not isinstance(raw_jobs, dict) or not isinstance(raw_params, dict):
+        raise JenkinsConfigError(f"模块 {name} 的 jobs / params 必须是映射")
+    paths = [str(p) for p in raw_paths]
     if not paths or any(not p.strip() for p in paths):
         raise JenkinsConfigError(f"模块 {name} 的 paths 不能为空，且不能含空路径")
-    jobs = {str(k): str(v) for k, v in (raw.get("jobs") or {}).items()}
+    jobs = {str(k): str(v) for k, v in raw_jobs.items()}
     if not jobs:
         raise JenkinsConfigError(f"模块 {name} 至少要有一个 jobs（环境 → 任务名）")
-    params = {str(k): str(v) for k, v in (raw.get("params") or {}).items()}
+    params = {str(k): str(v) for k, v in raw_params.items()}
     return ModuleSpec(name=name, paths=paths, jobs=jobs, params=params)
 
 
@@ -58,8 +63,15 @@ def load_jenkins_config(project_id: str, home: Path | None = None) -> JenkinsCon
     if not path.exists():
         raise JenkinsConfigError(f"未找到 jenkins.yaml：{path}")
 
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise JenkinsConfigError(f"jenkins.yaml 不是合法的 YAML：{path}") from exc
+    if not isinstance(data, dict):
+        raise JenkinsConfigError("jenkins.yaml 顶层必须是映射")
     section = data.get("jenkins") or {}
+    if not isinstance(section, dict):
+        raise JenkinsConfigError("jenkins.yaml 的 jenkins 必须是映射")
     values = {}
     for key in ("base_url", "user", "token_key"):
         value = str(section.get(key) or "").strip()
@@ -67,13 +79,20 @@ def load_jenkins_config(project_id: str, home: Path | None = None) -> JenkinsCon
             raise JenkinsConfigError(f"jenkins.yaml 缺少 jenkins.{key}")
         values[key] = value
 
-    modules = [_parse_module(str(name), raw) for name, raw in (data.get("modules") or {}).items()]
+    raw_modules = data.get("modules") or {}
+    if not isinstance(raw_modules, dict):
+        raise JenkinsConfigError("jenkins.yaml 的 modules 必须是映射（模块名 → 配置）")
+    modules = [_parse_module(str(name), raw) for name, raw in raw_modules.items()]
+    try:
+        timeout = int(data.get("build_timeout_minutes") or DEFAULT_TIMEOUT_MINUTES)
+    except (TypeError, ValueError):
+        raise JenkinsConfigError("build_timeout_minutes 必须是整数（分钟）") from None
     return JenkinsConfig(
         base_url=values["base_url"],
         user=values["user"],
         token_key=values["token_key"],
         baseline=str(data.get("baseline") or DEFAULT_BASELINE),
-        build_timeout_minutes=int(data.get("build_timeout_minutes") or DEFAULT_TIMEOUT_MINUTES),
+        build_timeout_minutes=timeout,
         modules=modules,
     )
 

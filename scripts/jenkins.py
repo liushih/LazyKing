@@ -24,6 +24,7 @@ from runtime.jenkins.modules import (  # noqa: E402
     changed_files,
     current_branch,
     infer_modules,
+    uncommitted_files,
     unpushed_commits,
 )
 
@@ -153,7 +154,19 @@ def _modules(cfg, repo: Path) -> int:
         if len(unmapped) > MAX_UNMAPPED_SHOWN:
             print(f"  另有 {len(unmapped) - MAX_UNMAPPED_SHOWN} 个")
     print("未推送提交：远端无该分支" if pushed is None else f"未推送提交：{pushed}")
+    _print_uncommitted(repo)
     return EXIT_OK if hit else EXIT_FAIL
+
+
+def _print_uncommitted(repo: Path) -> None:
+    pending = uncommitted_files(repo)
+    if not pending:
+        return
+    print(f"未提交的改动（{len(pending)}，不会被构建，也未计入模块推断）：")
+    for path in pending[:MAX_UNMAPPED_SHOWN]:
+        print(f"  {path}")
+    if len(pending) > MAX_UNMAPPED_SHOWN:
+        print(f"  另有 {len(pending) - MAX_UNMAPPED_SHOWN} 个")
 
 
 def _status(client, job: str, number: int) -> int:
@@ -187,6 +200,7 @@ def _select_modules(cfg, args, repo: Path):
     hit, unmapped = infer_modules(changed_files(repo, cfg.baseline), cfg.modules)
     if unmapped:
         print(f"提示：{len(unmapped)} 个改动文件未映射到任何模块，不会构建")
+    _print_uncommitted(repo)
     if not hit:
         raise JenkinsConfigError("没有可构建的模块：改动未命中任何模块，请用 --module 指定")
     return hit

@@ -113,3 +113,13 @@ def test_current_branch(repo):
     assert current_branch(repo) == "main"
     _git(repo, "checkout", "-q", "-b", "feature/x")
     assert current_branch(repo) == "feature/x"
+
+
+def test_uncommitted_files_lists_modified_and_untracked(repo):
+    from runtime.jenkins.modules import uncommitted_files
+
+    assert uncommitted_files(repo) == []
+    (repo / "README.md").write_text("changed", encoding="utf-8")
+    (repo / "svc").mkdir()
+    (repo / "svc" / "new.py").write_text("x", encoding="utf-8")
+    assert sorted(uncommitted_files(repo)) == ["README.md", "svc/new.py"]

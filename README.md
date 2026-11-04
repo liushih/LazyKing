@@ -83,7 +83,7 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 
 1. clone 业务仓库
 2. 跑 `data-tools/bootstrap.ps1`（没有 Python 会提示下载）
-3. 打开 AI 工具，说「初始化个人配置」，按 `project-setup` 的提示生成 `personal.yaml` 和 `.env`
+3. 打开 AI 工具，说「初始化个人配置」，按 `project-setup` 的提示生成 `personal.yaml` 和 `.env`。没有 `.env` 时先复制 `.env.example` 为 `.env`，团队共用的地址和端口已经写好，只需填自己的账号密码
 4. 直接说「造 100 张提货单」
 
 复杂业务的 impl 模块（如登录客户端、链路封装）也放 `.data-tools/projects/<项目ID>/scripts/`，随业务仓库提交；B2D/B2C 已内置，不再依赖旧 `hexin-data-gen`/`hexin-db-tools`。

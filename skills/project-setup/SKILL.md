@@ -51,7 +51,7 @@ description: >-
    - `user_tag`：已配置的 `USER_TAG`
    - `none`：直接问
 3. 用 `"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/config.py" --project <项目ID> set KEY=值` 写入 `personal.yaml`；一次可写多个键。
-4. 密钥不在对话中索要。打印一条让用户在自己的终端运行的命令：`"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/config.py" --project <项目ID> set-secret <KEY>`。用户运行后只检查键是否存在，不读取值、不回显值。
+4. 写密钥前确认 `.env` 存在：没有就先把 `.env.example` 复制为 `.env`，已有的 `.env` 绝不覆盖。团队共用的值通常已写在 `.env.example` 里，用户只需补自己的账号密码。密钥不在对话中索要。打印一条让用户在自己的终端运行的命令：`"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/config.py" --project <项目ID> set-secret <KEY>`。用户运行后只检查键是否存在，不读取值、不回显值。
 5. 重新运行 `check --capability <能力>`，直到选中能力为 `ok` 或用户明确跳过。
 6. 可选只读验证：`jenkins.py modules`、`browser.py doctor`、`git_host.py verify-flow`。默认不做，询问用户后再跑；失败只报告，不自动修。
 7. 汇总写入的文件、仍缺的键、后续命令。说明 `personal.yaml` 与 `.env` 已被 gitignore，共享 yaml 未被修改。

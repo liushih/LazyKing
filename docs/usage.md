@@ -579,14 +579,14 @@ GITLAB_TOKEN_DEMO=
 
 ```bash
 .venv/Scripts/python.exe scripts/git_host.py --project demo set-user-tag lsh
-.venv/Scripts/python.exe scripts/git_host.py --project demo branch create --name feature/dev/lsh/1234-描述 --target dev
+.venv/Scripts/python.exe scripts/git_host.py --project demo branch create --name feature/test/lsh/1234-描述 --target test
 .venv/Scripts/python.exe scripts/git_host.py --project demo commit -m "feat-1234: 描述
 
 正文说明本次修改。"
-.venv/Scripts/python.exe scripts/git_host.py --project demo push --branch feature/dev/lsh/1234-描述
+.venv/Scripts/python.exe scripts/git_host.py --project demo push --branch feature/test/lsh/1234-描述
 .venv/Scripts/python.exe scripts/git_host.py --project demo sync
 .venv/Scripts/python.exe scripts/git_host.py --project demo mr create --from feature/test/lsh/1234-描述 --to test --title "标题"
-.venv/Scripts/python.exe scripts/git_host.py --project demo merge --from feature/dev/lsh/1234-描述 --to dev
+.venv/Scripts/python.exe scripts/git_host.py --project demo merge --from feature/test/lsh/1234-描述 --to dev
 .venv/Scripts/python.exe scripts/git_host.py --project demo push --branch dev
 .venv/Scripts/python.exe scripts/git_host.py --project demo verify-flow --prod-branch prod --test-branch feature/test/lsh/1234-描述 --target dev
 .venv/Scripts/python.exe scripts/git_host.py --project demo hotfix sync --fix-branch feature/prod/lsh/1234-热修 --task 1234
@@ -611,8 +611,8 @@ GITLAB_TOKEN_DEMO=
 
 ### 分支从哪里切
 
-- 改动最终进 dev：从 `origin/dev` 切
-- 改动最终进 test：从 `origin/test` 切
+- **默认从 `origin/test` 切**：新任务、缺陷修复、迭代需求一律以 test 最新基线为准
+- 仅当用户明确要求「只进 dev、不经 test」时，从 `origin/dev` 切
 - 热修复：从 `origin/prod` 切，之后按热修复流程同步
 
 `branch create` 从 `origin/<目标>` 切出，不跟踪上游，切完会核对起点与目标一致。
@@ -624,7 +624,7 @@ GITLAB_TOKEN_DEMO=
 3. 若要进 test：`sync` 把最新 `origin/test` 合进当前分支，有冲突先解决，再 `push`，最后 `mr create --to test`
 
 `merge --to dev` 先 fetch，并以 `origin/dev` 为准预检；本地 dev 落后会先快进，已分叉则停止，不强行覆盖。
-先合 dev、后 `sync` test，是为了避免 test 的内容经功能分支流进 dev。
+先合 dev、后 `sync` test，避免把送测期间新增的改动一并带入 dev。
 
 冲突时 `sync` 与 `merge` 会保留现场并列出冲突文件，不会自动解决，也不会 abort。解决冲突须保留双方改动，禁止整文件取一边。
 解决后执行 `git add <文件>` 与 `git commit --no-edit`；放弃则执行 `git merge --abort`。

@@ -10,7 +10,7 @@ description: >-
 ## 适用场景
 
 - 提交、推送改动（提交信息须符合团队格式）
-- 从 dev、test、prod 切新分支
+- 建任务 / 缺陷分支（默认从 `origin/test` 切，例外见「从哪里切分支」）
 - 发 MR 前把目标分支最新内容同步进当前分支（`sync`），冲突在本地解决
 - 合并到 dev（以 origin/dev 为准本地合并，合并前核对将带入的内容，dev 可直接推送）
 - 建 MR/PR 到 test、prod、dev（支持 GitHub、Gitee、GitLab）
@@ -93,7 +93,7 @@ description: >-
 ### 标准提交流程
 
 1. `commit`（工作区已跟踪文件须干净；未跟踪文件不影响）
-2. **若同时要进 dev，先于第 3 步**：`merge --to dev`，再 `push --branch dev`。`merge` 会先 fetch，以 `origin/dev` 为准预检；本地 dev 落后会先快进，已分叉则停止，不强行覆盖。先合 dev 是为了避免 test 的内容经功能分支流进 dev
+2. **若同时要进 dev，先于第 3 步**：`merge --to dev`，再 `push --branch dev`。`merge` 会先 fetch，以 `origin/dev` 为准预检；本地 dev 落后会先快进，已分叉则停止，不强行覆盖。先合 dev 再 `sync` test，避免把送测期间新增的改动一并带入 dev
 3. **若要进 test**：`sync` 把最新 `origin/test` 合进当前分支；无冲突才继续，有冲突按下文「冲突处理」解决后再继续
 4. `push` 推到同名远端分支，再 `mr create --to test`，此时 MR 不会有冲突
 
@@ -110,11 +110,11 @@ description: >-
 
 ### 从哪里切分支
 
-- 改动最终进 dev：从 `origin/dev` 切
-- 改动最终进 test：从 `origin/test` 切
-- 改动最终进 prod：从 `origin/prod` 切（热修复）
+- **默认从 `origin/test` 切**：新任务、缺陷修复、迭代需求一律以 `origin/test` 最新基线为准
+- 仅当用户明确要求「只进 dev、不经 test」时，从 `origin/dev` 切
+- 线上热修复从 `origin/prod` 切
 
-**不要从 test 切分支去合 dev**，除非用户明确确认要带入 test 的内容。
+从 test 基线切出的分支若要合入 dev，按 `net-increment` 预检：先列出将带入 `origin/dev` 的非本分支提交，用户确认后才加 `--confirm-bring-in`，不得未经确认把 test 内容带进 dev。
 
 ### 热修复流程
 

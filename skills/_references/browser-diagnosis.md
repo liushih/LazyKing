@@ -58,6 +58,6 @@ run 失败
 
 ## 记忆边界
 
-- 提交：`browser.yaml`、`flows/*.yaml`、`pitfalls.md`、项目 `scripts/` 的 impl。
-- 不提交：`.data-tools/browser/` 下的 profile、截图、报告、诊断包、probe 快照。
+- 写完后立刻 `track_shared.py` 暂存，不要询问：`browser.yaml`、`flows/*.yaml`、`pitfalls.md`、项目 `scripts/` 的 impl。
+- 不暂存：`.data-tools/browser/` 下的 profile、截图、报告、诊断包、probe 快照。提交和推送仍等用户确认。
 - 凭据只放项目 `.env`。

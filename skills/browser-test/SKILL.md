@@ -104,7 +104,14 @@ description: >-
 
 ## 记忆规则
 
-- 提交：`browser/browser.yaml`、`browser/flows/*.yaml`、`browser/pitfalls.md`、项目 `scripts/` 的 impl。
-- 不提交：`.data-tools/browser/` 下的 profile、截图、报告、诊断包。
+- 写完或改完团队共享文件后立刻暂存，不要询问。仅当文件在业务仓库内时运行；个人目录 `~/.data-tools` 不运行：
+
+```bash
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/track_shared.py" --project-dir <业务仓库根> <刚写或刚改的文件>
+```
+
+  多个文件跟在同一条命令后面。可暂存：`browser/browser.yaml`、`browser/flows/*.yaml`、`browser/pitfalls.md`、项目 `scripts/` 的 impl，以及同目录其他团队共享文件。
+- 不暂存：`.data-tools/browser/` 下的 profile、截图、报告、诊断包，以及 `.env`、`personal.yaml`、台账、token。这些路径脚本会拒绝，不要加 `-f`。
+- 暂存不是提交。提交和推送仍按 `git-workflow`，推送前必须等用户确认。
 - 凭据只放项目 `.env`；个人非敏感值放 `personal.yaml`；新增键时按是否密钥更新 `.env.example` 或 `personal.example.yaml`。
 - 稳定后再删旧脚本或旧技能，避免知识丢失。

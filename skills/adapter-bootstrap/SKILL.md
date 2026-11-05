@@ -46,6 +46,11 @@ description: >-
 5. 每条坑按四段（现象 / 原因 / 绕法 / 适用）追加到 `pitfalls.md`；追加前先读现有条目，按「现象」去重
 6. 用同一批次号重跑，确认幂等
 7. 接入完成后按变量是否密钥更新 `.env.example` 或 `personal.example.yaml`，只写键名与说明，不写值
+8. 写完或改完 `adapter.yaml`、`pitfalls.md`、`.env.example`、`personal.example.yaml`、项目 `scripts/` 后立刻暂存，不要询问。个人目录 `~/.data-tools` 不运行。提交和推送仍等用户确认：
+
+```bash
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/track_shared.py" --project-dir <业务仓库根> <刚写或刚改的文件>
+```
 
 ## 失败处理
 

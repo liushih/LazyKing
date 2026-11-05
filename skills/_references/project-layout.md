@@ -136,6 +136,16 @@ powershell -ExecutionPolicy Bypass -File <TOOLS_DIR>/bootstrap.ps1
 - 不提交：`.data-tools/browser/`（profile、reports、artifacts、probes）。
 - `browser.yaml` 只写团队地址和 `${VAR}`；新增键时按是否密钥更新 `.env.example` 或 `personal.example.yaml`。
 
+## 共享文件自动暂存
+
+团队能复用的文件写完或改完后，立刻运行 `scripts/track_shared.py` 把它们 `git add`，不要询问。脚本只接受白名单里的路径，并且不会用 `git add -f`：
+
+- `.data-tools/projects/<项目ID>/` 下的 `adapter.yaml`、`pitfalls.md`、`report.yaml`、`git_hosts.yaml`、`jenkins.yaml`、`personal.example.yaml`、`.env.example`
+- 同目录的 `browser/browser.yaml`、`browser/flows/*.yaml`、`browser/pitfalls.md`、`scripts/` 里的 impl
+- `.data-tools/templates/<项目ID>/` 下的报告模板
+
+`.env`、`personal.yaml`、台账、token、`state.json` 和 `.data-tools/browser/` 运行产物会被拒绝。被 gitignore 挡住的文件只跳过，不强制加入。个人目录 `~/.data-tools` 不在业务仓库里，不运行这条命令。暂存之后的提交和推送仍按 `git-workflow`，推送前必须等用户确认。
+
 ## adapter-bootstrap 的额外约定
 
 接入完成后，按变量是否密钥维护 `.env.example` 或 `personal.example.yaml`；只写键名与说明，不写值。两者都提交进仓库，`.env` 与 `personal.yaml` 只留在本机。新增或改名变量时先更新对应 example，再让用户运行 `project-setup` 或填 `.env`。

@@ -783,7 +783,7 @@ bootstrap 会提示删除或重命名 `data-tools/.venv` 后重跑，重新创�
 3. **填变量**：前端根地址直接在 `browser.yaml` 写团队地址；登录账号写 `personal.yaml`，密码写 `.env`。新增键时按是否密钥更新 `personal.example.yaml` 或 `.env.example`。
 4. **检查**：运行 `browser.py doctor --project <项目ID>`，确认 Chrome、依赖、配置和变量都齐全。
 5. **生成第一个流程**：对 AI 说「测一下 XX 页面」。没有现成流程时，AI 会先用 `probe` 看一遍页面，再把入口、步骤、断言写成 `browser/flows/<名称>.yaml`，并跑到通过。
-6. **提交**：把 `browser/` 下的 `browser.yaml`、`flows/`、`pitfalls.md` 随业务仓库提交，同事拉下来就能用。运行产生的截图、诊断包、浏览器 profile 在 `.data-tools/browser/`，不提交。
+6. **纳入版本库**：流程写完后会直接 `git add` `browser.yaml`、`flows/`、`pitfalls.md`，不用再确认一次。截图、诊断包、浏览器 profile 在 `.data-tools/browser/`，不会加入。提交和推送仍按代码托管流程，等你明确说了再做；推送之后同事拉下来就能复跑。
 
 ### 日常使用
 

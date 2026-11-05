@@ -120,6 +120,9 @@ def test_browser_skill_memory_and_safety_rules():
     text = (SKILLS / "browser-test" / "SKILL.md").read_text(encoding="utf-8")
     for word in ["不写固定 sleep", "probe", "diagnosis.md", "pitfalls.md", "退出码 0", "browser.py"]:
         assert word in text
+    assert "track_shared.py" in text
+    assert "不要询问" in text
+    assert "git add -f" not in text or "不要加 `-f`" in text
 
 
 def test_browser_examples_parse():

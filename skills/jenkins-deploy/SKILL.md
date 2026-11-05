@@ -45,7 +45,11 @@ description: >-
 3. 请用户在自己的终端运行 `set-secret JENKINS_TOKEN`（或直接编辑项目 `.env`），建议使用单独生成、可随时吊销的 API token。不要把 token 贴进对话。
 4. 确认 `.env` 已有 token 后运行 `setup`；`setup` 在 stdin 为空时会复用 `.env` 里的 token。不要把 token 放进命令行参数；之后的回复、总结、日志里都不回显、不复述 token。
 5. `setup` 成功后运行 `discover` 列出任务和参数，与用户核对，按目录 → 模块 → 任务的对应关系写 `jenkins.yaml` 的 `modules`（格式见 `skills/_TEMPLATE/jenkins.example.yaml`）。
-6. 提醒用户提交 `jenkins.yaml`（不含密钥）；`.env` 不提交。
+6. 写完 `jenkins.yaml` 后立刻暂存，不要询问。`.env` 不暂存、不提交。个人目录 `~/.data-tools` 不运行。提交和推送仍等用户确认：
+
+```bash
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/track_shared.py" --project-dir <业务仓库根> <jenkins.yaml路径>
+```
 
 ## 路径
 

@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 
 _BRANCH = re.compile(r"^feature/(dev|test|prod)/([A-Za-z0-9_-]+)/(\d+)-([^\s/\\]+)$")
+_TARGET_PREFIX = re.compile(r"^feature/(dev|test|prod)/")
 _COMMIT_HEAD = re.compile(r"^(feat|fix)-(\d+): \S.*$")
 
 
@@ -30,6 +31,12 @@ def parse_branch(name: str) -> BranchInfo | None:
         return None
     target, user_tag, task, desc = match.groups()
     return BranchInfo(target=target, user_tag=user_tag, task=task, desc=desc)
+
+
+def _target_from_prefix(name: str) -> str | None:
+    """分支名不完整时，仍能从 feature/<目标>/ 前缀判断它属于哪条线。"""
+    match = _TARGET_PREFIX.match(name)
+    return match.group(1) if match else None
 
 
 def check_branch_name(name: str, user_tag: str) -> None:
@@ -69,18 +76,22 @@ def check_commit_paths(paths: list[str], forbidden: list[str]) -> None:
 def check_sync(branch: str, source: str | None) -> str:
     """返回应同步的来源分支名。功能分支只能同步它自己目标分支的最新内容。"""
     info = parse_branch(branch)
-    if info is None:
+    target = info.target if info else _target_from_prefix(branch)
+    if target is None:
+        if source is not None:
+            return source
         raise RuleViolation(
             "branch-naming",
-            f"当前分支 {branch} 不是 feature/<目标>/<用户标识>/<任务号>-<描述>，无法确定同步来源",
+            f"当前分支 {branch} 不是 feature/<目标>/... 形式，无法确定同步来源；"
+            "请用 --from <dev|test|prod> 指定",
         )
-    if source is not None and source != info.target:
+    if source is not None and source != target:
         raise RuleViolation(
             "sync-source",
-            f"{branch} 的目标是 {info.target}，只能同步 origin/{info.target}，"
+            f"{branch} 的目标是 {target}，只能同步 origin/{target}，"
             f"不能同步 {source}（会把无关内容带进送测分支）",
         )
-    return info.target
+    return target
 
 
 def check_merge(

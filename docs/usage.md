@@ -605,7 +605,7 @@ GITLAB_TOKEN_DEMO=
 | `prod-derived` | prod 衍生分支不能直接合到 test 或 dev，要先经过 test 衍生的同步分支 |
 | `net-increment` | 合到 dev 时若带入了非本分支的内容，先列清单，确认后加 `--confirm-bring-in` |
 | `push-target` | 本地分支名为 test、prod 时不能推送（只能走 MR）；dev 允许直接推送；其余分支只推到同名远端分支 |
-| `sync-source` | `sync` 只能同步分支名中「目标」对应的 origin 分支，如 `feature/test/...` 只能同步 test，不能同步 dev |
+| `sync-source` | `sync` 只能同步分支名中「目标」对应的 origin 分支，如 `feature/test/...` 只能同步 test，不能同步 dev。分支名不完整时按 `feature/<目标>/` 前缀判断；没有目标前缀时用 `--from` 指定来源 |
 
 分支名只允许一个任务号，因此「一分支一任务」由分支名格式保证。
 
@@ -616,6 +616,8 @@ GITLAB_TOKEN_DEMO=
 - 热修复：从 `origin/prod` 切，之后按热修复流程同步
 
 `branch create` 从 `origin/<目标>` 切出，不跟踪上游，切完会核对起点与目标一致。
+
+`sync` 的来源默认取当前分支名的 `feature/<目标>/` 前缀；任务号等后半段不规范也能同步，前缀缺失时才需要用 `--from` 指定。
 
 ### 标准提交流程
 

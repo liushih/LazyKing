@@ -93,6 +93,31 @@ def test_sync_source_must_match_branch_target():
     assert exc.value.rule == "sync-source"
 
 
+def test_sync_uses_target_prefix_when_task_missing():
+    assert check_sync("feature/test/lsh/整合claudeTool", None) == "test"
+
+
+def test_sync_explicit_source_matches_target_prefix():
+    assert check_sync("feature/test/lsh/整合claudeTool", "test") == "test"
+
+
+def test_sync_explicit_source_still_rejects_other_target():
+    with pytest.raises(RuleViolation) as exc:
+        check_sync("feature/test/lsh/整合claudeTool", "dev")
+    assert exc.value.rule == "sync-source"
+
+
+def test_sync_explicit_source_allows_non_feature_branch():
+    assert check_sync("claude/whatever", "test") == "test"
+
+
+def test_sync_non_feature_branch_without_source_asks_for_from():
+    with pytest.raises(RuleViolation) as exc:
+        check_sync("claude/whatever", None)
+    assert exc.value.rule == "branch-naming"
+    assert "--from" in exc.value.message
+
+
 def test_sync_requires_feature_branch_name():
     with pytest.raises(RuleViolation) as exc:
         check_sync("dev", None)

@@ -88,13 +88,13 @@ description: >-
 | `commit-message` | 提交首行须为 `feat-<任务号>: <描述>` 或 `fix-<任务号>: <描述>`，且必须有正文 |
 | `forbidden-path` | 本地环境配置（如 `pom.xml`、`vite.config.ts`）不得提交 |
 | `push-target` | 本地分支名为 test、prod 时不得推送（只能走 MR）；dev 允许直接推送；其余分支只推到同名远端分支 |
-| `sync-source` | `sync` 只能同步分支名「目标」对应的 origin 分支（`feature/test/...` 只同步 test），不能把 dev 并进送测分支 |
+| `sync-source` | `sync` 只能同步分支名「目标」对应的 origin 分支（`feature/test/...` 只同步 test），不能把 dev 并进送测分支。分支名不完整时按 `feature/<目标>/` 前缀判断；没有目标前缀时用 `--from` 指定来源 |
 
 ### 标准提交流程
 
 1. `commit`（工作区已跟踪文件须干净；未跟踪文件不影响）
 2. **若同时要进 dev，先于第 3 步**：`merge --to dev`，再 `push --branch dev`。`merge` 会先 fetch，以 `origin/dev` 为准预检；本地 dev 落后会先快进，已分叉则停止，不强行覆盖。先合 dev 再 `sync` test，避免把送测期间新增的改动一并带入 dev
-3. **若要进 test**：`sync` 把最新 `origin/test` 合进当前分支；无冲突才继续，有冲突按下文「冲突处理」解决后再继续
+3. **若要进 test**：`sync` 把最新 `origin/test` 合进当前分支；来源默认取分支名的 `feature/<目标>/` 前缀，分支名没有目标前缀时传 `--from <dev|test|prod>` 指定。无冲突才继续，有冲突按下文「冲突处理」解决后再继续
 4. `push` 推到同名远端分支，再 `mr create --to test`，此时 MR 不会有冲突
 
 ### 冲突处理
@@ -143,3 +143,4 @@ description: >-
 | `sync` / `merge` 冲突 | 现场保留，列出冲突文件；按「冲突处理」保留双方改动解决，不得取一边 |
 | cherry-pick 冲突 | 工具已中止并列出冲突文件，不尝试自动解决；由用户处理后重新开始 |
 | 规则拒绝 | 原样告诉用户规则名与原因，不绕过 |
+| 分支名无法判断同步目标 | 改用 `--from <dev|test|prod>` 指定来源；不要用普通 `git merge` 绕过 |

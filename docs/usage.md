@@ -692,7 +692,7 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 
 同步工具会把 `data-tools/.venv/`、`.data-tools/projects/*/.env`、
 `.data-tools/projects/*/personal.yaml`、`.data-tools/projects/*/ledger.csv`、
-`.data-tools/projects/*/.token*.json`、`.data-tools/projects/*/scripts/.token*.json`、
+`.data-tools/projects/*/.token*.json*`、`.data-tools/projects/*/scripts/.token*.json*`、
 `.data-tools/projects/*/scripts/state.json`、`.data-tools/reports/` 和
 `.data-tools/.update-check.json` 写进业务仓库的 `.gitignore`。
 

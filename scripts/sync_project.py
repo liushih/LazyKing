@@ -29,8 +29,8 @@ data-tools/**/__pycache__/
 .data-tools/projects/*/.env
 .data-tools/projects/*/personal.yaml
 .data-tools/projects/*/ledger.csv
-.data-tools/projects/*/.token*.json
-.data-tools/projects/*/scripts/.token*.json
+.data-tools/projects/*/.token*.json*
+.data-tools/projects/*/scripts/.token*.json*
 .data-tools/projects/*/scripts/state.json
 .data-tools/**/__pycache__/
 .data-tools/reports/

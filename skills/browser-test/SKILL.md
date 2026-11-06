@@ -59,7 +59,7 @@ description: >-
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/browser.py" probe --project <项目ID> --url <页面地址>
 ```
 
-按 `<TOOLS_DIR>/skills/_references/browser-flow-contract.md` 把入口、步骤、等待信号、断言写成 `browser/flows/<流程名>.yaml`，再 `run` 到通过。
+按 `<TOOLS_DIR>/skills/_references/browser-flow-contract.md` 把入口、步骤、等待信号、断言写成 `browser/flows/<流程名>.yaml`，再 `run` 到通过。关键详情页/列表页在数据稳定后加 `expect_display`，核对必须显示的字段并扫描截断；设计上允许省略的字段用 `allow_truncate` 放行。
 
 常用选项（完整表见 `browser-flow-contract.md` 第 10 节）：`--headed` 本次显示窗口（默认不显示，见下）；`--profile <路径>` 换浏览器 profile，用于绕开被占用的 profile 或强制重新登录；`--trace` 录制 trace；`--json` 机器可读输出。常驻和无头的视口固定 1280x720，`--headed` 是最大化，两者页面尺寸不同，对比失败时用同一种模式。
 
@@ -87,6 +87,7 @@ description: >-
 | 退出码 3 | 流程不存在：`list` 看可选项，或先 `probe` 建流程 |
 | 退出码 4 | 环境错误：按提示检查 Chrome、Playwright、profile 占用或登录。提示「测试浏览器被关闭」是浏览器在运行中被手动关了，结果无效，直接重跑，不要去改流程 |
 | 退出码 1 | 流程失败：读诊断包 `diagnosis.md`，改流程后重跑 |
+| 诊断含「显示问题」 | 按清单判断是字段漏渲染、值为空还是列宽不足；确属设计性省略时用 `allow_truncate` 或 `scan: false`，不要放宽断言本身 |
 | 出现新坑 | 按四段（现象 / 原因 / 绕法 / 适用）追加到 `browser/pitfalls.md`，按「现象」去重 |
 
 原来能通过、突然稳定失败时，先查被测前端有没有刚发布（`curl -I <前端地址>` 看 `Last-Modified`），再手工点一次对应功能，确认功能本身变了再改流程；不要先改选择器或加等待。
@@ -100,6 +101,7 @@ description: >-
 - 先查流程、`browser/controls.md` 和坑库，不重复探索。
 - 不写固定 sleep；等接口、URL、元素或文本。
 - 选择器必须唯一，优先 `data-testid`，其次角色/精确文本；多命中要收窄范围。
+- 关键页面用 `expect_display` 覆盖字段缺失与截断；「能看见」不等于「显示全」，宽度不足被裁切也算失败。
 - 一条流程一次连接，不在步骤间重开浏览器；也不要在两次测试之间关浏览器，它是常驻的。
 - 业务逻辑只进项目 `scripts/`，不进 `runtime/`。
 

@@ -39,6 +39,7 @@ run 失败
 - `diagnosis.md` 里有「接口异常」→ 接口已经报错（HTTP 错误、业务码或网络失败），优先排查后端或入参；确属预期（反向用例、无关的后台轮询）时，在步骤加 `allow_api_error` 或在 `api_watch.ignore` 里登记。
 - `wait_response` 超时 → 打开 `requests.json` 看实际接口路径和状态码。
 - `wait_visible` 超时 → 看 `page.html` 和截图，确认元素是否更换了容器或 testid。
+- `diagnosis.md` 有「显示问题」→ 先看 `failure.png` 和清单：字段漏渲染补前端，值为空查接口/渲染条件，被裁切调容器或列宽；允许省略的记为放行项并写入坑库。
 - 登录失败 → 确认 `success.url_path` 只比 pathname，且 profile 未被其他 Chrome 占用。
 - 页面跳到了预期外的 URL → 先补前置条件或等待信号，不要加固定 sleep。
 

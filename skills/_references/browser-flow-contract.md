@@ -184,6 +184,27 @@ defaults:
 | `expect_text: {locator: {css: ...}, equals: 成功}` | 文本完全相等 |
 | `expect_url: {path: /wms/outbound/outboundB2d}` | pathname 相等 |
 | `expect_count: {locator: {css: "table tbody tr"}, eq: 2}` | 数量，支持 `eq` / `min` / `max` |
+| `expect_display: {locator: ..., fields: [...], scan: true, allow_truncate: [...]}` | 容器内字段齐全且内容未被裁切，见 6.1 |
+
+### 6.1 显示检查
+
+```yaml
+- name: 核对订单详情字段
+  expect_display:
+    locator: {testid: order-detail-dialog}     # 必填：检查容器
+    fields:                                     # 与 scan 至少给一项
+      - 委托单号                                 # 纯文字：容器内可见、未被裁切
+      - {label: 客户名称, value: "${customer_name}"}  # 标签可见，值也出现且非空
+      - {label: 收货地址}
+    scan: true                                  # 可选，默认 true：容器内截断扫描
+    allow_truncate: [备注, {css: ".tag"}]        # 可选：允许截断的文字片段或 CSS
+```
+
+- `fields` 每项是纯文字，或 `{label, value}`；`value` 支持 `${变量}`，解析后为空时只核对标签。
+- `scan` 默认 `true`：在容器内扫描被裁切的文本（省略号、`overflow:hidden`、`line-clamp`、祖先裁剪）。
+- `allow_truncate` 支持文字片段（按元素文本包含匹配）和 `{css: ...}`，命中即放行。
+- 隐藏元素里的文字不算显示；可滚动容器（`overflow: auto/scroll`）不算截断。
+- 检查会轮询等待异步渲染；超时后汇总全部问题让步骤失败，诊断包有「显示问题」清单。
 
 ## 7. 变量
 

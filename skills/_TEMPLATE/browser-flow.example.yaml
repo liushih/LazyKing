@@ -37,3 +37,10 @@ steps:
     click: {in: row, role: button, name: 日志}
     wait_response: /log/operlog/treeByBizKey
     expect_visible: {css: ".el-drawer:visible"}
+
+  - name: 核对详情字段
+    expect_display:
+      locator: {testid: b2d-update-logistics-dialog}
+      fields:
+        - 物流方式
+        - {label: 出库单号, value: "${order_no}"}

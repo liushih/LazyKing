@@ -810,6 +810,27 @@ bootstrap 会提示删除或重命名 `data-tools/.venv` 后重跑，重新创�
 
 运行产物不用手动收拾：报告保留最近 20 份，诊断包和探索快照各保留 10 份、最多 7 天；`--trace` 只在失败时随诊断包保留。每次测试开始时会自动清理旧产物，同一流程通过时还会立即删掉它之前的失败诊断包。测试做完、不再需要诊断时运行 `browser.py clean --project <项目ID>`，会清空全部诊断包、探索快照和 trace，并删除 Chrome 的缓存目录（登录态保留）；加 `--all` 清理本机所有 profile。
 
+### 显示检查（字段完整性与截断）
+
+功能断言只确认元素在、文本对；字段漏渲染或列宽不足被截断时，流程仍然会通过。关键详情页/列表页在步骤里加 `expect_display`：
+
+```yaml
+- name: 核对订单详情字段
+  expect_display:
+    locator: {testid: order-detail-dialog}     # 检查容器
+    fields:
+      - 委托单号                                 # 纯文字：必须可见且未被裁切
+      - {label: 客户名称, value: "${customer_name}"}  # 标签可见，值也出现且非空
+      - {label: 收货地址}
+    scan: true                                  # 默认开启：容器内截断扫描
+    allow_truncate: [备注, {css: ".tag"}]        # 设计上允许截断的字段
+```
+
+- `fields` 写必须显示的字段：纯文字或 `{label, value}`；`value` 支持 `${变量}`。
+- `scan` 默认开启，扫描容器内被省略号、`overflow:hidden`、`line-clamp` 或祖先裁掉的文本；可滚动容器不算截断。
+- 只要核对字段、不要扫描截断时写 `scan: false`；个别设计性省略用 `allow_truncate` 放行。
+- 检查会轮询等待异步渲染；失败时诊断包多一节「显示问题」，逐条列出缺失字段、值为空或被裁切的元素。
+
 ### 浏览器在后台常驻
 
 测试默认用一个**专用的无头 Chrome**，不弹窗，不会打扰你办公：

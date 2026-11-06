@@ -53,6 +53,12 @@ def test_db_access_covers_redis_and_mongo():
     assert "mongo.py" in text
 
 
+def test_browser_skill_reads_accumulated_controls():
+    text = (SKILLS / "browser-test" / "SKILL.md").read_text(encoding="utf-8")
+    assert "browser/controls.md" in text
+    assert "不重新扫描" in text
+
+
 def test_data_gen_requires_adapter_and_forbids_improvisation():
     text = (SKILLS / "data-gen-core" / "SKILL.md").read_text(encoding="utf-8")
     assert "adapter-bootstrap" in text

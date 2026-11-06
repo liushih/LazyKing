@@ -77,7 +77,7 @@ def is_shareable(rel: Path) -> bool:
     if parts[1] != "projects":
         return False
     rest = parts[3:]
-    if rest == ("browser", "browser.yaml") or rest == ("browser", "pitfalls.md"):
+    if rest in {("browser", "browser.yaml"), ("browser", "pitfalls.md"), ("browser", "controls.md")}:
         return True
     if (
         len(rest) == 3

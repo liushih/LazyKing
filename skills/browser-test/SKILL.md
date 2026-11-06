@@ -35,8 +35,9 @@ description: >-
 
 1. 读 `<DATA_HOME>/projects/<项目ID>/browser/browser.yaml`。
 2. 没有就按 `<TOOLS_DIR>/skills/_TEMPLATE/browser.example.yaml` 建档，确认前端根地址和登录方式；凭据只写 `${VAR}`。
-3. 读同目录 `browser/pitfalls.md`，先看已有坑。
-4. 确认目标环境；用户未说明时问一次。
+3. 读同目录 `browser/controls.md`。命中本次要操作的控件时，沿用记录里的页面和失败现象，不重新扫描页面猜操作。
+4. 读同目录 `browser/pitfalls.md`，先看已有坑。
+5. 确认目标环境；用户未说明时问一次。
 
 ## 执行
 
@@ -96,7 +97,7 @@ description: >-
 
 ## 铁律
 
-- 先查流程和坑库，不重复探索。
+- 先查流程、`browser/controls.md` 和坑库，不重复探索。
 - 不写固定 sleep；等接口、URL、元素或文本。
 - 选择器必须唯一，优先 `data-testid`，其次角色/精确文本；多命中要收窄范围。
 - 一条流程一次连接，不在步骤间重开浏览器；也不要在两次测试之间关浏览器，它是常驻的。
@@ -110,7 +111,7 @@ description: >-
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/track_shared.py" --project-dir <业务仓库根> <刚写或刚改的文件>
 ```
 
-  多个文件跟在同一条命令后面。可暂存：`browser/browser.yaml`、`browser/flows/*.yaml`、`browser/pitfalls.md`、项目 `scripts/` 的 impl，以及同目录其他团队共享文件。
+  多个文件跟在同一条命令后面。可暂存：`browser/browser.yaml`、`browser/flows/*.yaml`、`browser/controls.md`、`browser/pitfalls.md`、项目 `scripts/` 的 impl，以及同目录其他团队共享文件。
 - 不暂存：`.data-tools/browser/` 下的 profile、截图、报告、诊断包，以及 `.env`、`personal.yaml`、台账、token。这些路径脚本会拒绝，不要加 `-f`。
 - 暂存不是提交。提交和推送仍按 `git-workflow`，推送前必须等用户确认。
 - 凭据只放项目 `.env`；个人非敏感值放 `personal.yaml`；新增键时按是否密钥更新 `.env.example` 或 `personal.example.yaml`。

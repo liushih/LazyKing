@@ -28,6 +28,7 @@ run 失败
    选择器变化 / 等待信号不对 / 接口路径变化 / 前置条件缺失 / 登录失效
 → 修改 flow YAML；复杂交互抽到 impl
 → 重跑，直到退出码 0
+→ 控件操作失败时追加或累加 browser/controls.md
 → 出现新坑追加到 browser/pitfalls.md
 → 只以退出码 0 报通过
 ```
@@ -58,6 +59,6 @@ run 失败
 
 ## 记忆边界
 
-- 写完后立刻 `track_shared.py` 暂存，不要询问：`browser.yaml`、`flows/*.yaml`、`pitfalls.md`、项目 `scripts/` 的 impl。
+- 写完后立刻 `track_shared.py` 暂存，不要询问：`browser.yaml`、`flows/*.yaml`、`controls.md`、`pitfalls.md`、项目 `scripts/` 的 impl。
 - 不暂存：`.data-tools/browser/` 下的 profile、截图、报告、诊断包、probe 快照。提交和推送仍等用户确认。
 - 凭据只放项目 `.env`。

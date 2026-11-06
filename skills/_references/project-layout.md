@@ -27,6 +27,7 @@
 │   │   ├── browser/                   # 提交：浏览器测试记忆
 │   │   │   ├── browser.yaml           # 环境、登录、默认参数
 │   │   │   ├── flows/*.yaml           # 可复跑流程
+│   │   │   ├── controls.md            # 提交：控件操作记录，失败后累积
 │   │   │   └── pitfalls.md            # 浏览器坑库
 │   │   ├── personal.example.yaml      # 提交：个人键清单
 │   │   ├── personal.yaml              # 不提交：本人个人值
@@ -132,7 +133,7 @@ powershell -ExecutionPolicy Bypass -File <TOOLS_DIR>/bootstrap.ps1
 
 ## 浏览器测试的数据边界
 
-- 提交：`.data-tools/projects/<项目ID>/browser/browser.yaml`、`flows/*.yaml`、`pitfalls.md`，以及项目 `scripts/` 下的 impl。
+- 提交：`.data-tools/projects/<项目ID>/browser/browser.yaml`、`flows/*.yaml`、`controls.md`、`pitfalls.md`，以及项目 `scripts/` 下的 impl。
 - 不提交：`.data-tools/browser/`（profile、reports、artifacts、probes）。
 - `browser.yaml` 只写团队地址和 `${VAR}`；新增键时按是否密钥更新 `.env.example` 或 `personal.example.yaml`。
 
@@ -141,7 +142,7 @@ powershell -ExecutionPolicy Bypass -File <TOOLS_DIR>/bootstrap.ps1
 团队能复用的文件写完或改完后，立刻运行 `scripts/track_shared.py` 把它们 `git add`，不要询问。脚本只接受白名单里的路径，并且不会用 `git add -f`：
 
 - `.data-tools/projects/<项目ID>/` 下的 `adapter.yaml`、`pitfalls.md`、`report.yaml`、`git_hosts.yaml`、`jenkins.yaml`、`personal.example.yaml`、`.env.example`
-- 同目录的 `browser/browser.yaml`、`browser/flows/*.yaml`、`browser/pitfalls.md`、`scripts/` 里的 impl
+- 同目录的 `browser/browser.yaml`、`browser/flows/*.yaml`、`browser/controls.md`、`browser/pitfalls.md`、`scripts/` 里的 impl
 - `.data-tools/templates/<项目ID>/` 下的报告模板
 
 `.env`、`personal.yaml`、台账、token、`state.json` 和 `.data-tools/browser/` 运行产物会被拒绝。被 gitignore 挡住的文件只跳过，不强制加入。个人目录 `~/.data-tools` 不在业务仓库里，不运行这条命令。暂存之后的提交和推送仍按 `git-workflow`，推送前必须等用户确认。

@@ -40,6 +40,16 @@ def _write(repo: Path, rel: str, text: str = "ok\n") -> Path:
     return path
 
 
+def test_stages_browser_control_memory(tmp_path):
+    repo = _init(tmp_path)
+    rel = ".data-tools/projects/hexincloud/browser/controls.md"
+    _write(repo, rel, "# 浏览器控件记录\n")
+
+    result = track_shared(repo, [rel])
+
+    assert result.staged == [rel]
+
+
 def test_stages_shareable_flow_without_force(tmp_path):
     repo = _init(tmp_path)
     rel = ".data-tools/projects/hexincloud/browser/flows/package-biz-tag-append.yaml"

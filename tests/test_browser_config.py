@@ -223,3 +223,43 @@ def test_missing_personal_guides_setup(browser_project):
         personal.unlink()
     with pytest.raises(BrowserConfigError, match="project-setup"):
         load_browser_config("demo")
+
+
+def add_step(browser_project, yaml_step: str):
+    path = browser_project / "browser" / "flows" / "smoke.yaml"
+    path.write_text(path.read_text(encoding="utf-8") + yaml_step, encoding="utf-8")
+
+
+def test_expect_display_valid_spec_loads(browser_project):
+    add_step(browser_project, """  - name: 显示检查
+    expect_display:
+      locator: {testid: order-detail}
+      fields:
+        - 委托单号
+        - {label: 客户名称, value: "${order_no}"}
+      scan: false
+      allow_truncate: [备注, {css: ".tag"}]
+""")
+    flow = load_flow("demo", "smoke")
+    assert flow.steps[-1]["expect_display"]["locator"] == {"testid": "order-detail"}
+
+
+def test_expect_display_locator_only_is_valid(browser_project):
+    add_step(browser_project, "  - name: 扫描\n    expect_display:\n      locator: {testid: x}\n")
+    flow = load_flow("demo", "smoke")
+    assert "expect_display" in flow.steps[-1]
+
+
+@pytest.mark.parametrize("body, match", [
+    ("fields: [客户名称]", "locator"),
+    ("locator: {testid: x}\n      unknown: 1", "unknown"),
+    ("locator: {testid: x}\n      fields: ['']", "非空"),
+    ("locator: {testid: x}\n      fields: [{value: 1}]", "label"),
+    ("locator: {testid: x}\n      scan: false", "fields"),
+    ("locator: {testid: x}\n      allow_truncate: [{role: button}]", "allow_truncate"),
+    ("locator: {testid: x}\n      scan: 'yes'", "scan"),
+])
+def test_expect_display_rejects_invalid_spec(browser_project, body, match):
+    add_step(browser_project, "  - name: 显示检查\n    expect_display:\n      " + body + "\n")
+    with pytest.raises(BrowserConfigError, match=match):
+        load_flow("demo", "smoke")

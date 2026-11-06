@@ -13,6 +13,7 @@ import yaml
 from runtime.config import ConfigError, data_home, load_values, project_dir, substitute
 
 from .apiwatch import ApiWatchConfig
+from .locator import LocatorError, parse_locator
 
 
 class BrowserConfigError(Exception):
@@ -80,6 +81,9 @@ _VAR_FIELDS = {"required", "default", "description"}
 _STEP_FIELDS = {"name", "timeout", "optional", "value", "as", "allow_api_error"}
 _ACTIONS = {"goto", "click", "fill", "press", "select", "check", "hover", "use_row", "impl"}
 _VALUE_ACTIONS = {"fill", "select"}
+_DISPLAY_FIELDS = {"locator", "fields", "scan", "allow_truncate"}
+_DISPLAY_FIELD_FIELDS = {"label", "value"}
+_ALLOW_TRUNCATE_FIELDS = {"css"}
 
 
 def _check_mapping(value: Any, where: str) -> dict:
@@ -117,6 +121,59 @@ def _load_yaml(path: Path, where: str) -> dict:
     return _check_mapping(data, where)
 
 
+def _validate_display(spec: Any, where: str) -> None:
+    spec = _check_mapping(spec, f"{where} 的 expect_display")
+    _check_keys(spec, _DISPLAY_FIELDS, f"{where} 的 expect_display")
+
+    if "locator" not in spec:
+        raise BrowserConfigError(f"{where} 的 expect_display 缺少 locator")
+    try:
+        parse_locator(spec["locator"])
+    except LocatorError as exc:
+        raise BrowserConfigError(f"{where} 的 expect_display.locator 非法：{exc}") from exc
+
+    fields = spec.get("fields")
+    if fields is not None:
+        if not isinstance(fields, list):
+            raise BrowserConfigError(f"{where} 的 expect_display.fields 必须是列表")
+        for index, item in enumerate(fields, 1):
+            item_where = f"{where} 的 expect_display.fields[{index}]"
+            if isinstance(item, str):
+                if not item.strip():
+                    raise BrowserConfigError(f"{item_where} 必须是非空字符串")
+                continue
+            item = _check_mapping(item, item_where)
+            _check_keys(item, _DISPLAY_FIELD_FIELDS, item_where)
+            label = item.get("label")
+            if not isinstance(label, str) or not label.strip():
+                raise BrowserConfigError(f"{item_where} 的 label 必须是非空字符串")
+            if "value" in item and not isinstance(item["value"], str):
+                raise BrowserConfigError(f"{item_where} 的 value 必须是字符串")
+
+    scan = spec.get("scan", True)
+    if not isinstance(scan, bool):
+        raise BrowserConfigError(f"{where} 的 expect_display.scan 必须是布尔值")
+
+    allow = spec.get("allow_truncate")
+    if allow is not None:
+        if not isinstance(allow, list):
+            raise BrowserConfigError(f"{where} 的 expect_display.allow_truncate 必须是列表")
+        for index, item in enumerate(allow, 1):
+            item_where = f"{where} 的 expect_display.allow_truncate[{index}]"
+            if isinstance(item, str):
+                if not item.strip():
+                    raise BrowserConfigError(f"{item_where} 必须是非空字符串")
+                continue
+            item = _check_mapping(item, item_where)
+            _check_keys(item, _ALLOW_TRUNCATE_FIELDS, item_where)
+            css = item.get("css")
+            if not isinstance(css, str) or not css.strip():
+                raise BrowserConfigError(f"{item_where} 的 css 必须是非空字符串")
+
+    if not fields and scan is False:
+        raise BrowserConfigError(f"{where} 的 expect_display 至少需要 fields 或 scan")
+
+
 def _validate_step(step: Any, where: str, *, require_name: bool) -> dict:
     step = _check_mapping(step, where)
     allowed = set(_STEP_FIELDS) | set(_ACTIONS)
@@ -151,6 +208,8 @@ def _validate_step(step: Any, where: str, *, require_name: bool) -> dict:
         isinstance(allow, bool) or (isinstance(allow, list) and all(isinstance(item, str) for item in allow))
     ):
         raise BrowserConfigError(f"{where} 的 allow_api_error 必须是布尔值或 URL 片段列表")
+    if "expect_display" in step:
+        _validate_display(step["expect_display"], where)
     return step
 
 

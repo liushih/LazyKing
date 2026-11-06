@@ -2,7 +2,11 @@
 
 用白话让 AI 帮你连库、造数、测页面、写报告、管代码托管。支持 Claude Code、Cursor、Codex、DeepSeek Harness。
 
-个人/全局模式下，业务规则存在本机适配层，凭据只存本机，都不进仓库；团队项目模式下工具和适配层也只在本机，不进入业务仓库 git，凭据仍只存本机。
+## 边界先说清楚
+
+- **进 claudeTool 仓库**：通用运行时代码、技能规则、模板和测试；判断标准是「换一个项目还能直接用」。
+- **不进任何 git**：业务脚本、适配层、坑库、凭据、台账、报告产物、浏览器登录态。
+- **进业务仓库时**：`data-tools/`、`.data-tools/` 和生成的技能入口只在本机安装，由同步工具写进 `.gitignore`，不进入业务仓库 git。团队共享走公司内网制品库或共享目录。
 
 ## 能做什么
 
@@ -22,7 +26,7 @@
 
 需要 Windows、Python 3.11+、Git。
 
-**1. 初始化**
+### 1. 初始化工具目录
 
 ```powershell
 git clone https://github.com/liushih/claudeTool.git C:\project\claudeTool
@@ -32,9 +36,9 @@ powershell -ExecutionPolicy Bypass -File .\setup.ps1
 
 建虚拟环境、装依赖，并记录工具目录。
 
-**2. 装进 AI 工具**
+### 2. 装进 AI 工具
 
-Claude Code：
+Claude Code（个人/全局）：
 
 ```text
 /plugin marketplace add liushih/claudeTool
@@ -43,23 +47,23 @@ Claude Code：
 
 装完重启一次应用。
 
-Cursor / Codex：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -Target cursor,codex -Scope project -ProjectDir C:\你的业务仓库
-```
-
 DSH（DeepSeek Harness）：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -Target dsh -Scope global
 ```
 
-技能写到 `%USERPROFILE%\.dsh\skills\`，新开会话即生效（不用重启），输入 `/db-access` 可直接调用，也能按描述自动触发。换成 `-Scope project -ProjectDir C:\你的业务仓库` 则只在该仓库生效。
+技能写到 `%USERPROFILE%\.dsh\skills\`，新开会话即生效，输入 `/db-access` 可直接调用，也能按描述自动触发。
 
-项目内生成的入口（`.cursor/rules/`、`.dsh/skills/`、`AGENTS.md` 里的块）只在本机使用，不要提交进业务仓库。团队接入请用下面的 `sync_project.py`，它会把生成的技能目录写进 `.gitignore`；Codex 只能写 `AGENTS.md`，无法局部忽略，团队模式不支持。
+Cursor / Codex（项目内）：
 
-**3. 接入第一个业务**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Target cursor,codex -Scope project -ProjectDir C:\你的项目目录
+```
+
+项目内生成的 `.cursor/rules/`、`.dsh/skills/`、`AGENTS.md` 块只在本机使用，不要提交进业务仓库。Codex 只能写 `AGENTS.md`，无法局部忽略，团队模式不支持；团队接入用下面的 `sync_project.py`。
+
+### 3. 接入第一个业务
 
 新开会话，直接说：
 
@@ -70,6 +74,14 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -Target dsh -Scope global
 按提示给接口地址、账号即可。接入完成后就能直接说「造 100 张提货单」。
 
 > 个人/全局插件方式只分发规则，不带 Python 依赖，所以仓库必须 clone 到本机并跑过 `setup.ps1`。
+
+## 安装方式怎么选
+
+| 方式 | 适合 | 生成位置 | 进业务仓库 git？ |
+| --- | --- | --- | --- |
+| 插件市场 / 全局安装 | 个人、跨项目 | 用户目录或插件缓存 | 不涉及 |
+| `install.ps1 -Scope project` | 单项目临时使用 | 项目内 `.cursor/`、`.dsh/`、`AGENTS.md` | 不提交 |
+| `sync_project.py` | 团队、整包本机安装 | 项目内 `data-tools/`、`.claude/skills/`、`.data-tools/` | 不提交，自动写 `.gitignore` |
 
 ## 团队项目接入（本地安装，不进业务仓库 git）
 
@@ -119,13 +131,22 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 
 每个项目一份独立目录：`<DATA_HOME>\projects\<项目ID>\`，里面是 `adapter.yaml`、`.env`、`pitfalls.md`、`scripts/` 等。
 
-DSH 的沙箱只允许写工作区和临时目录。个人/全局模式下 `<DATA_HOME>` 是 `~/.data-tools`，造数、接入要写台账和适配层时，把 `DATA_TOOLS_HOME` 指到工作区内（例如 `<仓库>/.data-tools`），或让该会话使用完全访问权限。团队模式的数据目录本来就在业务仓库内，不受影响。只读查库不受影响。
+DSH 的沙箱只允许写工作区和临时目录。个人/全局模式下 `<DATA_HOME>` 是 `~/.data-tools`，造数、接入要写台账和适配层时，把 `DATA_TOOLS_HOME` 指到工作区内（例如 `<仓库>/.data-tools`），或让该会话使用完全访问权限。团队模式的数据目录本来就在业务仓库内（但不进 git），不受影响。只读查库不受影响。
 
-## 文档
+## 文档地图
 
-- [使用说明](docs/usage.md)：适配层写法、造数参数、数据库、浏览器测试、报告、代码托管、常见问题
-- [设计文档](docs/superpowers/specs/) · [实现计划](docs/superpowers/plans/)
-- [贡献指南](CONTRIBUTING.md)
+| 想了解 | 看 |
+| --- | --- |
+| 安装、触发词、快速上手 | 本页 + [使用说明](docs/usage.md) |
+| 接入业务、适配层写法 | [使用说明 §2-3](docs/usage.md#二第一次接入业务) |
+| 造数、校验、数据库 | [§4](docs/usage.md#四批量造数) · [§5](docs/usage.md#五结果校验) · [§6](docs/usage.md#六数据库访问) |
+| 写报告 | [§10](docs/usage.md#十写报告) |
+| 代码托管 | [§11](docs/usage.md#十一代码托管) |
+| 团队接入 | [§12](docs/usage.md#十二团队项目接入本机安装不进业务仓库-git) |
+| 浏览器测试 | [§13](docs/usage.md#十三浏览器测试) |
+| Jenkins 发版 | [§14](docs/usage.md#十四jenkins-发版) |
+| 贡献、版本与边界 | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| 设计与计划 | [specs](docs/superpowers/specs/) · [plans](docs/superpowers/plans/) |
 
 ## 开发
 
@@ -141,7 +162,7 @@ DSH 的沙箱只允许写工作区和临时目录。个人/全局模式下 `<DAT
 | `scripts/` | 命令行入口 |
 | `hexin-*` | 旧工具，用法见各自目录 |
 
-提交前先读 [CONTRIBUTING.md](CONTRIBUTING.md)：只有通用能力进 git，项目衍生物不进。
+提交前先读 [CONTRIBUTING.md](CONTRIBUTING.md)：只有通用能力进 claudeTool 仓库；业务仓库集成时，所有 data-tools 内容只在本机。
 
 ## License
 

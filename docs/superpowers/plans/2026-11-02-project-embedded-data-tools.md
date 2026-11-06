@@ -1,5 +1,7 @@
 # 业务项目整包内置 data-tools 实现计划
 
+> **2026-11-06 决策更新**：本计划的“整包内置并提交进业务仓库”已被取代。按合规与供应链要求，`data-tools/`、`.data-tools/` 和生成的技能入口一律不进业务仓库 git，只在本机安装；详见 [CONTRIBUTING.md](../../../CONTRIBUTING.md)。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 让业务仓库自带 `data-tools/` 与共享 `.data-tools/`，同事只需业务仓库和 Python 3.11+ 就能使用全部 5 项能力；不 pull 业务仓库时也能收到版本提示并一键更新。

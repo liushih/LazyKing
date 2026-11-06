@@ -15,6 +15,7 @@ from runtime.config import ConfigError, data_home, substitute
 
 from .apiwatch import ApiFailure, ApiWatch, ApiWatchConfig
 from .config import FlowDef, LoginConfig
+from .display import check_display
 from .driver import check_login_success, page_closed
 from .locator import LocatorMatchError, find, find_all
 
@@ -396,6 +397,9 @@ def _apply_expects(
 
         if not _wait_until(count_ok, timeout_ms, watch=watch):
             raise StepAssertion("元素数量断言失败", expected, str(locator.count()))
+
+    if "expect_display" in step:
+        check_display(page, step["expect_display"], aliases, timeout_ms, watch)
 
 
 def run_step(

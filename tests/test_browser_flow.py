@@ -180,3 +180,107 @@ def test_ensure_login_fails_when_success_missing(page, fixture_url, tmp_path):
     )
     with pytest.raises(FlowRunError, match="登录"):
         ensure_login(page, login, variables={}, project_dir=tmp_path, timeout_ms=300)
+
+
+def display_flow(fixture_url, case, fields=None, *, timeout=800, **display):
+    spec = {"locator": {"testid": case}, **display}
+    if fields is not None:
+        spec["fields"] = fields
+    return make_flow(
+        {"name": "打开", "goto": fixture_url + "/display.html"},
+        {"name": "显示检查", "expect_display": spec, "timeout": timeout},
+    )
+
+
+def test_expect_display_passes_when_fields_present(page, fixture_url, tmp_path):
+    flow = display_flow(fixture_url, "ok", ["委托单号", {"label": "客户名称", "value": "上海某某公司"}])
+    assert run(page, tmp_path, flow).result == "pass"
+
+
+def test_expect_display_reports_missing_field(page, fixture_url, tmp_path):
+    result = run(page, tmp_path, display_flow(fixture_url, "missing", ["客户名称"]))
+    assert result.result == "fail"
+    problems = result.failure.detail["display_problems"]
+    assert [p["kind"] for p in problems] == ["missing_field"]
+    assert problems[0]["field"] == "客户名称"
+    assert "缺少字段 客户名称" in result.failure.message
+
+
+def test_expect_display_reports_empty_value(page, fixture_url, tmp_path):
+    result = run(page, tmp_path, display_flow(fixture_url, "empty", [{"label": "客户名称", "value": "上海某某公司"}]))
+    assert result.result == "fail"
+    assert result.failure.detail["display_problems"][0]["kind"] == "empty_value"
+
+
+def test_expect_display_reports_hidden_value(page, fixture_url, tmp_path):
+    result = run(page, tmp_path, display_flow(fixture_url, "hidden-value", [{"label": "客户名称", "value": "上海某某公司"}]))
+    problem = result.failure.detail["display_problems"][0]
+    assert problem["kind"] == "empty_value" and "不可见" in problem["reason"]
+
+
+def test_expect_display_reports_truncated_declared_value(page, fixture_url, tmp_path):
+    flow = display_flow(fixture_url, "ellipsis",
+                        [{"label": "收货地址", "value": "上海市浦东新区某某路100号"}], scan=False)
+    problem = run(page, tmp_path, flow).failure.detail["display_problems"][0]
+    assert problem["kind"] == "truncated" and problem["field"] == "收货地址"
+
+
+def test_expect_display_scan_finds_unlisted_truncation(page, fixture_url, tmp_path):
+    result = run(page, tmp_path, display_flow(fixture_url, "ellipsis", scan=True))
+    problem = result.failure.detail["display_problems"][0]
+    assert problem["kind"] == "truncated" and problem["field"] is None
+
+
+def test_expect_display_reports_ancestor_clip(page, fixture_url, tmp_path):
+    result = run(page, tmp_path, display_flow(fixture_url, "ancestor", scan=True))
+    assert any("祖先" in p["reason"] for p in result.failure.detail["display_problems"])
+
+
+def test_expect_display_reports_line_clamp(page, fixture_url, tmp_path):
+    result = run(page, tmp_path, display_flow(fixture_url, "clamp", scan=True))
+    assert "line-clamp" in result.failure.detail["display_problems"][0]["reason"]
+
+
+def test_expect_display_allow_truncate_passes(page, fixture_url, tmp_path):
+    flow = make_flow(
+        {"name": "打开", "goto": fixture_url + "/display.html"},
+        {"name": "文字放行", "expect_display": {
+            "locator": {"testid": "allow-text"}, "allow_truncate": ["备注"]}, "timeout": 800},
+        {"name": "选择器放行", "expect_display": {
+            "locator": {"testid": "allow"}, "allow_truncate": [{"css": ".tag"}]}, "timeout": 800},
+    )
+    assert run(page, tmp_path, flow).result == "pass"
+
+
+def test_expect_display_scan_false_ignores_truncation(page, fixture_url, tmp_path):
+    assert run(page, tmp_path, display_flow(fixture_url, "ellipsis", scan=False)).result == "pass"
+
+
+def test_expect_display_does_not_flag_scrollable_overflow(page, fixture_url, tmp_path):
+    flow = display_flow(fixture_url, "scroll", ["货物清单"], scan=True)
+    assert run(page, tmp_path, flow).result == "pass"
+
+
+def test_expect_display_waits_for_late_container(page, fixture_url, tmp_path):
+    flow = display_flow(fixture_url, "late", ["委托单号"], timeout=1500)
+    assert run(page, tmp_path, flow).result == "pass"
+
+
+def test_expect_display_aggregates_problems(page, fixture_url, tmp_path):
+    result = run(page, tmp_path, display_flow(fixture_url, "mixed", ["客户名称"]))
+    kinds = {p["kind"] for p in result.failure.detail["display_problems"]}
+    assert kinds == {"missing_field", "truncated"}
+    assert "缺少字段 客户名称" in result.failure.message and "裁切" in result.failure.message
+
+
+def test_expect_display_ignores_text_outside_container(page, fixture_url, tmp_path):
+    result = run(page, tmp_path, display_flow(fixture_url, "outside", ["客户名称"]))
+    assert result.failure.detail["display_problems"][0]["kind"] == "missing_field"
+
+
+def test_expect_display_caps_problem_count_and_text(page, fixture_url, tmp_path):
+    result = run(page, tmp_path, display_flow(fixture_url, "many", scan=True, timeout=1500))
+    problems = result.failure.detail["display_problems"]
+    assert len(problems) == 50
+    assert all(len(p["text"] or "") <= 80 for p in problems)
+    assert "50" in result.failure.message

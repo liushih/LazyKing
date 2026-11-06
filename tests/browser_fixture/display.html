@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8"><title>显示检查夹具</title>
+<style>
+  .ellipsis { display:inline-block; width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom; }
+  .clip-ancestor { display:inline-block; width:80px; overflow:hidden; white-space:nowrap; vertical-align:bottom; }
+  .clip-ancestor b { display:inline-block; width:200px; font-weight:normal; }
+  .clamp { display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; width:80px; }
+  .scroll { display:inline-block; width:80px; overflow:auto; white-space:nowrap; vertical-align:bottom; }
+  .hidden { visibility:hidden; }
+</style>
+</head>
+<body>
+  <div data-testid="ok">
+    <span>委托单号</span><span>WO001</span>
+    <span>客户名称</span><span>上海某某公司</span>
+  </div>
+
+  <div data-testid="missing"><span>委托单号</span><span>WO001</span></div>
+
+  <div data-testid="empty">
+    <span>委托单号</span><span>WO001</span>
+    <span>客户名称</span><span></span>
+  </div>
+
+  <div data-testid="hidden-value">
+    <span>客户名称</span><span class="hidden">上海某某公司</span>
+  </div>
+
+  <div data-testid="ellipsis">
+    <span>收货地址</span><span class="ellipsis">上海市浦东新区某某路100号</span>
+  </div>
+
+  <div data-testid="ancestor">
+    <span>备注</span><span class="clip-ancestor"><b>这是一段很长很长的备注内容</b></span>
+  </div>
+
+  <div data-testid="clamp">
+    <span>描述</span><div class="clamp">第一行内容很长很长很长很长很长第二行内容</div>
+  </div>
+
+  <div data-testid="scroll">
+    <span>货物清单</span><span class="scroll">很长很长的内容需要横向滚动查看以确认不被误报</span>
+  </div>
+
+  <div data-testid="allow">
+    <span>备注</span><span class="ellipsis tag">这是一段允许截断的备注内容</span>
+  </div>
+
+  <div data-testid="allow-text">
+    <span>备注</span><span class="ellipsis">这是允许备注截断的内容</span>
+  </div>
+
+  <div data-testid="mixed">
+    <span>委托单号</span><span>WO001</span>
+    <span class="ellipsis">收货地址内容很长很长很长很长很长</span>
+  </div>
+
+  <div data-testid="outside"><span>委托单号</span><span>WO001</span></div>
+  <div data-testid="outside-extra"><span>客户名称</span><span>上海某某公司</span></div>
+
+  <div data-testid="late"></div>
+  <div data-testid="many"></div>
+  <script>
+    setTimeout(() => {
+      document.querySelector('[data-testid="late"]').innerHTML =
+        '<span>委托单号</span><span>WO001</span>';
+    }, 300);
+    const many = document.querySelector('[data-testid="many"]');
+    for (let i = 0; i < 60; i++) {
+      const s = document.createElement('span');
+      s.className = 'ellipsis';
+      s.textContent = '很长很长的内容第' + i + '段需要被裁切';
+      many.appendChild(s);
+    }
+  </script>
+</body>
+</html>

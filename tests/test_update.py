@@ -323,16 +323,16 @@ def test_check_update_survives_undecodable_local_files(project, monkeypatch):
     assert result.available is False
 
 
-def test_apply_update_refuses_dirty_toolkit(project, monkeypatch):
+def test_apply_update_refuses_tracked_toolkit(project, monkeypatch):
     _write_version(project)
-    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: True)
-    with pytest.raises(update.UpdateError, match="未提交"):
+    monkeypatch.setattr(update, "_toolkit_is_tracked", lambda path: True)
+    with pytest.raises(update.UpdateError, match="git 跟踪"):
         update.apply_update(project, source="https://example.com/repo.git")
 
 
 def test_apply_update_clones_and_syncs(project, monkeypatch):
     _write_version(project)
-    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: False)
+    monkeypatch.setattr(update, "_toolkit_is_tracked", lambda path: False)
 
     calls = []
 
@@ -356,13 +356,13 @@ def test_apply_update_clones_and_syncs(project, monkeypatch):
 # Review fixes: dirty guard must fail closed, unknown commits force sync,
 # clone must not prompt/hang, and the sync arguments must be exact.
 
-def test_dirty_toolkit_skips_non_git_with_warning(project, capsys):
-    assert update._dirty_toolkit(project) is False
+def test_toolkit_is_tracked_skips_non_git_with_warning(project, capsys):
+    assert update._toolkit_is_tracked(project) is False
     assert "不是 git 仓库" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("failure", ["nonzero", "oserror", "timeout"])
-def test_dirty_toolkit_fails_closed_when_git_status_errors(project, monkeypatch, failure):
+def test_toolkit_is_tracked_fails_closed_when_git_errors(project, monkeypatch, failure):
     (project / ".git").mkdir()
 
     def fake_run(cmd, **kwargs):
@@ -374,7 +374,12 @@ def test_dirty_toolkit_fails_closed_when_git_status_errors(project, monkeypatch,
 
     monkeypatch.setattr(update.subprocess, "run", fake_run)
     with pytest.raises(update.UpdateError, match="已中止"):
-        update._dirty_toolkit(project)
+        update._toolkit_is_tracked(project)
+
+
+def test_targets_excludes_codex(project):
+    (project / "AGENTS.md").write_text("x", encoding="utf-8")
+    assert "codex" not in update._targets(project)
 
 
 @pytest.mark.parametrize(
@@ -385,7 +390,7 @@ def test_apply_update_syncs_when_commit_unknown(
     project, monkeypatch, local_commit, remote_commit
 ):
     _write_version(project, version="1.5.0", commit=local_commit)
-    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: False)
+    monkeypatch.setattr(update, "_toolkit_is_tracked", lambda path: False)
 
     calls = []
 
@@ -424,7 +429,7 @@ def test_apply_update_passes_project_id_targets_and_source_url(project, monkeypa
     (data_dir / "config.yaml").write_text("default_project: demo\n", encoding="utf-8")
     (project / ".claude" / "skills").mkdir(parents=True)
     (project / ".cursor" / "rules").mkdir(parents=True)
-    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: False)
+    monkeypatch.setattr(update, "_toolkit_is_tracked", lambda path: False)
 
     calls = []
 
@@ -461,7 +466,7 @@ def test_apply_update_passes_project_id_targets_and_source_url(project, monkeypa
 
 def test_apply_update_clone_disables_prompts_and_times_out(project, monkeypatch):
     _write_version(project)
-    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: False)
+    monkeypatch.setattr(update, "_toolkit_is_tracked", lambda path: False)
     captured = {}
 
     def fake_run(cmd, **kwargs):
@@ -484,7 +489,7 @@ def test_apply_update_clone_disables_prompts_and_times_out(project, monkeypatch)
 
 def test_apply_update_reports_clone_timeout(project, monkeypatch):
     _write_version(project)
-    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: False)
+    monkeypatch.setattr(update, "_toolkit_is_tracked", lambda path: False)
 
     def fake_run(cmd, **kwargs):
         if cmd[:2] == ["git", "clone"]:
@@ -498,7 +503,7 @@ def test_apply_update_reports_clone_timeout(project, monkeypatch):
 
 def test_apply_update_rejects_undecodable_plugin_json(project, monkeypatch):
     _write_version(project)
-    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: False)
+    monkeypatch.setattr(update, "_toolkit_is_tracked", lambda path: False)
 
     def fake_run(cmd, **kwargs):
         if cmd[:2] == ["git", "clone"]:
@@ -537,7 +542,7 @@ def test_validate_source_allows_token_free_forms(source):
 )
 def test_apply_update_rejects_credential_source(project, monkeypatch, source):
     _write_version(project)
-    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: False)
+    monkeypatch.setattr(update, "_toolkit_is_tracked", lambda path: False)
 
     def fake_run(cmd, **kwargs):
         raise AssertionError("凭据源不应执行任何 git 命令")
@@ -564,7 +569,7 @@ def test_check_update_rejects_credential_source(project, monkeypatch):
 
 def test_apply_update_records_token_free_source(project, monkeypatch):
     _write_version(project)
-    monkeypatch.setattr(update, "_dirty_toolkit", lambda path: False)
+    monkeypatch.setattr(update, "_toolkit_is_tracked", lambda path: False)
     source = "https://example.com/repo.git"
 
     def fake_run(cmd, **kwargs):

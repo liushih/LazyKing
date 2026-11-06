@@ -373,23 +373,23 @@ def check_update(
         return CheckResult(False, local, None, "检查更新失败，请稍后重试。")
 
 
-def _dirty_toolkit(project_dir: Path) -> bool:
-    """data-tools/ 有未提交改动时为 True；不是 git 仓库时警告并返回 False。"""
+def _toolkit_is_tracked(project_dir: Path) -> bool:
+    """data-tools/ 已被 git 跟踪时为 True；不是 git 仓库时警告并返回 False。"""
     project_dir = Path(project_dir)
     if not (project_dir / ".git").exists():
-        print(f"警告：{project_dir} 不是 git 仓库，跳过未提交改动检查", file=sys.stderr)
+        print(f"警告：{project_dir} 不是 git 仓库，跳过版本库状态检查", file=sys.stderr)
         return False
     try:
         result = subprocess.run(
-            ["git", "-C", str(project_dir), "status", "--porcelain", "--", "data-tools"],
+            ["git", "-C", str(project_dir), "ls-files", "--", "data-tools"],
             capture_output=True,
             text=True,
             timeout=GIT_STATUS_TIMEOUT_SECONDS,
         )
     except (OSError, UnicodeDecodeError, subprocess.TimeoutExpired) as exc:
-        raise UpdateError("无法检查 data-tools 的改动状态，已中止") from exc
+        raise UpdateError("无法检查 data-tools 的版本库状态，已中止") from exc
     if result.returncode != 0:
-        raise UpdateError("无法检查 data-tools 的改动状态，已中止")
+        raise UpdateError("无法检查 data-tools 的版本库状态，已中止")
     return bool(result.stdout.strip())
 
 
@@ -416,7 +416,6 @@ def _targets(project_dir: Path) -> tuple[str, ...]:
     candidates = (
         ("claude", project_dir / ".claude" / "skills"),
         ("cursor", project_dir / ".cursor" / "rules"),
-        ("codex", project_dir / "AGENTS.md"),
         ("dsh", project_dir / ".dsh" / "skills"),
     )
     found = tuple(name for name, path in candidates if path.exists())
@@ -426,8 +425,11 @@ def _targets(project_dir: Path) -> tuple[str, ...]:
 def apply_update(project_dir: Path, source: str | None = None) -> int:
     """把 data-tools 更新到源仓库最新版本；不自动提交或推送。"""
     project_dir = Path(project_dir)
-    if _dirty_toolkit(project_dir):
-        raise UpdateError("data-tools 有未提交改动，请先提交或暂存后再更新")
+    if _toolkit_is_tracked(project_dir):
+        raise UpdateError(
+            "data-tools/ 已被 git 跟踪，不符合“不进业务仓库”的策略；"
+            "请先运行 git rm -r --cached -- data-tools 并提交，再更新"
+        )
 
     if not (project_dir / "data-tools").is_dir():
         raise UpdateError("未找到 data-tools/，请先运行 bootstrap 或同步工具。")
@@ -508,7 +510,7 @@ def apply_update(project_dir: Path, source: str | None = None) -> int:
     except OSError:
         pass
     print(
-        f"已更新到 v{remote_version}；请在业务仓库提交 data-tools/、生成的技能入口和 .gitignore 的变更"
+        f"已更新到 v{remote_version}；data-tools/ 与 .data-tools/ 仅在本机使用，未进入业务仓库 git。"
     )
     return 0
 

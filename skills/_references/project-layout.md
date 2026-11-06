@@ -1,12 +1,13 @@
 # 项目内布局与路径解析
 
-业务仓库内置 data-tools 后的目录约定，以及 7 个技能共用的「第 0 步：环境检查」细节。
+业务仓库本地安装 data-tools 后的目录约定，以及技能共用的「第 0 步：环境检查」细节。
+**data-tools/、.data-tools/ 和生成的技能入口只在本机使用，不进入业务仓库 git。**
 
 ## 目录布局
 
 ```text
 <业务仓库>/
-├── data-tools/                        # 从 claudeTool 同步，提交
+├── data-tools/                        # 本机安装，不提交
 │   ├── skills/                        # 规则源（含 _references、_TEMPLATE）
 │   ├── runtime/
 │   ├── scripts/
@@ -15,36 +16,35 @@
 │   ├── update.ps1                     # 版本检查与一键更新
 │   ├── VERSION                        # 版本 + 源 commit + 同步时间
 │   └── .venv/                         # 本机生成，不提交
-├── .data-tools/                       # 项目数据根
-│   ├── config.yaml                    # 提交：default_project
-│   ├── projects/<项目ID>/
-│   │   ├── adapter.yaml               # 提交：团队共享业务规则
-│   │   ├── pitfalls.md                # 提交：团队共享坑库
-│   │   ├── report.yaml                # 提交（可选）
-│   │   ├── git_hosts.yaml             # 提交（可选，只含 token 键名）
-│   │   ├── jenkins.yaml               # 提交（可选，只含地址、账号与模块映射）
-│   │   ├── scripts/                   # 提交：impl 步骤代码、复杂业务模块
-│   │   ├── browser/                   # 提交：浏览器测试记忆
-│   │   │   ├── browser.yaml           # 环境、登录、默认参数
-│   │   │   ├── flows/*.yaml           # 可复跑流程
-│   │   │   ├── controls.md            # 提交：控件操作记录，失败后累积
-│   │   │   └── pitfalls.md            # 浏览器坑库
-│   │   ├── personal.example.yaml      # 提交：个人键清单
-│   │   ├── personal.yaml              # 不提交：本人个人值
-│   │   ├── .env.example               # 提交：密钥键名模板
-│   │   └── .env                       # 不提交：各人密钥
-│   ├── templates/<项目ID>/            # 提交（可选）
-│   ├── reports/                       # 不提交：报告产物
-│   └── browser/                       # 不提交：profile、浏览器报告、诊断包、probe
+├── .claude/skills/                    # 生成的技能入口，不提交（仅 data-tools 技能目录）
+└── .data-tools/                       # 本机数据根，不提交
+    ├── config.yaml                    # default_project
+    ├── projects/<项目ID>/
+    │   ├── adapter.yaml               # 本机：业务规则
+    │   ├── pitfalls.md                # 本机：坑库
+    │   ├── report.yaml                # 本机（可选）
+    │   ├── git_hosts.yaml             # 本机（可选，只含 token 键名）
+    │   ├── jenkins.yaml               # 本机（可选，只含地址、账号与模块映射）
+    │   ├── scripts/                   # 本机：impl 步骤代码、复杂业务模块
+    │   ├── browser/                   # 本机：浏览器测试记忆
+    │   │   ├── browser.yaml           # 环境、登录、默认参数
+    │   │   ├── flows/*.yaml           # 可复跑流程
+    │   │   ├── controls.md            # 控件操作记录，失败后累积
+    │   │   └── pitfalls.md            # 浏览器坑库
+    │   ├── personal.example.yaml      # 本机：个人键清单
+    │   ├── personal.yaml              # 本机：本人个人值
+    │   ├── .env.example               # 本机：密钥键名模板
+    │   └── .env                       # 本机：各人密钥
+    ├── templates/<项目ID>/            # 本机（可选）
+    ├── reports/                       # 本机：报告产物
+    └── browser/                       # 本机：profile、浏览器报告、诊断包、probe
 ```
 
-`data-tools/.venv/`、`.data-tools/projects/*/.env`、`.data-tools/projects/*/personal.yaml`、`ledger.csv`、`.token*.json`（含 `scripts/` 下的环境令牌缓存）、
-`.data-tools/projects/*/scripts/state.json`、`.data-tools/reports/`、
-`.data-tools/browser/` 和 `.update-check.json` 由同步工具写入 `.gitignore`，不进仓库。
+同步工具会把 `/data-tools/`、`/.data-tools/` 和生成出来的技能目录整体写进业务仓库 `.gitignore`。已有业务仓库如果之前提交过这些路径，同步工具会提示用 `git rm -r --cached` 移出版本库；本地文件保留。
 
-复杂业务的 impl 模块（如登录客户端、链路封装）也放 `projects/<项目ID>/scripts/`，
-随业务仓库提交；不要写死 `C:\project\claudeTool`、`hexin-data-gen`、`hexin-db-tools`
-等旧路径。凭据读项目 `.env`，token 缓存写 `projects/<项目ID>/.token.json`。
+复杂业务的 impl 模块（如登录客户端、链路封装）也放 `projects/<项目ID>/scripts/`，只在本机使用；不要写死 `C:\project\claudeTool`、`hexin-data-gen`、`hexin-db-tools` 等旧路径。凭据读项目 `.env`，token 缓存写 `projects/<项目ID>/.token.json`。
+
+团队共享的 adapter、坑库、脚本和模板通过公司内网制品库或共享目录分发，每人放到自己的 `.data-tools/`；不要用 `git add -f` 绕过忽略规则。
 
 ## `<TOOLS_DIR>` 的解析
 
@@ -120,8 +120,8 @@ powershell -ExecutionPolicy Bypass -File <TOOLS_DIR>/bootstrap.ps1
 - `-Quiet`：无新版本时不输出；有新版本仍打印提示。
 
 有新版本时，技能询问用户「发现新版本，是否现在更新？」。用户确认后运行 `update.ps1`，
-完成后提醒提交 `data-tools/`、生成的技能入口和 `.gitignore`；用户拒绝则继续，
-本次会话不再追问。脚本不存在、无新版本、检查失败或 `update_check` 关闭时继续。
+只更新本机副本；不要提醒提交任何 data-tools 变更。用户拒绝则继续，本次会话不再追问。
+脚本不存在、无新版本、检查失败或 `update_check` 关闭时继续。
 
 更新检查成功按 `check_interval_hours`（默认 24 小时）缓存；失败按
 `failure_cooldown_minutes`（默认 15 分钟）冷却，避免离线时每次技能启动都等网络。
@@ -129,24 +129,15 @@ powershell -ExecutionPolicy Bypass -File <TOOLS_DIR>/bootstrap.ps1
 
 ## 个人配置
 
-共享 yaml 只写团队事实与 `${KEY}`；个人非敏感值写 `personal.yaml`，密钥写 `.env`。`personal.yaml` 与 `.env` 都不提交，`personal.example.yaml` 与 `.env.example` 提交。新增变量时按是否密钥更新对应 example；`config.py check` 会校验共享配置与 example 的覆盖关系。首次使用或提示缺个人配置时运行 `project-setup`，不要让用户修改共享 yaml。
+共享 yaml、`personal.yaml`、`.env` 都只在本机。团队共享 yaml 只写团队事实与 `${KEY}`；个人非敏感值写 `personal.yaml`，密钥写 `.env`。`personal.example.yaml` 与 `.env.example` 也只在本机。新增变量时按是否密钥更新对应 example；`config.py check` 会校验共享配置与 example 的覆盖关系。首次使用或提示缺个人配置时运行 `project-setup`，不要让用户修改共享 yaml。
 
 ## 浏览器测试的数据边界
 
-- 提交：`.data-tools/projects/<项目ID>/browser/browser.yaml`、`flows/*.yaml`、`controls.md`、`pitfalls.md`，以及项目 `scripts/` 下的 impl。
-- 不提交：`.data-tools/browser/`（profile、reports、artifacts、probes）。
+- 全部在本机：`.data-tools/projects/<项目ID>/browser/browser.yaml`、`flows/*.yaml`、`controls.md`、`pitfalls.md`，以及项目 `scripts/` 下的 impl。
+- 运行产物 `.data-tools/browser/`（profile、reports、artifacts、probes）也在本机，不提交。
 - `browser.yaml` 只写团队地址和 `${VAR}`；新增键时按是否密钥更新 `.env.example` 或 `personal.example.yaml`。
-
-## 共享文件自动暂存
-
-团队能复用的文件写完或改完后，立刻运行 `scripts/track_shared.py` 把它们 `git add`，不要询问。脚本只接受白名单里的路径，并且不会用 `git add -f`：
-
-- `.data-tools/projects/<项目ID>/` 下的 `adapter.yaml`、`pitfalls.md`、`report.yaml`、`git_hosts.yaml`、`jenkins.yaml`、`personal.example.yaml`、`.env.example`
-- 同目录的 `browser/browser.yaml`、`browser/flows/*.yaml`、`browser/controls.md`、`browser/pitfalls.md`、`scripts/` 里的 impl
-- `.data-tools/templates/<项目ID>/` 下的报告模板
-
-`.env`、`personal.yaml`、台账、token、`state.json` 和 `.data-tools/browser/` 运行产物会被拒绝。被 gitignore 挡住的文件只跳过，不强制加入。个人目录 `~/.data-tools` 不在业务仓库里，不运行这条命令。暂存之后的提交和推送仍按 `git-workflow`，推送前必须等用户确认。
+- 团队共享走内网制品库或共享目录，不走业务仓库 git。
 
 ## adapter-bootstrap 的额外约定
 
-接入完成后，按变量是否密钥维护 `.env.example` 或 `personal.example.yaml`；只写键名与说明，不写值。两者都提交进仓库，`.env` 与 `personal.yaml` 只留在本机。新增或改名变量时先更新对应 example，再让用户运行 `project-setup` 或填 `.env`。
+接入完成后，按变量是否密钥维护 `.env.example` 或 `personal.example.yaml`；只写键名与说明，不写值。两者都只在本机。新增或改名变量时先更新对应 example，再让用户运行 `project-setup` 或填 `.env`。

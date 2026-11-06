@@ -1,5 +1,7 @@
 # 业务项目整包内置 data-tools 设计
 
+> **2026-11-06 决策更新**：本文的“整包内置并提交进业务仓库”已被取代。按合规与供应链要求，`data-tools/`、`.data-tools/` 和生成的技能入口一律不进业务仓库 git，只在本机安装；详见 [CONTRIBUTING.md](../../../CONTRIBUTING.md)。
+
 **日期**：2026-11-02
 **状态**：待审阅
 **关联**：`scripts/sync_project.py`、`bootstrap.ps1`、`runtime/config.py`、`skills/*/SKILL.md`

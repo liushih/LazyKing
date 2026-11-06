@@ -2,7 +2,7 @@
 
 用白话让 AI 帮你连库、造数、测页面、写报告、管代码托管。支持 Claude Code、Cursor、Codex、DeepSeek Harness。
 
-个人/全局模式下，业务规则存在本机适配层，凭据只存本机，都不进仓库；团队项目模式下适配层与坑库随业务仓库提交，凭据仍只存本机。
+个人/全局模式下，业务规则存在本机适配层，凭据只存本机，都不进仓库；团队项目模式下工具和适配层也只在本机，不进入业务仓库 git，凭据仍只存本机。
 
 ## 能做什么
 
@@ -57,6 +57,8 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -Target dsh -Scope global
 
 技能写到 `%USERPROFILE%\.dsh\skills\`，新开会话即生效（不用重启），输入 `/db-access` 可直接调用，也能按描述自动触发。换成 `-Scope project -ProjectDir C:\你的业务仓库` 则只在该仓库生效。
 
+项目内生成的入口（`.cursor/rules/`、`.dsh/skills/`、`AGENTS.md` 里的块）只在本机使用，不要提交进业务仓库。团队接入请用下面的 `sync_project.py`，它会把生成的技能目录写进 `.gitignore`；Codex 只能写 `AGENTS.md`，无法局部忽略，团队模式不支持。
+
 **3. 接入第一个业务**
 
 新开会话，直接说：
@@ -69,7 +71,7 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -Target dsh -Scope global
 
 > 个人/全局插件方式只分发规则，不带 Python 依赖，所以仓库必须 clone 到本机并跑过 `setup.ps1`。
 
-## 团队项目接入（整包内置）
+## 团队项目接入（本地安装，不进业务仓库 git）
 
 维护者在 claudeTool 仓库执行：
 
@@ -77,18 +79,17 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -Target dsh -Scope global
 python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project-id <项目ID> --targets claude
 ```
 
-业务仓库会新增 `data-tools/`、`.claude/skills/`、`.data-tools/`。`--targets` 可选 `claude,cursor,codex,dsh`，团队用哪些就生成哪些。`data-tools/` 已包含 runtime 和命令行入口，同事不需要再 clone claudeTool。
+业务仓库本地会出现 `data-tools/`、`.claude/skills/`、`.data-tools/`，但同步工具会把它们整体写进 `.gitignore`，**不会进入业务仓库 git**。业务仓库只保留业务代码。`--targets` 可选 `claude,cursor,dsh`；codex 只能写 `AGENTS.md`，无法局部忽略，因此团队模式不生成。
 
-同事只需：
+同事接入时，由团队维护者通过内网制品库或共享盘分发 `data-tools/`（或各自从内网镜像同步），放到业务仓库根目录后：
 
-1. clone 业务仓库
-2. 跑 `data-tools/bootstrap.ps1`（没有 Python 会提示下载）
-3. 打开 AI 工具，说「初始化个人配置」，按 `project-setup` 的提示生成 `personal.yaml` 和 `.env`。没有 `.env` 时先复制 `.env.example` 为 `.env`，团队共用的地址和端口已经写好，只需填自己的账号密码
-4. 直接说「造 100 张提货单」
+1. 跑 `data-tools/bootstrap.ps1`（没有 Python 会提示下载）
+2. 打开 AI 工具，说「初始化个人配置」，按 `project-setup` 的提示生成 `personal.yaml` 和 `.env`。没有 `.env` 时先复制 `.env.example` 为 `.env`，团队共用的地址和端口已经写好，只需填自己的账号密码
+3. 直接说「造 100 张提货单」
 
-复杂业务的 impl 模块（如登录客户端、链路封装）也放 `.data-tools/projects/<项目ID>/scripts/`，随业务仓库提交；B2D/B2C 已内置，不再依赖旧 `hexin-data-gen`/`hexin-db-tools`。
+复杂业务的 impl 模块（如登录客户端、链路封装）也放 `.data-tools/projects/<项目ID>/scripts/`，只在本机使用；团队共享通过内网渠道分发，不要提交进业务仓库。B2D/B2C 已内置，不再依赖旧 `hexin-data-gen`/`hexin-db-tools`。
 
-更新：`data-tools/update.ps1`，会刷新 `data-tools/`、生成的技能入口和 `.gitignore`；发现新版本时技能会先询问是否更新。个人全局使用仍可用插件市场，互不影响。
+更新：`data-tools/update.ps1`，会刷新本机的 `data-tools/`、生成的技能入口和 `.gitignore`；发现新版本时技能会先询问是否更新。个人全局使用仍可用插件市场，互不影响。
 
 要用浏览器测试，还需要给项目配前端地址和登录方式，步骤见 [使用说明：浏览器测试](docs/usage.md#十三浏览器测试)。本机需要装 Chrome。
 
@@ -114,7 +115,7 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 | `DATA_TOOLS_DIR` | `~/.data-tools/config.yaml` 的 `tools_dir` | 工具目录 |
 | `DATA_TOOLS_HOME` | 项目内 `.data-tools/`，没有则 `%USERPROFILE%\.data-tools` | 适配层、台账、坑库、凭据；设置后优先使用 |
 
-解析顺序：`DATA_TOOLS_HOME` > 从当前目录向上找到的 `.data-tools/` > `%USERPROFILE%\.data-tools`。所以在业务仓库里默认落在仓库自己的 `.data-tools/`，个人全局使用回退到用户目录。
+解析顺序：`DATA_TOOLS_HOME` > 从当前目录向上找到的 `.data-tools/` > `%USERPROFILE%\.data-tools`。所以在业务仓库里默认落在仓库自己的 `.data-tools/`（只在本机，不提交），个人全局使用回退到用户目录。
 
 每个项目一份独立目录：`<DATA_HOME>\projects\<项目ID>\`，里面是 `adapter.yaml`、`.env`、`pitfalls.md`、`scripts/` 等。
 

@@ -28,7 +28,7 @@ description: >-
 4. 没有 venv 时检查 py -3.11 --version / py -3 --version / python --version / python3 --version，要求 Python 3.11+。
 5. 都没有或版本过低：提示用户到 https://www.python.org/downloads/ 下载安装 Python 3.11+，勾选 Add to PATH；停止，不代装。
 6. 有 Python 但没 venv：运行 <TOOLS_DIR>/bootstrap.ps1。
-7. 运行 <TOOLS_DIR>/update.ps1 -CheckOnly -Quiet。若提示有新版本：问用户「发现新版本，是否现在更新？」；用户确认后运行 <TOOLS_DIR>/update.ps1，完成后提醒用户检查 git status 并提交 data-tools/、生成的技能入口和 .gitignore；用户拒绝则继续，本次会话不再追问。脚本不存在、无新版本、检查失败或 update_check 关闭时继续。
+7. 运行 <TOOLS_DIR>/update.ps1 -CheckOnly -Quiet。若提示有新版本：问用户「发现新版本，是否现在更新？」；用户确认后运行 <TOOLS_DIR>/update.ps1。data-tools/、.data-tools/ 和生成的技能入口只在本机使用，按策略不提交进业务仓库；不要提醒用户提交这些改动。用户拒绝则继续，本次会话不再追问。脚本不存在、无新版本、检查失败或 update_check 关闭时继续。
 
 ## 前置检查
 
@@ -45,11 +45,7 @@ description: >-
 3. 请用户在自己的终端运行 `set-secret JENKINS_TOKEN`（或直接编辑项目 `.env`），建议使用单独生成、可随时吊销的 API token。不要把 token 贴进对话。
 4. 确认 `.env` 已有 token 后运行 `setup`；`setup` 在 stdin 为空时会复用 `.env` 里的 token。不要把 token 放进命令行参数；之后的回复、总结、日志里都不回显、不复述 token。
 5. `setup` 成功后运行 `discover` 列出任务和参数，与用户核对，按目录 → 模块 → 任务的对应关系写 `jenkins.yaml` 的 `modules`（格式见 `skills/_TEMPLATE/jenkins.example.yaml`）。
-6. 写完 `jenkins.yaml` 后立刻暂存，不要询问。`.env` 不暂存、不提交。个人目录 `~/.data-tools` 不运行。提交和推送仍等用户确认：
-
-```bash
-"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/track_shared.py" --project-dir <业务仓库根> <jenkins.yaml路径>
-```
+6. 写完 `jenkins.yaml` 后只留本机，不暂存、不提交。`data-tools/` 与 `.data-tools/` 按策略整体不进业务仓库 git；需要团队共享时通过内网制品库或共享目录分发。`.env` 里的 token 不要写进任何会提交的文件。
 
 ## 路径
 

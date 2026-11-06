@@ -20,7 +20,7 @@ description: >-
 4. 没有 venv 时检查 py -3.11 --version / py -3 --version / python --version / python3 --version，要求 Python 3.11+。
 5. 都没有或版本过低：提示用户到 https://www.python.org/downloads/ 下载安装 Python 3.11+，勾选 Add to PATH；停止，不代装。
 6. 有 Python 但没 venv：运行 <TOOLS_DIR>/bootstrap.ps1。
-7. 运行 <TOOLS_DIR>/update.ps1 -CheckOnly -Quiet。若提示有新版本：问用户「发现新版本，是否现在更新？」；用户确认后运行 <TOOLS_DIR>/update.ps1，完成后提醒用户检查 git status 并提交 data-tools/、生成的技能入口和 .gitignore；用户拒绝则继续，本次会话不再追问。脚本不存在、无新版本、检查失败或 update_check 关闭时继续。
+7. 运行 <TOOLS_DIR>/update.ps1 -CheckOnly -Quiet。若提示有新版本：问用户「发现新版本，是否现在更新？」；用户确认后运行 <TOOLS_DIR>/update.ps1。data-tools/、.data-tools/ 和生成的技能入口只在本机使用，按策略不提交进业务仓库；不要提醒用户提交这些改动。用户拒绝则继续，本次会话不再追问。脚本不存在、无新版本、检查失败或 update_check 关闭时继续。
 
 ## 前置检查
 
@@ -46,11 +46,7 @@ description: >-
 5. 每条坑按四段（现象 / 原因 / 绕法 / 适用）追加到 `pitfalls.md`；追加前先读现有条目，按「现象」去重
 6. 用同一批次号重跑，确认幂等
 7. 接入完成后按变量是否密钥更新 `.env.example` 或 `personal.example.yaml`，只写键名与说明，不写值
-8. 写完或改完 `adapter.yaml`、`pitfalls.md`、`.env.example`、`personal.example.yaml`、项目 `scripts/` 后立刻暂存，不要询问。个人目录 `~/.data-tools` 不运行。提交和推送仍等用户确认：
-
-```bash
-"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/track_shared.py" --project-dir <业务仓库根> <刚写或刚改的文件>
-```
+8. 写完或改完的文件只留本机，不暂存、不提交。`data-tools/` 与 `.data-tools/` 按策略整体不进业务仓库 git，由同步工具写入的 `.gitignore` 挡住；需要团队共享时通过内网制品库或共享目录分发，不要用 `git add -f`。
 
 ## 失败处理
 

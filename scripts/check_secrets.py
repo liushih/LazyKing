@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 SKIP_DIRS = {
-    ".git", ".venv", "node_modules", "__pycache__", ".superpowers", "projects",
+    ".git", ".venv", "node_modules", "__pycache__", ".superpowers",
     "pw-profile", "apache-jmeter-5.6.3",
 }
 SKIP_SUFFIXES = {".pyc", ".png", ".jpg", ".jpeg", ".pdf", ".lock", ".ico", ".exe"}

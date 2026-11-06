@@ -77,16 +77,16 @@ def test_render_targets_keeps_tools_dir_placeholder(source, project):
 
 def test_upsert_gitignore_is_idempotent(project):
     (project / ".gitignore").write_text("node_modules/\n", encoding="utf-8")
-    upsert_gitignore(project)
-    upsert_gitignore(project)
+    upsert_gitignore(project, ["db-access"])
+    upsert_gitignore(project, ["db-access"])
     text = (project / ".gitignore").read_text(encoding="utf-8")
     assert text.count("# data-tools:begin") == 1
     assert "node_modules/" in text
-    assert "data-tools/.venv/" in text
-    assert ".data-tools/projects/*/.token*.json*" in text
-    assert ".data-tools/projects/*/scripts/state.json" in text
-    assert ".data-tools/browser/" in text
-    assert ".data-tools/projects/*/scripts/.token*.json*" in text
+    assert "/data-tools/" in text
+    assert "/.data-tools/" in text
+    assert "/.claude/skills/db-access/" in text
+    assert "/.cursor/rules/db-access.mdc" in text
+    assert "/.dsh/skills/db-access/" in text
 
 
 def test_init_data_dirs_preserves_existing(source, project):
@@ -109,6 +109,7 @@ def test_sync_project_end_to_end(source, project):
     assert (project / ".claude" / "skills" / "db-access" / "SKILL.md").exists()
     assert (project / "data-tools" / "README.md").exists()
     assert (project / ".gitignore").exists()
+    assert "/data-tools/" in (project / ".gitignore").read_text(encoding="utf-8")
     assert result.copied
 
 
@@ -205,10 +206,38 @@ def test_personal_files_are_project_data():
     assert "personal.example.yaml" in PROJECT_DATA_FILES
 
 
-def test_gitignore_ignores_personal_yaml(project):
-    upsert_gitignore(project)
+def test_gitignore_ignores_whole_data_root(project):
+    upsert_gitignore(project, ["db-access"])
     text = (project / ".gitignore").read_text(encoding="utf-8")
-    assert ".data-tools/projects/*/personal.yaml" in text
+    assert "/.data-tools/" in text
+
+
+def test_sync_project_rejects_codex_target(source, project):
+    with pytest.raises(ValueError, match="codex"):
+        sync_project(project, "demo", ("codex",), source)
+    assert not (project / "data-tools").exists()
+
+
+def test_sync_removes_legacy_track_shared_files(source, project):
+    legacy = project / "data-tools" / "scripts" / "track_shared.py"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("old\n", encoding="utf-8")
+    result = sync_project(project, "demo", ("claude",), source)
+    assert legacy in result.removed
+    assert not legacy.exists()
+
+
+def test_sync_removes_agents_block(source, project):
+    agents = project / "AGENTS.md"
+    agents.write_text(
+        "# 业务规则\n\n<!-- data-tools:begin -->\n## 数据工具\n<!-- data-tools:end -->\n",
+        encoding="utf-8",
+    )
+    result = sync_project(project, "demo", ("claude",), source)
+    text = agents.read_text(encoding="utf-8")
+    assert "data-tools:begin" not in text
+    assert "# 业务规则" in text
+    assert agents in result.cleaned
 
 
 def test_sync_preserves_personal_files(source, project):

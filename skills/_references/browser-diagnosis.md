@@ -59,6 +59,5 @@ run 失败
 
 ## 记忆边界
 
-- 写完后立刻 `track_shared.py` 暂存，不要询问：`browser.yaml`、`flows/*.yaml`、`controls.md`、`pitfalls.md`、项目 `scripts/` 的 impl。
-- 不暂存：`.data-tools/browser/` 下的 profile、截图、报告、诊断包、probe 快照。提交和推送仍等用户确认。
+- 写完的文件只留本机，不暂存、不提交；`data-tools/` 与 `.data-tools/` 按策略整体不进业务仓库 git，需要团队共享时走内网制品库或共享目录。
 - 凭据只放项目 `.env`。

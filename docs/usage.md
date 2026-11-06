@@ -22,7 +22,7 @@
 - [九、常见问题](#九常见问题)
 - [十、写报告](#十写报告)
 - [十一、代码托管](#十一代码托管)
-- [十二、团队项目接入](#十二团队项目接入)
+- [十二、团队项目接入](#十二团队项目接入本机安装不进业务仓库-git)
 - [十三、浏览器测试](#十三浏览器测试)
 - [十四、Jenkins 发版](#十四jenkins-发版)
 
@@ -58,7 +58,7 @@
 
 ### 先准备什么
 
-接入前准备两类个人配置：非敏感值（账号、本机路径、作者）写 `personal.yaml`，密码、令牌和数据库连接键写 `.env`；两者都不进仓库。共享 `adapter.yaml` 只写团队地址和 `${VAR}`。
+接入前准备两类个人配置：非敏感值（账号、本机路径、作者）写 `personal.yaml`，密码、令牌和数据库连接键写 `.env`；两者都不进任何 git。团队共享的 `adapter.yaml` 只写团队地址和 `${VAR}`，通过内网制品库或共享目录分发。
 
 | 配置 | 用途 | 必需 | 权限 |
 | --- | --- | --- | --- |
@@ -111,7 +111,7 @@ test、prod 环境同理换成 `TEST_` / `PROD_`。数据库连接键由 `db-acc
 <DATA_HOME>\projects\<项目ID>\
 ├── adapter.yaml      业务规则
 ├── .env              接口地址与账号（不进 git）
-├── .env.example      键名模板（提交，不含值）
+├── .env.example      键名模板（只留本机，不含值）
 ├── pitfalls.md       踩坑记录
 ├── scripts\          需要代码才能做的步骤
 └── ledger.csv        运行台账（第一次跑数后生成）
@@ -367,8 +367,8 @@ DEV_MONGO_URI
 
 `<DATA_HOME>` 按顺序解析：`DATA_TOOLS_HOME` > 从当前目录向上找到的最近一个
 `.data-tools/` > `%USERPROFILE%\.data-tools`。在业务仓库里默认用仓库自己的
-`.data-tools/`，所以团队共享的规则和坑库跟仓库一起走；设置了 `DATA_TOOLS_HOME`
-则以它为准。
+`.data-tools/`，所以团队规则和坑库默认在本机；按策略不提交业务仓库 git，
+团队共享通过内网制品库或共享目录分发。设置了 `DATA_TOOLS_HOME` 则以它为准。
 
 **旧工具（`hexin-db-tools/`、`hexin-data-gen/`、`hexin-e2e/`）**
 
@@ -398,7 +398,7 @@ DSH 没有插件市场，走 `install.ps1 -Target dsh` 直接写 `%USERPROFILE%\
 DSH 的 `workspace-write` 沙箱只允许写工作区和临时目录。个人/全局模式下
 `<DATA_HOME>` 是 `~/.data-tools`，在工作区外；把 `DATA_TOOLS_HOME` 指到工作区内
 （如 `<仓库>/.data-tools`），或让会话用完全访问权限。团队模式的数据目录本来就在
-业务仓库内，不受影响。只读查询不受影响。
+业务仓库内（但不进 git），不受影响。只读查询不受影响。
 
 **改了技能规则但不生效**
 
@@ -641,9 +641,9 @@ GITLAB_TOKEN_DEMO=
 
 遇到 MR 冲突或 cherry-pick 冲突，工具会停止并列出冲突文件，不会自动解决（cherry-pick 冲突会中止；`sync`、`merge` 冲突则保留现场）。
 
-## 十二、团队项目接入
+## 十二、团队项目接入（本机安装，不进业务仓库 git）
 
-把整套工具放进业务仓库，同事 clone 后不用再装插件。个人全局安装方式仍然有效，两种方式互不影响。
+把整套工具同步到业务仓库的本机副本，但 `data-tools/`、`.data-tools/` 和生成的技能入口都不会进入业务仓库 git。业务仓库只保留业务代码；个人全局安装方式仍然有效，两种方式互不影响。
 
 ### 目录布局
 
@@ -653,15 +653,15 @@ GITLAB_TOKEN_DEMO=
 python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project-id <项目ID> --targets claude
 ```
 
-`--targets` 可选 `claude,cursor,codex,dsh`，逗号分隔，默认 `claude`。
+`--targets` 可选 `claude,cursor,dsh`，逗号分隔，默认 `claude`。codex 只能写 `AGENTS.md`，无法局部忽略，因此团队模式不生成。
 不加 `--project-id` 时仍会创建 `.data-tools/` 根目录并同步工具包，只跳过
 `.data-tools/projects/<项目ID>/` 的项目骨架。
 
-业务仓库会新增：
+业务仓库本地会出现：
 
 ```text
 <业务仓库>/
-├── data-tools/                        # 从 claudeTool 同步，提交
+├── data-tools/                        # 本机安装，不提交
 │   ├── skills/                        # 规则源
 │   ├── runtime/
 │   ├── scripts/
@@ -672,35 +672,31 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 │   ├── LICENSE
 │   ├── VERSION                        # 版本、源 commit、同步时间
 │   └── .venv/                         # 本机生成，不提交
-├── .claude/skills/                    # 按 --targets 生成，提交
-└── .data-tools/                       # 项目数据根
-    ├── config.yaml                    # 提交：default_project
-    ├── templates/<项目ID>/            # 提交（可选）：报告模板
-    ├── reports/                       # 不提交：报告产物
+├── .claude/skills/                    # 生成的技能入口，不提交（仅 data-tools 技能目录）
+└── .data-tools/                       # 本机数据根，不提交
+    ├── config.yaml                    # default_project
+    ├── templates/<项目ID>/            # 报告模板（可选）
+    ├── reports/                       # 报告产物
     └── projects/<项目ID>/
-        ├── adapter.yaml               # 提交：团队共享业务规则
-        ├── pitfalls.md                # 提交：团队共享坑库
-        ├── report.yaml                # 提交（可选，团队事实 + 占位符）
-        ├── git_hosts.yaml             # 提交（可选，团队事实 + 占位符）
-        ├── jenkins.yaml               # 提交（可选，团队事实 + 占位符）
-        ├── personal.example.yaml      # 提交：个人键清单
-        ├── personal.yaml              # 不提交：本人个人值
-        ├── scripts/                   # 提交：impl 步骤代码、复杂业务模块
-        ├── .env.example               # 提交：密钥键名模板
-        └── .env                       # 不提交：各人密钥
+        ├── adapter.yaml               # 业务规则
+        ├── pitfalls.md                # 坑库
+        ├── report.yaml                # 报告配置（可选，团队事实 + 占位符）
+        ├── git_hosts.yaml             # 代码托管配置（可选，团队事实 + 占位符）
+        ├── jenkins.yaml               # 发版配置（可选，团队事实 + 占位符）
+        ├── personal.example.yaml      # 个人键清单
+        ├── personal.yaml              # 本人个人值
+        ├── scripts/                   # impl 步骤代码、复杂业务模块
+        ├── .env.example               # 密钥键名模板
+        └── .env                       # 各人密钥
 ```
 
-复杂业务的 impl 模块（如 `chain.py`、`hexin_client.py`）也放在 `projects/<项目ID>/scripts/`，随业务仓库提交；B2D/B2C 已内置，不再依赖旧 `hexin-data-gen`/`hexin-db-tools`。
+复杂业务的 impl 模块（如 `chain.py`、`hexin_client.py`）也放在 `projects/<项目ID>/scripts/`，只在本机使用；团队共享通过内网制品库或共享目录分发，不要提交进业务仓库。B2D/B2C 已内置，不再依赖旧 `hexin-data-gen`/`hexin-db-tools`。
 
-同步工具会把 `data-tools/.venv/`、`.data-tools/projects/*/.env`、
-`.data-tools/projects/*/personal.yaml`、`.data-tools/projects/*/ledger.csv`、
-`.data-tools/projects/*/.token*.json*`、`.data-tools/projects/*/scripts/.token*.json*`、
-`.data-tools/projects/*/scripts/state.json`、`.data-tools/reports/` 和
-`.data-tools/.update-check.json` 写进业务仓库的 `.gitignore`。
+同步工具会把 `/data-tools/`、`/.data-tools/` 和生成的技能目录整体写进业务仓库 `.gitignore`。如果业务仓库之前已经提交过这些路径，同步工具会提示用 `git rm -r --cached` 移出版本库，本地文件保留。
 
 ### 同事第一次接入
 
-1. clone 业务仓库
+1. 从团队内网制品库或共享盘拿到 `data-tools/`，放到业务仓库根目录（不要提交）
 2. 在仓库根目录运行：
 
    ```powershell
@@ -714,7 +710,7 @@ python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project
 3. 打开 AI 工具，新开会话，说「初始化个人配置」，按 `project-setup` 的提示生成 `personal.yaml` 与 `.env`
 4. 直接说「造 100 张提货单」
 
-`personal.yaml` 与 `.env` 不提交；共享 yaml 不要写个人值。
+`data-tools/`、`.data-tools/`、生成的技能入口都不提交；`personal.yaml` 与 `.env` 只留本机。团队共享 yaml 不要写个人值。
 
 技能每次启动会先做环境检查：解释器优先用 `data-tools/.venv`，没有 venv 但有
 Python 3.11+ 时提示运行 `bootstrap.ps1`；同时用 `update.ps1 -CheckOnly -Quiet`
@@ -729,15 +725,11 @@ Python 3.11+ 时提示运行 `bootstrap.ps1`；同时用 `update.ps1 -CheckOnly 
 powershell -ExecutionPolicy Bypass -File .\data-tools\update.ps1
 ```
 
-更新会重新运行同步脚本：刷新 `data-tools/`（含 `README.md`、`LICENSE`、`VERSION`），
-重新生成已启用的技能入口（`.claude/skills/`、`.cursor/rules/`、`AGENTS.md`、
-`.dsh/skills/` 中实际存在的那几种），并刷新业务仓库 `.gitignore` 的
-`# data-tools:begin` 块。`.data-tools/` 里已有的项目数据不覆盖（缺 `.env.example`
-时会补模板），也不会自动提交。
-
-更新完运行 `git status`，把 `data-tools/`、生成出来的技能入口和 `.gitignore`
-一起提交；只提交 `data-tools/` 会让已提交的技能规则和 `data-tools/skills/`
-对不上。
+更新会重新运行同步脚本：刷新本机的 `data-tools/`（含 `README.md`、`LICENSE`、`VERSION`），
+重新生成已启用的技能入口（`.claude/skills/`、`.cursor/rules/`、`.dsh/skills/`
+中实际存在的那几种），并刷新业务仓库 `.gitignore` 的 `# data-tools:begin` 块。
+`.data-tools/` 里已有的项目数据不覆盖（缺 `.env.example` 时会补模板），也不会自动提交。
+更新只改本机副本；不需要提交任何 data-tools 变更。
 
 `-CheckOnly` 只检查不更新，有新版本时退出码为 10；`-Quiet` 配合它使用，
 没有新版本时不输出。更新源默认是 `https://github.com/liushih/claudeTool.git`，
@@ -755,12 +747,11 @@ bootstrap 和 update 都会先找 Python。到 <https://www.python.org/downloads
 Python 3.11+，安装时勾选 **Add python.exe to PATH**，然后重跑脚本。脚本不会代装，
 也不修改系统 PATH。
 
-**`data-tools` 有未提交改动，更新被拒绝**
+**`data-tools` 已被 git 跟踪，更新被拒绝**
 
-`update.ps1` 会先检查 `git status -- data-tools`，有未提交改动时拒绝更新，
-避免覆盖本地修改。先把 `data-tools/` 的改动提交或暂存，再重新运行。这个检查
-只覆盖 `data-tools/`；生成出来的技能入口和 `.gitignore` 不在检查范围内，更新后
-仍要自己看一遍 `git status`。
+`update.ps1` 会先检查 `data-tools/` 是否还在 git 索引里。如果旧版本曾经提交过，
+先运行 `git rm -r --cached -- data-tools` 并提交这次删除（本地文件会保留），
+再重新运行更新。按新策略，`data-tools/`、`.data-tools/` 和生成的技能入口都不进业务仓库 git。
 
 **更新时提示「克隆更新源失败」**
 
@@ -785,7 +776,7 @@ bootstrap 会提示删除或重命名 `data-tools/.venv` 后重跑，重新创�
 3. **填变量**：前端根地址直接在 `browser.yaml` 写团队地址；登录账号写 `personal.yaml`，密码写 `.env`。新增键时按是否密钥更新 `personal.example.yaml` 或 `.env.example`。
 4. **检查**：运行 `browser.py doctor --project <项目ID>`，确认 Chrome、依赖、配置和变量都齐全。
 5. **生成第一个流程**：对 AI 说「测一下 XX 页面」。没有现成流程时，AI 会先用 `probe` 看一遍页面，再把入口、步骤、断言写成 `browser/flows/<名称>.yaml`，并跑到通过。
-6. **纳入版本库**：流程写完后会直接 `git add` `browser.yaml`、`flows/`、`pitfalls.md`，不用再确认一次。截图、诊断包、浏览器 profile 在 `.data-tools/browser/`，不会加入。提交和推送仍按代码托管流程，等你明确说了再做；推送之后同事拉下来就能复跑。
+6. **只留本机**：流程写完不加入 git，截图、诊断包、浏览器 profile 在 `.data-tools/browser/` 也不会加入。`data-tools/`、`.data-tools/` 和生成的技能入口按策略整体不进业务仓库 git；团队共享通过内网制品库或共享目录分发。
 
 ### 日常使用
 
@@ -858,7 +849,7 @@ bootstrap 会提示删除或重命名 `data-tools/.venv` 后重跑，重新创�
 
 token 只写进本机 `.env` 的 `JENKINS_TOKEN`，不经过对话、不写进命令行，也不会在回复里复述。共享 `jenkins.yaml` 只有地址与 `${JENKINS_USER}` 占位符；账号在本机 `personal.yaml`。
 
-接着 AI 用 `discover` 列出 Jenkins 上的任务和参数，和你一起把「目录 → 模块 → 任务」对应起来写进 `jenkins.yaml`。这一份随业务仓库提交，同事 pull 后直接复用；每人只需运行 `project-setup` 生成自己的 `personal.yaml`，并在 `.env` 里放自己的 token。
+接着 AI 用 `discover` 列出 Jenkins 上的任务和参数，和你一起把「目录 → 模块 → 任务」对应起来写进 `jenkins.yaml`。这一份只留本机，通过团队内网渠道分发；每人只需运行 `project-setup` 生成自己的 `personal.yaml`，并在 `.env` 里放自己的 token。
 
 ### `jenkins.yaml` 写法
 

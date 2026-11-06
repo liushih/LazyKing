@@ -1,4 +1,7 @@
-"""把工具包同步进业务仓库：按白名单复制到 data-tools/ 并写入 VERSION。"""
+"""把工具包同步到业务仓库的本机副本：按白名单复制到 data-tools/ 并写入 VERSION。
+
+所有产物只在本机使用，不进入业务仓库的 git；同步时会补齐 .gitignore 整目录规则。
+"""
 
 from __future__ import annotations
 
@@ -16,29 +19,38 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.install import install, skill_names
+from scripts.install import BEGIN, END, install, skill_names
 
 DEFAULT_SOURCE = "https://github.com/liushih/claudeTool.git"
 
 GITIGNORE_BEGIN = "# data-tools:begin"
 GITIGNORE_END = "# data-tools:end"
+GITIGNORE_HEADER = "# data-tools 只在本机使用，不进入业务仓库的 git"
 
-GITIGNORE_BLOCK = f"""{GITIGNORE_BEGIN}
-data-tools/.venv/
-data-tools/**/__pycache__/
-.data-tools/projects/*/.env
-.data-tools/projects/*/personal.yaml
-.data-tools/projects/*/ledger.csv
-.data-tools/projects/*/.token*.json*
-.data-tools/projects/*/scripts/.token*.json*
-.data-tools/projects/*/scripts/state.json
-.data-tools/**/__pycache__/
-.data-tools/reports/
-.data-tools/browser/
-.data-tools/.update-check.json
-.data-tools/**/*.log
-{GITIGNORE_END}
-"""
+# 团队模式只生成这些入口；codex 只能写 AGENTS.md，无法局部忽略，因此不支持。
+ALLOWED_TARGETS: tuple[str, ...] = ("claude", "cursor", "dsh")
+
+# 旧版本曾随工具包分发、现已废弃的本机文件，同步时顺手清掉。
+OBSOLETE_TOOLKIT_FILES: tuple[str, ...] = (
+    "scripts/track_shared.py",
+    "runtime/track_shared.py",
+)
+
+
+def gitignore_block(names: list[str]) -> str:
+    """生成业务仓库 .gitignore 的 data-tools 块：整目录忽略，不依赖逐文件规则。"""
+    lines = [
+        GITIGNORE_BEGIN,
+        GITIGNORE_HEADER,
+        "/data-tools/",
+        "/.data-tools/",
+    ]
+    for name in names:
+        lines.append(f"/.claude/skills/{name}/")
+        lines.append(f"/.cursor/rules/{name}.mdc")
+        lines.append(f"/.dsh/skills/{name}/")
+    lines.append(GITIGNORE_END)
+    return "\n".join(lines) + "\n"
 
 TOOLKIT_ITEMS: tuple[str, ...] = (
     "skills",
@@ -87,6 +99,8 @@ class SyncResult:
     copied: list[Path] = field(default_factory=list)
     rendered: list[Path] = field(default_factory=list)
     preserved: list[Path] = field(default_factory=list)
+    removed: list[Path] = field(default_factory=list)
+    cleaned: list[Path] = field(default_factory=list)
 
 
 def copy_toolkit(source_root: Path, project_dir: Path) -> list[Path]:
@@ -105,6 +119,93 @@ def copy_toolkit(source_root: Path, project_dir: Path) -> list[Path]:
             shutil.copy2(src, dest)
         copied.append(dest)
     return copied
+
+
+def remove_obsolete_toolkit_files(project_dir: Path) -> list[Path]:
+    """删除旧版本留在本机副本里的废弃文件；不碰业务数据。"""
+    removed: list[Path] = []
+    for rel in OBSOLETE_TOOLKIT_FILES:
+        path = Path(project_dir) / "data-tools" / rel
+        if path.is_file():
+            path.unlink()
+            removed.append(path)
+    return removed
+
+
+def remove_agents_block(project_dir: Path) -> Path | None:
+    """删除 AGENTS.md 中的 data-tools 块；文件只剩该块时一并删除。"""
+    path = Path(project_dir) / "AGENTS.md"
+    if not path.is_file():
+        return None
+    text = path.read_text(encoding="utf-8")
+    updated = re.sub(rf"{re.escape(BEGIN)}.*?{re.escape(END)}\n?", "", text, flags=re.S)
+    if updated == text:
+        return None
+    if updated.strip():
+        path.write_text(updated.rstrip() + "\n", encoding="utf-8")
+    else:
+        path.unlink()
+    return path
+
+
+def _validate_targets(targets: tuple[str, ...]) -> None:
+    if "codex" in targets:
+        raise ValueError(
+            "团队模式不生成 codex 入口：codex 只能写入业务仓库的 AGENTS.md，"
+            "无法在不污染业务仓库 git 的前提下使用；请改用 claude/cursor/dsh，"
+            "或使用个人全局安装并自行确保 AGENTS.md 不提交。"
+        )
+    unknown = [name for name in targets if name not in ALLOWED_TARGETS]
+    if unknown:
+        raise ValueError(
+            f"未知工具 {', '.join(unknown)}（可选：{', '.join(ALLOWED_TARGETS)}）"
+        )
+
+
+def _tracked_data_tools_paths(project_dir: Path, names: list[str]) -> list[str]:
+    """返回已被 git 跟踪的 data-tools 相关路径，用于迁移提示。"""
+    project_dir = Path(project_dir)
+    if not (project_dir / ".git").exists():
+        return []
+    roots = ["data-tools", ".data-tools"]
+    roots.extend(f".claude/skills/{name}" for name in names)
+    roots.extend(f".cursor/rules/{name}.mdc" for name in names)
+    roots.extend(f".dsh/skills/{name}" for name in names)
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(project_dir), "ls-files", "--", *roots],
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return []
+    if result.returncode != 0:
+        return []
+    return [line for line in result.stdout.splitlines() if line.strip()]
+
+
+def warn_if_tracked(project_dir: Path, names: list[str]) -> None:
+    """已有业务仓库可能提交过旧版本；提示如何把这些路径移出版本库。"""
+    tracked = _tracked_data_tools_paths(project_dir, names)
+    if not tracked:
+        return
+    roots = ["data-tools", ".data-tools"]
+    roots.extend(f".claude/skills/{name}" for name in names)
+    roots.extend(f".cursor/rules/{name}.mdc" for name in names)
+    roots.extend(f".dsh/skills/{name}" for name in names)
+    roots = [
+        root
+        for root in roots
+        if any(path == root or path.startswith(root + "/") for path in tracked)
+    ]
+    print(
+        "[data-tools] 以下路径已被 git 跟踪，但按策略不应进入业务仓库：\n  "
+        + "\n  ".join(tracked)
+        + "\n本地文件会保留。请运行：\n  git rm -r --cached -- "
+        + " ".join(roots)
+        + "\n然后提交这次删除。",
+        file=sys.stderr,
+    )
 
 
 def _source_commit(source_root: Path) -> str:
@@ -152,9 +253,13 @@ def render_targets(
     )
 
 
-def upsert_gitignore(project_dir: Path) -> Path:
+def upsert_gitignore(project_dir: Path, names: list[str] | None = None) -> Path:
     """在 project_dir/.gitignore 写入或刷新 data-tools 标记块，返回该文件路径。"""
-    path = Path(project_dir) / ".gitignore"
+    project_dir = Path(project_dir)
+    if names is None:
+        tools = project_dir / "data-tools"
+        names = skill_names(tools) if tools.is_dir() else []
+    path = project_dir / ".gitignore"
     existing = path.read_text(encoding="utf-8") if path.exists() else ""
     existing = re.sub(
         rf"{re.escape(GITIGNORE_BEGIN)}.*?{re.escape(GITIGNORE_END)}\n?",
@@ -164,7 +269,7 @@ def upsert_gitignore(project_dir: Path) -> Path:
     )
     prefix = existing.rstrip() + "\n\n" if existing.strip() else ""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text((prefix + GITIGNORE_BLOCK).rstrip() + "\n", encoding="utf-8")
+    path.write_text((prefix + gitignore_block(names)).rstrip() + "\n", encoding="utf-8")
     return path
 
 
@@ -256,8 +361,6 @@ def _planned_target_paths(
             )
         elif tool == "cursor":
             paths.extend(project_dir / ".cursor" / "rules" / f"{name}.mdc" for name in names)
-        elif tool == "codex":
-            paths.append(project_dir / "AGENTS.md")
         else:
             raise ValueError(f"未知工具 {tool}")
     return paths
@@ -289,6 +392,7 @@ def sync_project(
         raise FileNotFoundError(f"工具包缺少核心条目：{', '.join(missing)}（源：{source}）")
 
     # 先校验 targets 再动文件，避免非法工具名导致半同步。
+    _validate_targets(targets)
     planned_targets = _planned_target_paths(source, project_dir, targets)
 
     result = SyncResult()
@@ -318,6 +422,7 @@ def sync_project(
         return result
 
     result.copied = copy_toolkit(source, project_dir)
+    result.removed = remove_obsolete_toolkit_files(project_dir)
     result.rendered.append(write_version(source, project_dir, source_url))
     result.rendered.extend(render_targets(source, project_dir, list(targets)))
 
@@ -329,7 +434,17 @@ def sync_project(
 
     result.rendered.extend(init_data_dirs(project_dir, project_id))
     result.rendered.append(render_project_readme(source, project_dir, project_id))
-    result.rendered.append(upsert_gitignore(project_dir))
+    names = skill_names(source)
+    result.rendered.append(upsert_gitignore(project_dir, names))
+    agents = remove_agents_block(project_dir)
+    if agents is not None:
+        result.cleaned.append(agents)
+        print(
+            f"[data-tools] 已从 {agents.name} 移除 data-tools 块；"
+            "如该文件已被 git 跟踪，请提交这次删除。",
+            file=sys.stderr,
+        )
+    warn_if_tracked(project_dir, names)
     return result
 
 
@@ -337,7 +452,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="把 data-tools 同步进业务仓库")
     parser.add_argument("--project-dir", type=Path, required=True, help="业务仓库根目录")
     parser.add_argument("--project-id", help="写入 .data-tools/config.yaml 的 default_project")
-    parser.add_argument("--targets", default="claude", help="逗号分隔：claude,cursor,codex,dsh")
+    parser.add_argument("--targets", default="claude", help="逗号分隔：claude,cursor,dsh")
     parser.add_argument("--source", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--source-url", default=DEFAULT_SOURCE)
     parser.add_argument("--dry-run", action="store_true", help="只打印将要执行的动作，不写文件")
@@ -361,7 +476,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if not args.dry_run:
-        for path in (*result.copied, *result.rendered, *result.preserved):
+        for path in (
+            *result.copied,
+            *result.rendered,
+            *result.preserved,
+            *result.removed,
+            *result.cleaned,
+        ):
             print(path)
     return 0
 

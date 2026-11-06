@@ -36,21 +36,36 @@
 
 ## 不进 git 的（项目衍生物）
 
-以下内容属于项目衍生物，不能进入 claudeTool 仓库；其中本机私有的部分还必须在业务仓库的 `.gitignore` 里挡住：
+以下内容属于项目衍生物，不能进入 claudeTool 仓库；在业务仓库里也一律只留本机，不进入业务仓库的 git：
 
-- **业务脚本**：写死了某个项目的表名、接口路径、状态值、单号规则的脚本。不能进 claudeTool 仓库；团队模式下放业务仓库的 `.data-tools/projects/<项目ID>/scripts/` 并提交
+- **业务脚本**：写死了某个项目的表名、接口路径、状态值、单号规则的脚本。不能进 claudeTool 仓库；团队模式下放业务仓库的 `.data-tools/projects/<项目ID>/scripts/`，只在本机使用，通过内网制品库或共享目录分发
 - **运行产物**：日志（`*.err`、`*.log`）、台账（`*.csv`）、导出结果、截图
 - **凭据与令牌**：`.env`、`*.token*.json*`、浏览器登录态、任何含密码的文件
-- **项目配置**：适配层、坑库、项目脚本、报告模板等。个人/全局方式下它们位于 `~/.data-tools/projects/<项目ID>/`；团队方式下随业务仓库提交，都不进本仓库
+- **项目配置**：适配层、坑库、项目脚本、报告模板等。个人/全局方式下它们位于 `~/.data-tools/projects/<项目ID>/`；团队方式下也只在本机，通过内网渠道分发，都不进任何 git
 - **本机私有数据**：凭据 `.env`、台账 `ledger.csv`、报告产物 `reports/`、更新检查缓存等，无论哪种方式都不提交
 
 判断标准：**这份东西换一个项目就没用，或者含有只属于某个项目或某个人的信息。**
 
-## 团队项目接入时的共享与本地边界
+## 业务仓库集成：所有 data-tools 内容都不进业务仓库 git
 
-业务仓库内置 `data-tools/` 后，`.data-tools/` 下的内容要区分团队共享和本机私有。以下路径都在业务仓库的 `.data-tools/` 下。
+团队模式把工具同步到业务仓库的本机副本，但以下内容一律由同步工具写进业务仓库 `.gitignore`，不得提交：
 
-**提交进业务仓库（团队共享）**
+- `data-tools/`：工具源码、运行时、命令行入口、技能规则
+- `.data-tools/`：适配层、坑库、项目脚本、模板、个人配置、台账、报告、浏览器数据
+- 生成的技能入口：`.claude/skills/<data-tools 技能>/`、`.cursor/rules/<data-tools 技能>.mdc`、`.dsh/skills/<data-tools 技能>/`
+- `AGENTS.md` 中的 `data-tools` 块：同步工具会主动移除；团队模式不再生成 codex 入口
+
+已有业务仓库如果之前提交过上述路径，执行 `git rm -r --cached -- <路径>` 后提交删除；本地文件保留。不得用 `git add -f` 绕过。团队共享的适配层、坑库和脚本通过公司内网制品库或共享目录分发，具体渠道由团队 IT 决定。
+
+这样做的原因是供应链与合规：业务仓库只保留业务代码，第三方工具、AI 规则和本机凭据不进入业务系统的版本库与审计范围。
+
+## 团队项目接入时的团队共享与本地边界
+
+业务仓库本地安装 `data-tools/` 后，`data-tools/` 和 `.data-tools/` 下的所有内容都只在本机，不进入业务仓库 git。同步工具会把整个目录写进 `.gitignore` 的 `# data-tools:begin` 块。
+
+**团队内部分发（不进 git）**
+
+以下文件由团队维护，通过公司内网制品库或共享目录分发，每人放到自己的 `.data-tools/`：
 
 - `projects/<项目ID>/adapter.yaml`：业务规则
 - `projects/<项目ID>/pitfalls.md`：坑库
@@ -60,11 +75,11 @@
 - `projects/<项目ID>/scripts/`：`impl` 步骤代码，包括 `chain.py`、`hexin_client.py` 等复杂业务模块
 - `templates/<项目ID>/`：报告模板（即 `.data-tools/templates/<项目ID>/`，与 `projects/` 平级）
 
-划分规则：身份（`USER_TAG`）、本机路径（`REPO_PATH`、`REPORT_REPOS`）、个人账号（`JENKINS_USER`、`ZENTAO_ACCOUNT`）、作者列表进个人；服务器地址、项目/产品 ID、模块映射、分支规则、流程步骤留共享；密码与令牌进 `.env`。
+划分规则：身份（`USER_TAG`）、本机路径（`REPO_PATH`、`REPORT_REPOS`）、个人账号（`JENKINS_USER`、`ZENTAO_ACCOUNT`）、作者列表进个人；服务器地址、项目/产品 ID、模块映射、分支规则、流程步骤留团队；密码与令牌进 `.env`。
 
 业务脚本不要依赖旧 `claudeTool`、`hexin-data-gen`、`hexin-db-tools`；需要的模块复制到 `projects/<项目ID>/scripts/`，凭据读项目 `.env`，token 缓存写 `projects/<项目ID>/.token.json`。
 
-**不提交（本机私有或运行产物）**
+**一律不进业务仓库 git**
 
 - `projects/<项目ID>/personal.yaml`：个人值，每人一份
 - `projects/<项目ID>/.env`：密钥，每人一份
@@ -74,9 +89,9 @@
 - `scripts/__pycache__/`：Python 缓存
 - `reports/`：报告产物
 - `.update-check.json`、`*.log` 等缓存与日志
+- 上面「团队内部分发」里的全部文件，也不要提交
 
-`scripts/sync_project.py` 会把上述忽略规则写进业务仓库 `.gitignore` 的
-`# data-tools:begin` 块。共享配置里只写变量名或 token 键名，值一律放各自本机的 `.env`。
+`scripts/sync_project.py` 会把 `/data-tools/`、`/.data-tools/` 和生成的技能入口整体写进业务仓库 `.gitignore`，已跟踪的路径会提示用 `git rm -r --cached` 移出版本库。共享配置里只写变量名或 token 键名，值一律放各自本机的 `.env`。
 
 ## 提交前检查
 

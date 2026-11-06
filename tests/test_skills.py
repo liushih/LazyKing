@@ -80,13 +80,38 @@ def test_adapter_example_parses():
     assert data["version"] == 1 and "entities" in data
 
 
-def test_git_skill_requires_user_tag_and_confirmation():
+def test_git_skill_requires_user_tag_and_commit_selection():
     text = (SKILLS / "git-workflow" / "SKILL.md").read_text(encoding="utf-8")
     assert "user_tag" in text
     assert "set-user-tag" in text
-    assert "回显" in text
-    assert "确认" in text
+    assert "工作项" in text
+    assert "多选" in text
     assert "git_host.py" in text
+
+
+def test_git_skill_commits_selected_items_one_by_one():
+    text = (SKILLS / "git-workflow" / "SKILL.md").read_text(encoding="utf-8")
+    assert "git status --porcelain -uall" in text
+    assert "逐项提交" in text
+    assert "同一文件被多项改到" in text
+    assert "必须带正文" in text
+
+
+def test_git_skill_pushes_and_merges_without_confirmation():
+    text = (SKILLS / "git-workflow" / "SKILL.md").read_text(encoding="utf-8")
+    assert "推送与合并直接执行" in text
+    assert "只有用户明确说「确认」或「执行」，才运行写命令" not in text
+
+
+def test_git_skill_keeps_net_increment_gate():
+    text = (SKILLS / "git-workflow" / "SKILL.md").read_text(encoding="utf-8")
+    assert "net-increment" in text and "--confirm-bring-in" in text
+
+
+def test_git_skill_resolves_conflicts_then_reports():
+    text = (SKILLS / "git-workflow" / "SKILL.md").read_text(encoding="utf-8")
+    assert "解完直接提交" in text
+    assert "git show --cc" in text
 
 
 def test_git_skill_forbids_pasting_token_in_chat():

@@ -1,6 +1,6 @@
 {
   "name": "data-tools",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "白话触发连库、批量造数、报告撰写、代码托管与 Jenkins 发版：规则本地累积、凭据不入库，适配 Claude、Cursor、Codex、DeepSeek Harness",
   "author": {
     "name": "liushihao",

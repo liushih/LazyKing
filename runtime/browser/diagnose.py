@@ -92,6 +92,26 @@ def _write(path: Path, content: str) -> None:
         pass
 
 
+def _display_line(problem: dict) -> str:
+    kind = problem.get("kind") or "unknown"
+    field = problem.get("field")
+    text = problem.get("text")
+    element = str(problem.get("tag") or "element")
+    testid = problem.get("testid")
+    css_class = problem.get("class")
+    if testid:
+        element += f'[data-testid="{testid}"]'
+    elif css_class:
+        element += "." + str(css_class).replace(" ", ".")
+    if field:
+        head = f"- [{kind}] 字段 {field}"
+    elif text:
+        head = f"- [{kind}] 文本 {text!r}"
+    else:
+        head = f"- [{kind}]"
+    return f"{head} {element}：{problem.get('reason') or ''}"
+
+
 def _diagnosis(page: Any, result: FlowResult) -> str:
     failure = result.failure
     try:
@@ -131,6 +151,12 @@ def _diagnosis(page: Any, result: FlowResult) -> str:
             lines.append(f"- {item['method']} {item['url']} → {item['reason']}")
             if item.get("body"):
                 lines.append(f"  - 响应：{item['body']}")
+
+    display_problems = (failure.detail or {}).get("display_problems") if failure is not None else None
+    if display_problems:
+        lines.extend(["", "## 显示问题"])
+        lines.extend(_display_line(item) for item in display_problems)
+
     lines.extend(["", "## 步骤"])
     for step in result.steps:
         error = f" {step.error}" if step.error else ""
@@ -139,6 +165,8 @@ def _diagnosis(page: Any, result: FlowResult) -> str:
     lines.extend(["", "## 建议"])
     if api_errors:
         lines.append("- 接口已经报错：优先排查后端或入参，而不是选择器；确属预期时在步骤上加 allow_api_error。")
+    if display_problems:
+        lines.append("- 显示问题：优先核对该字段是否漏渲染、容器/列宽是否不足；设计上允许省略的用 allow_truncate 放行。")
     lines.extend(
         [
             "- 检查选择器是否变化，优先用 data-testid 或行内范围限定。",

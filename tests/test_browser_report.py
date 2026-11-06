@@ -172,3 +172,25 @@ def test_diagnosis_lists_api_errors(page, fixture_url, tmp_path, monkeypatch):
     out = capture(page, "demo", flow, result, PageCollector())
     text = (out / "diagnosis.md").read_text(encoding="utf-8")
     assert "接口异常" in text and "POST http://x/api/save" in text and "服务异常" in text
+
+
+def test_diagnosis_lists_display_problems(page, fixture_url, tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_TOOLS_HOME", str(tmp_path))
+    page.goto(fixture_url + "/index.html")
+    flow = FlowDef("smoke", "", "dev", {}, [], tmp_path / "flow.yaml")
+    flow.path.write_text("version: 1\nflow: smoke\nsteps: []\n", encoding="utf-8")
+    result = failed_result(flow.path)
+    result.failure.detail = {
+        "display_problems": [
+            {"kind": "missing_field", "field": "客户名称", "text": None, "tag": "div",
+             "testid": "order-detail", "class": None, "reason": "容器内未找到该文字"},
+            {"kind": "truncated", "field": None, "text": "上海市浦东新区", "tag": "td",
+             "testid": None, "class": "el-table__cell", "reason": "scrollWidth 320 > clientWidth 120"},
+        ],
+        "scan_limited": False,
+    }
+    out = capture(page, "demo", flow, result, PageCollector())
+    text = (out / "diagnosis.md").read_text(encoding="utf-8")
+    assert "## 显示问题" in text
+    assert "客户名称" in text and "scrollWidth 320 > clientWidth 120" in text
+    assert "allow_truncate" in text

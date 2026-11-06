@@ -313,3 +313,39 @@ def test_stop_without_resident_browser(browser_project, capsys):
 def test_missing_browser_variables_ignores_login_steps_builtins(browser_project):
     (browser_project / "personal.yaml").write_text("USER: u\n", encoding="utf-8")
     assert cli._missing_browser_variables("demo") == []
+
+
+def test_cli_run_writes_display_problems_to_diagnosis(browser_project, fixture_url, capsys):
+    from runtime.browser.driver import find_chrome
+    from runtime.config import data_home
+
+    if not find_chrome():
+        pytest.skip("系统 Chrome 不可用")
+
+    (browser_project / "browser" / "browser.yaml").write_text(
+        "version: 1\nproject: demo\nenvs:\n  dev:\n    base_url: ${WEB}\n"
+        "defaults:\n  env: dev\n  timeout_ms: 1200\n  headless: true\n  resident: false\n",
+        encoding="utf-8",
+    )
+    (browser_project / "browser" / "flows" / "display.yaml").write_text(
+        """version: 1
+flow: display
+description: 显示检查
+env: dev
+steps:
+  - name: 打开
+    goto: ${BASE_URL}/display.html
+  - name: 显示检查
+    expect_display:
+      locator: {testid: missing}
+      fields: [客户名称]
+    timeout: 800
+""",
+        encoding="utf-8",
+    )
+    (browser_project / ".env").write_text(f"WEB={fixture_url}\n", encoding="utf-8")
+
+    assert cli.main(["run", "--project", "demo", "--flow", "display", "--env", "dev"]) == 1
+    diagnosis = sorted((data_home() / "browser" / "artifacts").glob("*/diagnosis.md"))[-1]
+    text = diagnosis.read_text(encoding="utf-8")
+    assert "## 显示问题" in text and "客户名称" in text

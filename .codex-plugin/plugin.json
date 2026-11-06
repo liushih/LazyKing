@@ -1,14 +1,14 @@
 {
   "name": "data-tools",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "白话触发连库、批量造数、报告撰写、代码托管与 Jenkins 发版：规则本地累积、凭据不入库，适配 Claude、Cursor、Codex、DeepSeek Harness",
   "author": {
     "name": "liushihao",
     "email": "1739498098@qq.com",
     "url": "https://github.com/liushih"
   },
-  "homepage": "https://github.com/liushih/claudeTool",
-  "repository": "https://github.com/liushih/claudeTool",
+  "homepage": "https://github.com/liushih/LazyKing",
+  "repository": "https://github.com/liushih/LazyKing",
   "license": "MIT",
   "keywords": [
     "skills",

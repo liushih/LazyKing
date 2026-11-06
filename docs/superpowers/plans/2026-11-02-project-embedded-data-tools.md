@@ -6,7 +6,7 @@
 
 **Goal:** 让业务仓库自带 `data-tools/` 与共享 `.data-tools/`，同事只需业务仓库和 Python 3.11+ 就能使用全部 5 项能力；不 pull 业务仓库时也能收到版本提示并一键更新。
 
-**Architecture:** 同步工具把 claudeTool 的 `skills/`、`runtime/`、`scripts/` 复制进业务仓库，并以可移植方式渲染技能入口；运行时通过向上查找 `.data-tools/` 自动使用项目内数据根；bootstrap 检测 Python 并建 venv；update 通过远端 tag/commit 提示新版本，用户显式执行更新。
+**Architecture:** 同步工具把 LazyKing 的 `skills/`、`runtime/`、`scripts/` 复制进业务仓库，并以可移植方式渲染技能入口；运行时通过向上查找 `.data-tools/` 自动使用项目内数据根；bootstrap 检测 Python 并建 venv；update 通过远端 tag/commit 提示新版本，用户显式执行更新。
 
 **Tech Stack:** Python 3.11+、PyYAML、pytest、PowerShell、git。
 
@@ -203,7 +203,7 @@ git commit -m "feat: 技能渲染支持可移植路径"
 **Interfaces:**
 - Produces:
   - `TOOLKIT_ITEMS: tuple[str, ...]`
-  - `DEFAULT_SOURCE = "https://github.com/liushih/claudeTool.git"`
+  - `DEFAULT_SOURCE = "https://github.com/liushih/LazyKing.git"`
   - `class SyncResult`（`copied: list[Path]`、`rendered: list[Path]`、`preserved: list[Path]`）
   - `copy_toolkit(source_root: Path, project_dir: Path) -> list[Path]`
   - `write_version(source_root: Path, project_dir: Path, source_url: str = DEFAULT_SOURCE) -> Path`
@@ -268,10 +268,10 @@ def test_copy_toolkit_copies_whitelist_and_skips_caches(source, project):
 
 
 def test_write_version_reads_plugin_version(source, project):
-    path = write_version(source, project, "https://example.com/claudeTool.git")
+    path = write_version(source, project, "https://example.com/LazyKing.git")
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert data["version"] == "1.4.0"
-    assert data["source"] == "https://example.com/claudeTool.git"
+    assert data["source"] == "https://example.com/LazyKing.git"
     assert data["source_commit"] == "unknown"
 ```
 
@@ -456,7 +456,7 @@ Expected: `ImportError` / 函数未定义。
 ```markdown
 # <PROJECT_ID> data-tools
 
-本目录由 claudeTool 同步生成，不要手改。
+本目录由 LazyKing 同步生成，不要手改。
 
 ## 首次接入
 
@@ -501,7 +501,7 @@ git commit -m "feat: 同步数据目录与项目 README"
 
 **Interfaces:**
 - Produces:
-  - `DEFAULT_SOURCE = "https://github.com/liushih/claudeTool.git"`
+  - `DEFAULT_SOURCE = "https://github.com/liushih/LazyKing.git"`
   - `DEFAULT_INTERVAL_HOURS = 24`
   - `class Version`（`major`、`minor`、`patch`；可比较）
   - `parse_version(text: str) -> Version | None`
@@ -994,7 +994,7 @@ git commit -m "feat: 5 个技能增加项目内环境前置"
 ````markdown
 ## 团队项目接入（整包内置）
 
-维护者在 claudeTool 仓库执行：
+维护者在 LazyKing 仓库执行：
 
 ```bash
 python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project-id <项目ID> --targets claude
@@ -1084,7 +1084,7 @@ Expected: 退出码 0（无新版本/网络不可达）或 10（有新版本）�
 
 检查 `$tmp/.claude/skills/db-access/SKILL.md`：
 
-Expected: 包含 `<TOOLS_DIR>` 占位符，且不包含本机 claudeTool 绝对路径；包含「第 0 步：环境检查」。
+Expected: 包含 `<TOOLS_DIR>` 占位符，且不包含本机 LazyKing 绝对路径；包含「第 0 步：环境检查」。
 
 - [ ] **Step 7: Clean up**
 

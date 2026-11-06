@@ -1,6 +1,6 @@
 # <PROJECT_ID> data-tools（仅本机）
 
-本目录由 claudeTool 同步生成，只在本机使用，不能提交进业务仓库。同步工具会把
+本目录由 LazyKing 同步生成，只在本机使用，不能提交进业务仓库。同步工具会把
 `data-tools/`、`.data-tools/` 和生成出来的技能入口整体写进业务仓库 `.gitignore`。
 
 ## 首次接入

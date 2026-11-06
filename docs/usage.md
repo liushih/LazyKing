@@ -650,7 +650,7 @@ GITLAB_TOKEN_DEMO=
 
 ### 目录布局
 
-维护者在 claudeTool 仓库运行同步脚本：
+维护者在 LazyKing 仓库运行同步脚本：
 
 ```bash
 python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project-id <项目ID> --targets claude
@@ -735,7 +735,7 @@ powershell -ExecutionPolicy Bypass -File .\data-tools\update.ps1
 更新只改本机副本；不需要提交任何 data-tools 变更。
 
 `-CheckOnly` 只检查不更新，有新版本时退出码为 10；`-Quiet` 配合它使用，
-没有新版本时不输出。更新源默认是 `https://github.com/liushih/claudeTool.git`，
+没有新版本时不输出。更新源默认是 `https://github.com/liushih/LazyKing.git`，
 可以在 `.data-tools/config.yaml` 的 `data_tools.source` 改。同一段还可以设置：
 
 - `update_check: false`：彻底关闭更新检查

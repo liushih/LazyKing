@@ -6,7 +6,7 @@
 
 ## 1. 背景与目标
 
-claudeTool 已有 6 项能力。开发完一个需求后，发版仍要人去 Jenkins 页面逐个点模块。目标是增加第 7 项能力：用户说「发版我这个需求的模块」，AI 根据当前需求的改动推断要构建的模块，触发对应的 Jenkins 任务并汇报结果。
+LazyKing 已有 6 项能力。开发完一个需求后，发版仍要人去 Jenkins 页面逐个点模块。目标是增加第 7 项能力：用户说「发版我这个需求的模块」，AI 根据当前需求的改动推断要构建的模块，触发对应的 Jenkins 任务并汇报结果。
 
 成功标准：
 
@@ -51,7 +51,7 @@ claudeTool 已有 6 项能力。开发完一个需求后，发版仍要人去 Je
 ## 4. 目录与文件
 
 ```text
-claudeTool/
+LazyKing/
 ├── runtime/jenkins/
 │   ├── __init__.py
 │   ├── client.py        # Jenkins HTTP 客户端

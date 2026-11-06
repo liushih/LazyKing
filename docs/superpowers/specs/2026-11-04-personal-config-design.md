@@ -397,7 +397,7 @@ config.py --project <ID> example [--write]
 
 当前 hexincloud 的 `.data-tools/` 尚未提交，因此不实现自动迁移命令。落地顺序：
 
-1. 在 claudeTool 完成实现、测试、升版本并同步。
+1. 在 LazyKing 完成实现、测试、升版本并同步。
 2. 在 `C:/project/hexincloud/.data-tools/projects/hexincloud/`：
    - `git_hosts.yaml`：`user_tag` → `${USER_TAG}`，`repo_path` → `${REPO_PATH}`；
    - `jenkins.yaml`：`jenkins.user` → `${JENKINS_USER}`；

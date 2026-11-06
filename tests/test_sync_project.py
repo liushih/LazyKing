@@ -61,10 +61,10 @@ def test_copy_toolkit_copies_whitelist_and_skips_caches(source, project):
 
 
 def test_write_version_reads_plugin_version(source, project):
-    path = write_version(source, project, "https://example.com/claudeTool.git")
+    path = write_version(source, project, "https://example.com/LazyKing.git")
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert data["version"] == "1.4.0"
-    assert data["source"] == "https://example.com/claudeTool.git"
+    assert data["source"] == "https://example.com/LazyKing.git"
     assert data["source_commit"] == "unknown"
 
 

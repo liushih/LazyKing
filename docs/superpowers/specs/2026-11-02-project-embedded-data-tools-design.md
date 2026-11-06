@@ -8,13 +8,13 @@
 
 ## 1. 背景与目标
 
-claudeTool 目前的 5 项能力（`db-access`、`data-gen-core`、`adapter-bootstrap`、`report-writer`、`git-workflow`）以本机全局安装为主：技能规则通过插件或 `install.ps1` 分发，运行时依赖本机 clone 的 claudeTool 和 `.venv`，业务适配层（`adapter.yaml`、`pitfalls.md`）放在 `~/.data-tools`，只属于个人。
+LazyKing 目前的 5 项能力（`db-access`、`data-gen-core`、`adapter-bootstrap`、`report-writer`、`git-workflow`）以本机全局安装为主：技能规则通过插件或 `install.ps1` 分发，运行时依赖本机 clone 的 LazyKing 和 `.venv`，业务适配层（`adapter.yaml`、`pitfalls.md`）放在 `~/.data-tools`，只属于个人。
 
 目标是让业务项目自身携带这套能力：同事 clone 业务仓库后，只需本机有 Python 3.11+，按一次 bootstrap、填一次 `.env`，就能用同样的白话方式使用全部 5 项能力；业务规则、坑库随仓库共享。
 
 成功标准：
 
-- 同事不需要单独 clone claudeTool，也不需要理解 `<TOOLS_DIR>`。
+- 同事不需要单独 clone LazyKing，也不需要理解 `<TOOLS_DIR>`。
 - 机器没有 Python 时，得到明确的下载安装指引，而不是 Python 报错堆栈。
 - 5 项能力全部按同一套项目内路径解析和环境检查工作。
 - 业务规则和坑库随业务仓库共享，凭据、台账、报告产物不进仓库。
@@ -24,7 +24,7 @@ claudeTool 目前的 5 项能力（`db-access`、`data-gen-core`、`adapter-boot
 
 对比过两种形态：
 
-- **项目级规则文件**：业务仓库只放 `.claude/skills` 等规则，运行时仍指向各自本机 clone 的 claudeTool。仓库轻，但同事仍需第二个仓库，`adapter.yaml`、`pitfalls.md` 不共享。
+- **项目级规则文件**：业务仓库只放 `.claude/skills` 等规则，运行时仍指向各自本机 clone 的 LazyKing。仓库轻，但同事仍需第二个仓库，`adapter.yaml`、`pitfalls.md` 不共享。
 - **整包内置**：业务仓库提交 `data-tools/`（约 474KB 源码）和 `.data-tools/` 的共享部分。同事一个仓库即可用。
 
 选择整包内置，因为需求是「让同事使用」，而业务适配层和坑库是能力的一部分；只同步规则不解决同事首次接入的问题。代价是每个业务仓库一份副本，需要用同步工具控制漂移。
@@ -52,7 +52,7 @@ claudeTool 目前的 5 项能力（`db-access`、`data-gen-core`、`adapter-boot
 
 ```text
 <业务仓库>/
-├── data-tools/                        # 从 claudeTool 同步，提交
+├── data-tools/                        # 从 LazyKing 同步，提交
 │   ├── skills/                        # 规则源（含 _references、_TEMPLATE）
 │   ├── runtime/
 │   ├── scripts/
@@ -110,7 +110,7 @@ claudeTool 目前的 5 项能力（`db-access`、`data-gen-core`、`adapter-boot
 
 ### 6.1 bootstrap.ps1（接入时）
 
-- 位置：claudeTool 仓库根，同步时复制到 `<业务仓库>/data-tools/bootstrap.ps1`。
+- 位置：LazyKing 仓库根，同步时复制到 `<业务仓库>/data-tools/bootstrap.ps1`。
 - 工具目录取 `$PSScriptRoot`，项目根取 `Split-Path $PSScriptRoot -Parent`。
 - 检测顺序：
   1. `<tools>/.venv/Scripts/python.exe`
@@ -187,7 +187,7 @@ def data_home() -> Path:
 
 ## 8. 同步与更新
 
-新增 `scripts/sync_project.py`（在 claudeTool 里运行）：
+新增 `scripts/sync_project.py`（在 LazyKing 里运行）：
 
 ```bash
 python scripts/sync_project.py \
@@ -224,7 +224,7 @@ python scripts/sync_project.py \
 version: 1.4.0
 source_commit: 1fb5862
 synced_at: 2026-11-02T10:30:00+08:00
-source: https://github.com/liushih/claudeTool.git
+source: https://github.com/liushih/LazyKing.git
 ```
 
 4. 渲染技能入口：
@@ -256,7 +256,7 @@ data-tools/**/__pycache__/
 
 维护者同步流程（pull 路径）：
 
-1. claudeTool 更新后，重跑 `sync_project.py`。
+1. LazyKing 更新后，重跑 `sync_project.py`。
 2. 检查业务仓库 `git diff`，提交并推送。
 3. 同事 pull；若 `requirements.txt` 有变化，同步工具提示「需重跑 bootstrap.ps1」。
 
@@ -270,12 +270,12 @@ data-tools/**/__pycache__/
 
 **版本来源**
 
-- 默认源：`https://github.com/liushih/claudeTool.git`；`.data-tools/config.yaml` 不存在时使用默认源。
+- 默认源：`https://github.com/liushih/LazyKing.git`；`.data-tools/config.yaml` 不存在时使用默认源。
 - 可在 `.data-tools/config.yaml` 覆盖为公司内网镜像或共享路径：
 
 ```yaml
 data_tools:
-  source: https://git.example.com/group/claudeTool.git
+  source: https://git.example.com/group/LazyKing.git
   update_check: true
   check_interval_hours: 24
 ```

@@ -1,10 +1,10 @@
 # 贡献约定
 
-本仓库是**通用工具**，服务于多个项目。进入 claudeTool 仓库的内容必须与具体项目无关；集成进业务仓库时，所有 data-tools 相关内容一律只留本机，不进入业务仓库 git。
+本仓库是**通用工具**，服务于多个项目。进入 LazyKing 仓库的内容必须与具体项目无关；集成进业务仓库时，所有 data-tools 相关内容一律只留本机，不进入业务仓库 git。
 
 ## 一、仓库边界
 
-| 内容 | 进 claudeTool git | 进业务仓库 git | 说明 |
+| 内容 | 进 LazyKing git | 进业务仓库 git | 说明 |
 | --- | --- | --- | --- |
 | `runtime/`、`scripts/` 通用代码 | 是 | — | 换项目还能直接用 |
 | `skills/` 规则与模板 | 是 | — | 用 `<项目ID>`、`<业务对象>` 等占位符 |
@@ -17,7 +17,7 @@
 
 判断标准：
 
-- **claudeTool 仓库**：换一个项目，这份代码还能用，不需要改。
+- **LazyKing 仓库**：换一个项目，这份代码还能用，不需要改。
 - **业务仓库**：data-tools 相关内容只在本机，不进入业务系统的版本库与审计范围。
 
 ## 二、业务仓库集成的硬规则
@@ -51,7 +51,7 @@
 
 划分规则：身份（`USER_TAG`）、本机路径（`REPO_PATH`、`REPORT_REPOS`）、个人账号（`JENKINS_USER`、`ZENTAO_ACCOUNT`）、作者列表进个人；服务器地址、项目/产品 ID、模块映射、分支规则、流程步骤留团队；密码与令牌进 `.env`。
 
-业务脚本不要依赖旧 `claudeTool`、`hexin-data-gen`、`hexin-db-tools`；需要的模块复制到 `projects/<项目ID>/scripts/`，凭据读项目 `.env`，token 缓存写 `projects/<项目ID>/.token.json`。
+业务脚本不要依赖旧工具（如 `hexin-data-gen`、`hexin-db-tools`）；需要的模块复制到 `projects/<项目ID>/scripts/`，凭据读项目 `.env`，token 缓存写 `projects/<项目ID>/.token.json`。
 
 **一律不进业务仓库 git**
 

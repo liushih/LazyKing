@@ -1316,11 +1316,11 @@ login:
 
 在 `.env.example` 增加键名（值留空）：`HEXIN_WEB_URL=`、`TEST_HEXIN_WEB_URL=`；在 `.env` 填入确认过的前端根地址（不是接口网关）。
 
-- [ ] **Step 2: 清理旧技能并同步 claudeTool 到业务仓库**
+- [ ] **Step 2: 清理旧技能并同步 LazyKing 到业务仓库**
 
 知识已迁移后，确认并删除旧目录 `C:/project/hexincloud/.claude/skills/browser-test/`（含 `scripts/`、`references/`、`flows/`、`node_modules`），避免同步后残留旧文件。
 
-Run: `C:/project/claudeTool/.venv/Scripts/python.exe C:/project/claudeTool/scripts/sync_project.py --project-dir C:/project/hexincloud --project-id hexincloud --targets claude`
+Run: `C:/project/LazyKing/.venv/Scripts/python.exe C:/project/LazyKing/scripts/sync_project.py --project-dir C:/project/hexincloud --project-id hexincloud --targets claude`
 Expected: 业务仓库生成 `data-tools/skills/browser-test/`、`data-tools/runtime/browser/`、`data-tools/scripts/browser.py`，`.gitignore` 含 `.data-tools/browser/`。
 
 - [ ] **Step 3: 环境检查**

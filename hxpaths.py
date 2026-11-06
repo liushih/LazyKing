@@ -1,6 +1,6 @@
 """跨机器路径解析。
 
-默认按目录关系推断（claudeTool 与 hexincloud 同级），换机器时可用环境变量覆盖：
+默认按目录关系推断（LazyKing 与 hexincloud 同级），换机器时可用环境变量覆盖：
 
     HEXIN_REPO           hexincloud 仓库根目录
     HEXIN_SKILL_SCRIPTS  飞书台账脚本目录

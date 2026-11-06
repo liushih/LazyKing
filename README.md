@@ -1,10 +1,12 @@
-# claudeTool
+# LazyKing（偷懒王）
 
-用白话让 AI 帮你连库、造数、测页面、写报告、管代码托管。支持 Claude Code、Cursor、Codex、DeepSeek Harness。
+LazyKing（偷懒王）是一套 AI 开发工具箱：用白话让 AI 帮你连库、造数、测页面、写报告、管代码托管和 Jenkins 发版。支持 Claude Code、Cursor、Codex、DeepSeek Harness。
+
+GitHub：<https://github.com/liushih/LazyKing>
 
 ## 边界先说清楚
 
-- **进 claudeTool 仓库**：通用运行时代码、技能规则、模板和测试；判断标准是「换一个项目还能直接用」。
+- **进 LazyKing 仓库**：通用运行时代码、技能规则、模板和测试；判断标准是「换一个项目还能直接用」。
 - **不进任何 git**：业务脚本、适配层、坑库、凭据、台账、报告产物、浏览器登录态。
 - **进业务仓库时**：`data-tools/`、`.data-tools/` 和生成的技能入口只在本机安装，由同步工具写进 `.gitignore`，不进入业务仓库 git。团队共享走公司内网制品库或共享目录。
 
@@ -29,8 +31,8 @@
 ### 1. 初始化工具目录
 
 ```powershell
-git clone https://github.com/liushih/claudeTool.git C:\project\claudeTool
-cd C:\project\claudeTool
+git clone https://github.com/liushih/LazyKing.git C:\project\LazyKing
+cd C:\project\LazyKing
 powershell -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
@@ -41,7 +43,7 @@ powershell -ExecutionPolicy Bypass -File .\setup.ps1
 Claude Code（个人/全局）：
 
 ```text
-/plugin marketplace add liushih/claudeTool
+/plugin marketplace add liushih/LazyKing
 /plugin install data-tools@data-tools
 ```
 
@@ -85,7 +87,7 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -Target cursor,codex -Sco
 
 ## 团队项目接入（本地安装，不进业务仓库 git）
 
-维护者在 claudeTool 仓库执行：
+维护者在 LazyKing 仓库执行：
 
 ```bash
 python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project-id <项目ID> --targets claude
@@ -162,7 +164,7 @@ DSH 的沙箱只允许写工作区和临时目录。个人/全局模式下 `<DAT
 | `scripts/` | 命令行入口 |
 | `hexin-*` | 旧工具，用法见各自目录 |
 
-提交前先读 [CONTRIBUTING.md](CONTRIBUTING.md)：只有通用能力进 claudeTool 仓库；业务仓库集成时，所有 data-tools 内容只在本机。
+提交前先读 [CONTRIBUTING.md](CONTRIBUTING.md)：只有通用能力进 LazyKing 仓库；业务仓库集成时，所有 data-tools 内容只在本机。
 
 ## License
 

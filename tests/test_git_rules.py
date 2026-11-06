@@ -94,16 +94,16 @@ def test_sync_source_must_match_branch_target():
 
 
 def test_sync_uses_target_prefix_when_task_missing():
-    assert check_sync("feature/test/lsh/整合claudeTool", None) == "test"
+    assert check_sync("feature/test/lsh/整合LazyKing", None) == "test"
 
 
 def test_sync_explicit_source_matches_target_prefix():
-    assert check_sync("feature/test/lsh/整合claudeTool", "test") == "test"
+    assert check_sync("feature/test/lsh/整合LazyKing", "test") == "test"
 
 
 def test_sync_explicit_source_still_rejects_other_target():
     with pytest.raises(RuleViolation) as exc:
-        check_sync("feature/test/lsh/整合claudeTool", "dev")
+        check_sync("feature/test/lsh/整合LazyKing", "dev")
     assert exc.value.rule == "sync-source"
 
 

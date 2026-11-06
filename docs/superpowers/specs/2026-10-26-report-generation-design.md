@@ -83,7 +83,7 @@ collect.py ──> JSON（确定性、可复现、可测试）
 git:
   repos:
     - C:/project/hexincloud
-    - C:/project/claudeTool
+    - C:/project/LazyKing
   authors:
     - 1739498098@qq.com
 

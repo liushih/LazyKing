@@ -42,7 +42,7 @@
 
 同步工具会把 `/data-tools/`、`/.data-tools/` 和生成出来的技能目录整体写进业务仓库 `.gitignore`。已有业务仓库如果之前提交过这些路径，同步工具会提示用 `git rm -r --cached` 移出版本库；本地文件保留。
 
-复杂业务的 impl 模块（如登录客户端、链路封装）也放 `projects/<项目ID>/scripts/`，只在本机使用；不要写死 `C:\project\claudeTool`、`hexin-data-gen`、`hexin-db-tools` 等旧路径。凭据读项目 `.env`，token 缓存写 `projects/<项目ID>/.token.json`。
+复杂业务的 impl 模块（如登录客户端、链路封装）也放 `projects/<项目ID>/scripts/`，只在本机使用；不要写死 `C:\project\LazyKing`、`hexin-data-gen`、`hexin-db-tools` 等旧路径。凭据读项目 `.env`，token 缓存写 `projects/<项目ID>/.token.json`。
 
 团队共享的 adapter、坑库、脚本和模板通过公司内网制品库或共享目录分发，每人放到自己的 `.data-tools/`；不要用 `git add -f` 绕过忽略规则。
 

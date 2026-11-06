@@ -6,7 +6,7 @@ hexincloud 本地联调的浏览器驱动（可见 Chrome + 条件等待）。
 
 | 配置 | 位置 | 作用 |
 |------|------|------|
-| Playwright MCP 启动参数 | `hexincloud/.mcp.json` → `mcpServers.playwright.args` | `--browser chrome --headed --user-data-dir <claudeTool>/pw-profile`，让 MCP 直接起可见 Chrome，不用再手动连 CDP |
+| Playwright MCP 启动参数 | `hexincloud/.mcp.json` → `mcpServers.playwright.args` | `--browser chrome --headed --user-data-dir <LazyKing>/pw-profile`，让 MCP 直接起可见 Chrome，不用再手动连 CDP |
 | 浏览器 profile | 默认 `../pw-profile`，可用 `PW_PROFILE` 覆盖 | 复用登录态，第二次起不用重新登录 |
 | 等待条件封装 | `browser.mjs` | 用接口响应 / 元素可见 / URL 变化代替固定 sleep |
 | 冒烟脚本 | `smoke.mjs` | 验证浏览器能起、能登录、能进 B2D 待发货 |

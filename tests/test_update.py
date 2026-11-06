@@ -525,7 +525,7 @@ def test_apply_update_rejects_undecodable_plugin_json(project, monkeypatch):
         "https://example.com/repo.git",
         "git@example.com:team/repo.git",
         "ssh://git@example.com/team/repo.git",
-        "C:/repos/claudeTool",
+        "C:/repos/LazyKing",
     ],
 )
 def test_validate_source_allows_token_free_forms(source):

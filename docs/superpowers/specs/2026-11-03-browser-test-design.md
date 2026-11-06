@@ -6,7 +6,7 @@
 
 ## 1. 背景与目标
 
-claudeTool 已有 5 项能力（`db-access`、`data-gen-core`、`adapter-bootstrap`、`report-writer`、`git-workflow`），但浏览器上的联调、复现和回归仍靠临时脚本与人工探索。业务仓库 `hexincloud` 已有一版手工 `browser-test` 技能（Node + Markdown 手册 + `browser.mjs`），只覆盖单个项目，且每次测试仍要重新判断页面入口、选择器和等待信号。
+LazyKing 已有 5 项能力（`db-access`、`data-gen-core`、`adapter-bootstrap`、`report-writer`、`git-workflow`），但浏览器上的联调、复现和回归仍靠临时脚本与人工探索。业务仓库 `hexincloud` 已有一版手工 `browser-test` 技能（Node + Markdown 手册 + `browser.mjs`），只覆盖单个项目，且每次测试仍要重新判断页面入口、选择器和等待信号。
 
 目标是增加第 6 项能力：用可见 Chrome 执行可复跑的页面测试。第一次探索后把流程沉淀成 YAML，下次直接复跑；失败时自动生成诊断包，AI 据此修改流程，不要求人重新描述。
 

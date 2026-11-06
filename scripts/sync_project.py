@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.install import BEGIN, END, install, skill_names
 
-DEFAULT_SOURCE = "https://github.com/liushih/claudeTool.git"
+DEFAULT_SOURCE = "https://github.com/liushih/LazyKing.git"
 
 GITIGNORE_BEGIN = "# data-tools:begin"
 GITIGNORE_END = "# data-tools:end"

@@ -1045,11 +1045,11 @@ git commit -m "feat: 个人配置分层与 project-setup 并升版本至 1.9.0"
 - Create: `C:/project/hexincloud/.data-tools/projects/hexincloud/personal.example.yaml`
 - Create: `C:/project/hexincloud/.data-tools/projects/hexincloud/personal.yaml`（本机，不入库）
 
-**说明：** 这是业务仓库的本地落地，不属于 claudeTool 的提交；是否提交 hexincloud 由使用者决定。
+**说明：** 这是业务仓库的本地落地，不属于 LazyKing 的提交；是否提交 hexincloud 由使用者决定。
 
 - [ ] **Step 1: 先同步新工具包**
 
-在 claudeTool 运行：
+在 LazyKing 运行：
 
 ```bash
 .venv/Scripts/python.exe scripts/sync_project.py --project-dir C:/project/hexincloud --project-id hexincloud --targets claude --dry-run

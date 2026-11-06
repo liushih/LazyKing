@@ -39,7 +39,7 @@
 
 | 层 | 位置 | 进 git | 内容 |
 |---|---|---|---|
-| 规则与引擎 | `C:\project\claudeTool` | 是（公开/私有仓库） | skill 源文件、通用 runtime、安装脚本 |
+| 规则与引擎 | `C:\project\LazyKing` | 是（公开/私有仓库） | skill 源文件、通用 runtime、安装脚本 |
 | 业务代码 | 目标业务仓库 | 是（公司仓库） | 只放生成的工具入口文件，不放工具实现 |
 | 项目适配 | `%USERPROFILE%\.data-tools\projects\<项目ID>` | 否 | adapter.yaml、项目脚本、坑、凭据 |
 
@@ -50,7 +50,7 @@
 ## 4. 仓库结构
 
 ```
-claudeTool/
+LazyKing/
   runtime/
     runner.py         批量执行：并发、台账、断点续跑、按 adapter 驱动
     ledger.py         CSV 台账读写

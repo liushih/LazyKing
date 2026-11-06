@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 
 import yaml
 
-DEFAULT_SOURCE = "https://github.com/liushih/claudeTool.git"
+DEFAULT_SOURCE = "https://github.com/liushih/LazyKing.git"
 DEFAULT_INTERVAL_HOURS = 24
 DEFAULT_FAILURE_COOLDOWN_MINUTES = 15
 GIT_TIMEOUT_SECONDS = 5

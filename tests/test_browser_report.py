@@ -186,6 +186,8 @@ def test_diagnosis_lists_display_problems(page, fixture_url, tmp_path, monkeypat
              "testid": "order-detail", "class": None, "reason": "容器内未找到该文字"},
             {"kind": "truncated", "field": None, "text": "上海市浦东新区", "tag": "td",
              "testid": None, "class": "el-table__cell", "reason": "scrollWidth 320 > clientWidth 120"},
+            {"kind": "empty_value", "field": "收货人", "text": "张三", "tag": "div",
+             "testid": None, "class": None, "reason": "标签可见，期望值未显示"},
         ],
         "scan_limited": False,
     }
@@ -193,4 +195,5 @@ def test_diagnosis_lists_display_problems(page, fixture_url, tmp_path, monkeypat
     text = (out / "diagnosis.md").read_text(encoding="utf-8")
     assert "## 显示问题" in text
     assert "客户名称" in text and "scrollWidth 320 > clientWidth 120" in text
+    assert "期望值 '张三'" in text
     assert "allow_truncate" in text

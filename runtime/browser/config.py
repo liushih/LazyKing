@@ -133,7 +133,7 @@ def _validate_display(spec: Any, where: str) -> None:
         raise BrowserConfigError(f"{where} 的 expect_display.locator 非法：{exc}") from exc
 
     fields = spec.get("fields")
-    if fields is not None:
+    if "fields" in spec:
         if not isinstance(fields, list):
             raise BrowserConfigError(f"{where} 的 expect_display.fields 必须是列表")
         for index, item in enumerate(fields, 1):
@@ -155,7 +155,7 @@ def _validate_display(spec: Any, where: str) -> None:
         raise BrowserConfigError(f"{where} 的 expect_display.scan 必须是布尔值")
 
     allow = spec.get("allow_truncate")
-    if allow is not None:
+    if "allow_truncate" in spec:
         if not isinstance(allow, list):
             raise BrowserConfigError(f"{where} 的 expect_display.allow_truncate 必须是列表")
         for index, item in enumerate(allow, 1):

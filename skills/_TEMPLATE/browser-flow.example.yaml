@@ -33,14 +33,14 @@ steps:
     wait_visible: {testid: b2d-update-logistics-dialog}
     expect_text: {locator: {testid: b2d-update-logistics-dialog}, contains: 物流方式}
 
-  - name: 打开行日志
-    click: {in: row, role: button, name: 日志}
-    wait_response: /log/operlog/treeByBizKey
-    expect_visible: {css: ".el-drawer:visible"}
-
   - name: 核对详情字段
     expect_display:
       locator: {testid: b2d-update-logistics-dialog}
       fields:
         - 物流方式
         - {label: 出库单号, value: "${order_no}"}
+
+  - name: 打开行日志
+    click: {in: row, role: button, name: 日志}
+    wait_response: /log/operlog/treeByBizKey
+    expect_visible: {css: ".el-drawer:visible"}

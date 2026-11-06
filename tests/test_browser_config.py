@@ -258,6 +258,8 @@ def test_expect_display_locator_only_is_valid(browser_project):
     ("locator: {testid: x}\n      scan: false", "fields"),
     ("locator: {testid: x}\n      allow_truncate: [{role: button}]", "allow_truncate"),
     ("locator: {testid: x}\n      scan: 'yes'", "scan"),
+    ("locator: {testid: x}\n      fields: null", "fields"),
+    ("locator: {testid: x}\n      allow_truncate: null", "allow_truncate"),
 ])
 def test_expect_display_rejects_invalid_spec(browser_project, body, match):
     add_step(browser_project, "  - name: 显示检查\n    expect_display:\n      " + body + "\n")

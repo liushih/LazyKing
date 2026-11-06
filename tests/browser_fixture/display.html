@@ -62,6 +62,22 @@
 
   <div data-testid="long-value"><span>客户名称</span></div>
 
+  <div data-testid="same-element">
+    <span class="ellipsis">客户名称 上海某某公司很长很长的地址内容</span>
+  </div>
+
+  <div data-testid="spaced">
+    <span>客户名称</span><span>上海 某某公司</span>
+  </div>
+
+  <div data-testid="inner-text" style="width:80px;overflow:hidden">
+    <div data-testid="inner-text-body" style="width:200px">这是一段容器自身的文字内容</div>
+  </div>
+
+  <div data-testid="svg-case">
+    <svg width="80" height="20"><text x="0" y="15">很长很长的图表标签文字超出画布</text></svg>
+  </div>
+
   <div data-testid="outside"><span>委托单号</span><span>WO001</span></div>
   <div data-testid="outside-extra"><span>客户名称</span><span>上海某某公司</span></div>
 

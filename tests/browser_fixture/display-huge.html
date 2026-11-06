@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8"><title>大量文本夹具</title></head>
+<body>
+  <div data-testid="huge"></div>
+  <script>
+    const huge = document.querySelector('[data-testid="huge"]');
+    for (let i = 0; i < 5001; i++) {
+      const s = document.createElement('span');
+      s.textContent = '文本' + i;
+      huge.appendChild(s);
+    }
+  </script>
+</body>
+</html>

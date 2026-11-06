@@ -306,3 +306,42 @@ def test_expect_display_caps_expected_value_text(page, fixture_url, tmp_path):
                                               [{"label": "客户名称", "value": value}]))
     problem = result.failure.detail["display_problems"][0]
     assert problem["kind"] == "empty_value" and len(problem["text"]) == 80
+
+
+def test_expect_display_dedupes_same_element_truncation(page, fixture_url, tmp_path):
+    flow = display_flow(fixture_url, "same-element",
+                        [{"label": "客户名称", "value": "上海某某公司很长很长的地址内容"}], scan=True)
+    problems = run(page, tmp_path, flow).failure.detail["display_problems"]
+    assert len(problems) == 1 and problems[0]["kind"] == "truncated"
+
+
+def test_expect_display_normalizes_whitespace_in_fields(page, fixture_url, tmp_path):
+    flow = display_flow(fixture_url, "spaced",
+                        [" 客户名称 ", {"label": "客户名称", "value": "上海\n某某公司"}])
+    assert run(page, tmp_path, flow).result == "pass"
+
+
+def test_expect_display_ignores_whitespace_only_value(page, fixture_url, tmp_path):
+    flow = display_flow(fixture_url, "ok", [{"label": "客户名称", "value": "   "}])
+    assert run(page, tmp_path, flow).result == "pass"
+
+
+def test_expect_display_ignores_clipping_outside_container(page, fixture_url, tmp_path):
+    flow = display_flow(fixture_url, "inner-text-body", ["这是一段容器自身的文字内容"], scan=False)
+    assert run(page, tmp_path, flow).result == "pass"
+
+
+def test_expect_display_skips_svg_text(page, fixture_url, tmp_path):
+    flow = display_flow(fixture_url, "svg-case", scan=True)
+    assert run(page, tmp_path, flow).result == "pass"
+
+
+def test_expect_display_scan_limited_only_when_scanning(page, fixture_url, tmp_path):
+    flow = make_flow(
+        {"name": "打开", "goto": fixture_url + "/display-huge.html"},
+        {"name": "显示检查", "expect_display": {
+            "locator": {"testid": "huge"}, "fields": ["不存在的字段"], "scan": False}, "timeout": 300},
+    )
+    result = run(page, tmp_path, flow)
+    assert result.result == "fail"
+    assert "扫描已达上限" not in result.failure.message

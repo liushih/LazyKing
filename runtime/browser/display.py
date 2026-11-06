@@ -20,7 +20,10 @@ DISPLAY_JS = r"""
   const MAX_PROBLEMS = 50;
   const MAX_TEXT_ELEMENTS = 5000;
   const problems = [];
-  const reported = new Set();
+  const reportedTruncated = new Set();
+
+  const normalize = (value) => String(value === null || value === undefined ? '' : value)
+    .replace(/\s+/g, ' ').trim();
 
   const visible = (el) => {
     const cs = getComputedStyle(el);
@@ -29,7 +32,7 @@ DISPLAY_JS = r"""
     return rect.width > 0 && rect.height > 0;
   };
 
-  const textOf = (el) => (el.innerText || '').replace(/\s+/g, ' ').trim();
+  const textOf = (el) => normalize(el.innerText || '');
 
   const classOf = (el) => (typeof el.className === 'string' ? el.className.trim() : '');
 
@@ -44,8 +47,18 @@ DISPLAY_JS = r"""
     if (problems.length >= MAX_PROBLEMS) return;
     const full = {kind: null, field: null, text: null, tag: null, testid: null, class: null, reason: ''};
     Object.assign(full, describe(el), problem);
+    if (full.kind === 'truncated' && el) {
+      if (reportedTruncated.has(el)) return;
+      reportedTruncated.add(el);
+    }
     problems.push(full);
-    if (el) reported.add(el);
+  };
+
+  const inSkippedSubtree = (el) => {
+    for (let node = el; node; node = node.parentElement) {
+      if (SKIP.has(node.tagName.toUpperCase())) return true;
+    }
+    return false;
   };
 
   const candidates = [];
@@ -53,7 +66,7 @@ DISPLAY_JS = r"""
   const nodes = [container];
   for (const el of container.querySelectorAll('*')) nodes.push(el);
   for (const el of nodes) {
-    if (SKIP.has(el.tagName)) continue;
+    if (inSkippedSubtree(el)) continue;
     if (!visible(el)) continue;
     let hasText = false;
     for (const node of el.childNodes) {
@@ -90,7 +103,7 @@ DISPLAY_JS = r"""
     if (clamp && clamp !== 'none' && el.scrollHeight > el.clientHeight + EPS) {
       reasons.push('line-clamp ' + clamp + ' 内容超出');
     }
-    let ancestor = el.parentElement;
+    let ancestor = el === container ? null : el.parentElement;
     while (ancestor) {
       const acs = getComputedStyle(ancestor);
       const clipX = acs.overflowX === 'hidden' || acs.overflowX === 'clip';
@@ -114,7 +127,10 @@ DISPLAY_JS = r"""
   const allowed = (el) => {
     const text = textOf(el);
     return (args.allow_truncate || []).some((rule) => {
-      if (typeof rule === 'string') return text.includes(rule);
+      if (typeof rule === 'string') {
+        const needle = normalize(rule);
+        return needle ? text.includes(needle) : false;
+      }
       if (rule && rule.css) {
         try { return el.matches(rule.css); } catch (err) { return false; }
       }
@@ -124,28 +140,33 @@ DISPLAY_JS = r"""
 
   const checkField = (raw) => {
     const isObject = raw !== null && typeof raw === 'object';
-    const label = isObject ? raw.label : raw;
-    const value = isObject ? raw.value : null;
-    const labelEl = findTextEl(String(label));
+    const label = normalize(isObject ? raw.label : raw);
+    const valueRaw = isObject ? raw.value : null;
+    if (!label) {
+      add(container, {kind: 'missing_field', field: null, reason: '字段名为空'});
+      return;
+    }
+    const labelEl = findTextEl(label);
     if (!labelEl) {
       add(container, {
         kind: 'missing_field',
-        field: String(label),
-        reason: domText.includes(String(label)) ? '存在但不可见' : '容器内未找到该文字',
+        field: label,
+        reason: domText.includes(label) ? '存在但不可见' : '容器内未找到该文字',
       });
     } else {
       const reasons = clipped(labelEl);
       if (reasons.length && !allowed(labelEl)) {
-        add(labelEl, {kind: 'truncated', field: String(label), reason: reasons.join('；')});
+        add(labelEl, {kind: 'truncated', field: label, reason: reasons.join('；')});
       }
     }
-    if (value === null || value === undefined || value === '' || value === false) return;
-    const valueText = String(value);
+    if (valueRaw === null || valueRaw === undefined || valueRaw === false) return;
+    const valueText = normalize(valueRaw);
+    if (!valueText) return;
     const valueEl = findTextEl(valueText);
     if (!valueEl) {
       add(container, {
         kind: 'empty_value',
-        field: String(label),
+        field: label,
         text: valueText.slice(0, 80),
         reason: domText.includes(valueText) ? '期望值存在但不可见' : '标签可见，期望值未显示',
       });
@@ -153,7 +174,7 @@ DISPLAY_JS = r"""
     }
     const reasons = clipped(valueEl);
     if (reasons.length && !allowed(labelEl) && !allowed(valueEl)) {
-      add(valueEl, {kind: 'truncated', field: String(label), reason: reasons.join('；')});
+      add(valueEl, {kind: 'truncated', field: label, reason: reasons.join('；')});
     }
   };
 
@@ -161,14 +182,15 @@ DISPLAY_JS = r"""
 
   if (args.scan !== false) {
     for (const el of candidates) {
-      if (reported.has(el) || allowed(el)) continue;
+      if (reportedTruncated.has(el) || allowed(el)) continue;
       const reasons = clipped(el);
       if (reasons.length) add(el, {kind: 'truncated', field: null, reason: reasons.join('；')});
       if (problems.length >= MAX_PROBLEMS) break;
     }
   }
 
-  return {problems, scan_limited: textElements > MAX_TEXT_ELEMENTS, text_elements: textElements};
+  const scanLimited = args.scan !== false && textElements > MAX_TEXT_ELEMENTS;
+  return {problems, scan_limited: scanLimited, text_elements: textElements};
 }
 """
 

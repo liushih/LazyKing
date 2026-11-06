@@ -103,7 +103,9 @@ def _display_line(problem: dict) -> str:
         element += f'[data-testid="{testid}"]'
     elif css_class:
         element += "." + str(css_class).replace(" ", ".")
-    if field:
+    if kind == "empty_value" and field and text:
+        head = f"- [{kind}] 字段 {field}（期望值 {text!r}）"
+    elif field:
         head = f"- [{kind}] 字段 {field}"
     elif text:
         head = f"- [{kind}] 文本 {text!r}"

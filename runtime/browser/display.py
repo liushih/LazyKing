@@ -65,7 +65,11 @@ DISPLAY_JS = r"""
   }
 
   const domText = (container.textContent || '').replace(/\s+/g, ' ').trim();
-  const findTextEl = (needle) => candidates.find((el) => textOf(el).includes(needle)) || null;
+  const findTextEl = (needle) => {
+    const matches = candidates.filter((el) => textOf(el).includes(needle));
+    if (!matches.length) return null;
+    return matches.find((el) => !matches.some((other) => other !== el && el.contains(other))) || matches[0];
+  };
 
   const ancestorDesc = (el) => {
     const tag = el.tagName.toLowerCase();
@@ -131,7 +135,9 @@ DISPLAY_JS = r"""
       });
     } else {
       const reasons = clipped(labelEl);
-      if (reasons.length) add(labelEl, {kind: 'truncated', field: String(label), reason: reasons.join('；')});
+      if (reasons.length && !allowed(labelEl)) {
+        add(labelEl, {kind: 'truncated', field: String(label), reason: reasons.join('；')});
+      }
     }
     if (value === null || value === undefined || value === '' || value === false) return;
     const valueText = String(value);
@@ -140,13 +146,15 @@ DISPLAY_JS = r"""
       add(container, {
         kind: 'empty_value',
         field: String(label),
-        text: valueText,
+        text: valueText.slice(0, 80),
         reason: domText.includes(valueText) ? '期望值存在但不可见' : '标签可见，期望值未显示',
       });
       return;
     }
     const reasons = clipped(valueEl);
-    if (reasons.length) add(valueEl, {kind: 'truncated', field: String(label), reason: reasons.join('；')});
+    if (reasons.length && !allowed(labelEl) && !allowed(valueEl)) {
+      add(valueEl, {kind: 'truncated', field: String(label), reason: reasons.join('；')});
+    }
   };
 
   for (const field of args.fields || []) checkField(field);

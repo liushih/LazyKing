@@ -284,3 +284,25 @@ def test_expect_display_caps_problem_count_and_text(page, fixture_url, tmp_path)
     assert len(problems) == 50
     assert all(len(p["text"] or "") <= 80 for p in problems)
     assert "50" in result.failure.message
+
+
+def test_expect_display_declared_value_uses_innermost_match(page, fixture_url, tmp_path):
+    flow = display_flow(fixture_url, "wrapped",
+                        [{"label": "收货地址", "value": "上海市浦东新区某某路100号"}], scan=False)
+    problem = run(page, tmp_path, flow).failure.detail["display_problems"][0]
+    assert problem["kind"] == "truncated" and problem["field"] == "收货地址"
+
+
+def test_expect_display_allow_truncate_covers_declared_fields(page, fixture_url, tmp_path):
+    flow = display_flow(fixture_url, "ellipsis",
+                        [{"label": "收货地址", "value": "上海市浦东新区某某路100号"}],
+                        scan=False, allow_truncate=["收货地址"])
+    assert run(page, tmp_path, flow).result == "pass"
+
+
+def test_expect_display_caps_expected_value_text(page, fixture_url, tmp_path):
+    value = "长" * 120
+    result = run(page, tmp_path, display_flow(fixture_url, "long-value",
+                                              [{"label": "客户名称", "value": value}]))
+    problem = result.failure.detail["display_problems"][0]
+    assert problem["kind"] == "empty_value" and len(problem["text"]) == 80

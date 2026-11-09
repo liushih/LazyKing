@@ -15,7 +15,7 @@ description: >-
 
 旧仓不是单应用，是**每模块一个独立应用**。所有取证路径都要带模块前缀，否则找不到文件。
 
-1. 候选模块查 `references/old-erp-map.md`（主站 21 个 / 美国站 14 个，含各模块框架与目录形态）
+1. 候选模块查 `<TOOLS_DIR>/skills/erp-migration/references/old-erp-map.md`（主站 21 个 / 美国站 14 个，含各模块框架与目录形态）
 2. 一个业务域常横跨多个后端模块（例：在线库存同步 = `erp_storage` + `erp_product` + `erp_order`），**必须列全**；只读一个必然漏功能
 3. 业务页面不在后端模块里：主要在 `modules/erp_html/app/pages/<域>/`（React），其他前端模块各自 `src/`（Vue/TS）
 4. 模块清单写进说明书 §1，之后每条证据都带模块前缀
@@ -85,7 +85,7 @@ description: >-
 
 - 在 §7 后单列一节，逐条写：**矛盾点、两套行为各在哪、UAT 实际跑的是哪套、新系统取哪套及理由**
 - 重点查三对：列表与推送、页面校验与后端校验、文案与实现
-- 样例见 `references/deliverable-templates.md`
+- 样例见 `<TOOLS_DIR>/skills/erp-migration/references/deliverable-templates.md`
 
 ## 数据同步结论（四选一）
 
@@ -102,7 +102,7 @@ description: >-
 
 ## 交付物
 
-全部放本仓 `docs/migration/<域>/`，模板与状态取值见 `references/deliverable-templates.md`：
+全部放本仓 `docs/migration/<域>/`，模板与状态取值见 `<TOOLS_DIR>/skills/erp-migration/references/deliverable-templates.md`：
 
 - `<域>-迁移说明书.md`——8 节 + 矛盾小节
 - `<域>-覆盖矩阵.md`——行=功能点（带取证来源），列=新系统状态 + 证据，要能算覆盖率
@@ -150,7 +150,7 @@ D 档在用户确认前一律按「必须实现」处理。
 
 | 情况 | 动作 |
 |---|---|
-| 域名对不上模块 | 查 `references/old-erp-map.md` 列候选让用户选，不硬猜 |
+| 域名对不上模块 | 查 `<TOOLS_DIR>/skills/erp-migration/references/old-erp-map.md` 列候选让用户选，不硬猜 |
 | 域跨多个模块 | 全列进 §1 逐个读；没读完的标「待确认」 |
 | 新旧找不到对应 | 进第 8 节，不中断 |
 | 功能点无法判断是否在用 | 标「待确认」，进废弃清单让用户定 |

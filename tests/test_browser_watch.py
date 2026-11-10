@@ -134,3 +134,35 @@ def test_slower_button_in_browser_is_picked_up(page, fixture_url):
 
     assert controller.delay_ms == 1500
     assert sleeps == [1.5]
+
+
+def test_bar_click_keeps_dropdown_open_and_focus(page):
+    page.set_content(
+        """
+        <button id="opener">选择仓库</button>
+        <div id="dropdown" hidden><div role="option" id="option">海洋研发样品仓</div></div>
+        <script>
+          const opener = document.querySelector('#opener');
+          const dropdown = document.querySelector('#dropdown');
+          opener.addEventListener('click', () => {
+            dropdown.hidden = false;
+          });
+          document.addEventListener('click', (event) => {
+            if (opener.contains(event.target) || dropdown.contains(event.target)) return;
+            dropdown.hidden = true;
+          }, true);
+        </script>
+        """
+    )
+    controller = WatchController(page, sleep=lambda seconds: None)
+    controller.attach()
+
+    page.click("#opener")
+    assert page.evaluate("() => !document.querySelector('#dropdown').hidden") is True
+
+    page.locator("#__data-tools-watch [data-act=slower]").click()
+
+    assert page.evaluate("() => !document.querySelector('#dropdown').hidden") is True
+    assert page.evaluate(
+        "() => document.activeElement && document.activeElement.id"
+    ) == "opener"

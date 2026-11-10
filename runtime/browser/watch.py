@@ -51,14 +51,23 @@ _INSTALL_JS = """
     show() { host.style.display = ''; },
   };
 
-  root.addEventListener('click', (event) => {
-    const button = event.target && event.target.closest ? event.target.closest('button[data-act]') : null;
-    if (!button) return;
-    event.preventDefault();
-    api.events.push(button.dataset.act);
-  });
-  ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach((type) =>
-    root.addEventListener(type, (event) => event.stopPropagation())
+  // 控制条写在宿主页面里：点它不能触发页面的「点外部关闭」实现，也不能把焦点从
+  // 已展开的下拉框上抢走。window 捕获阶段比 document 上的监听更早，先在这里截住。
+  const pathOf = (event) => (typeof event.composedPath === 'function' ? event.composedPath() : []);
+  const fromBar = (event) => pathOf(event).indexOf(host) !== -1;
+  const guard = (event) => {
+    if (!fromBar(event)) return;
+    event.stopImmediatePropagation();
+    if (event.type === 'pointerdown' || event.type === 'mousedown') {
+      event.preventDefault();
+    }
+    if (event.type === 'click') {
+      const button = pathOf(event).find((node) => node && node.dataset && node.dataset.act);
+      if (button) api.events.push(button.dataset.act);
+    }
+  };
+  ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click'].forEach((type) =>
+    window.addEventListener(type, guard, true)
   );
 
   window.__dataToolsWatch = api;

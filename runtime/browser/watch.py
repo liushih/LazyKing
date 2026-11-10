@@ -6,7 +6,7 @@ import time
 from typing import Any, Callable
 
 SPEEDS_MS = (200, 500, 800, 1500, 2500)
-DEFAULT_SPEED_INDEX = 2
+DEFAULT_SPEED_INDEX = 3
 POLL_INTERVAL = 0.1
 _MAX_DRAIN_FAILURES = 20
 

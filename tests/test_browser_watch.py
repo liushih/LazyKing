@@ -34,10 +34,10 @@ def test_pace_waits_one_action_interval():
 
     controller.pace("步骤 1/3：打开")
 
-    assert sleeps == [0.8]
-    assert controller.delay_ms == 800
-    assert controller.speed_text == "0.8s"
-    assert page.states()[-1] == {"label": "步骤 1/3：打开", "speed": "0.8s", "paused": False}
+    assert sleeps == [1.5]
+    assert controller.delay_ms == 1500
+    assert controller.speed_text == "1.5s"
+    assert page.states()[-1] == {"label": "步骤 1/3：打开", "speed": "1.5s", "paused": False}
 
 
 def test_speed_buttons_change_pace_and_clamp():
@@ -57,7 +57,7 @@ def test_speed_buttons_change_pace_and_clamp():
     controller.pace("快")
 
     assert controller.speed_index == 0
-    assert sleeps == [1.5, 2.5, 0.2]
+    assert sleeps == [2.5, 2.5, 0.2]
 
 
 def test_pause_waits_until_resume_without_extra_delay():
@@ -132,8 +132,8 @@ def test_slower_button_in_browser_is_picked_up(page, fixture_url):
     controller._sleep = sleeps.append
     controller.pace("下一步")
 
-    assert controller.delay_ms == 1500
-    assert sleeps == [1.5]
+    assert controller.delay_ms == 2500
+    assert sleeps == [2.5]
 
 
 def test_bar_click_keeps_dropdown_open_and_focus(page):

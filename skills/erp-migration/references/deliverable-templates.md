@@ -23,7 +23,7 @@
 
 | 功能点 | 取证 | 新系统 | 证据 |
 | --- | --- | --- | --- |
-| 按平台进入列表 | `modules/erp_html/app/pages/Publish/StockSynchOnline/index.jsx`，路由带 platform | 规划中 | 新页面无平台参数 |
+| 按平台进入列表 | `modules/<前端模块>/app/pages/<域>/index.jsx`，路由带 platform | 规划中 | 新页面无平台参数 |
 ```
 
 规则：
@@ -40,7 +40,7 @@
 汇报用的功能说明见同目录 `<域>-功能说明.md`。
 
 ## 1. 域边界与交接
-模块清单（旧 `modules/<a>`、`modules/<b>`；前端 `modules/erp_html/app/pages/<域>`）
+模块清单（旧 `modules/<a>`、`modules/<b>`；前端 `<旧前端模块根>/<域>`）
 作用：谁用、上游交来什么、下游谁读
 角色与单据、域内外分界
 

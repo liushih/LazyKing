@@ -27,6 +27,8 @@ description: >-
 | 新模块清单 | `<新模块清单>` | 目标系统各业务模块 |
 | 业务主库 | `<业务主库>` | 按域分库时记库名与实例 |
 
+`<TOOLS_DIR>` 是业务仓库根目录下的 `data-tools/`：从当前目录向上查找，找不到读 `DATA_TOOLS_DIR`，再找不到读 `~/.data-tools/config.yaml` 的 `tools_dir`；仍找不到就问用户。
+
 模块索引写到 `<TOOLS_DIR>/skills/erp-migration/references/old-erp-map.md`：现在是模板，先按模板填本项目；格式示例见同目录 `old-erp-map.example.md`，示例里的模块名不属于本项目，不得当候选。
 
 ## 第一步：先定模块

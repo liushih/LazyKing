@@ -18,6 +18,7 @@ from .config import FlowDef, LoginConfig
 from .display import check_display
 from .driver import check_login_success, page_closed
 from .locator import LocatorMatchError, find, find_all
+from .watch import WatchController
 
 
 class FlowRunError(Exception):
@@ -466,6 +467,7 @@ def run_flow(
     timeout_ms: int = 15000,
     logger: Any = None,
     api_watch: ApiWatchConfig | None = None,
+    pacer: WatchController | None = None,
 ) -> FlowResult:
     started_at = datetime.now().astimezone().isoformat(timespec="seconds")
     started = time.monotonic()
@@ -479,6 +481,8 @@ def run_flow(
     try:
         for index, step in enumerate(flow.steps, 1):
             name = str(step.get("name", f"步骤{index}"))
+            if pacer is not None:
+                pacer.pace(f"步骤 {index}/{len(flow.steps)}：{name}")
             step_started = time.monotonic()
             step_timeout = int(step.get("timeout", timeout_ms))
             watch.begin_step(step.get("allow_api_error", False))
@@ -538,6 +542,7 @@ def ensure_login(
     project_dir: Path,
     timeout_ms: int = 15000,
     logger: Any = None,
+    pacer: WatchController | None = None,
 ) -> bool:
     values = dict(variables)
     try:
@@ -546,6 +551,8 @@ def ensure_login(
         raise FlowRunError(f"登录地址变量解析失败：{exc}") from exc
 
     login_path = urlparse(str(url)).path
+    if pacer is not None:
+        pacer.pace("登录：打开登录页")
     page.goto(str(url), wait_until="domcontentloaded")
     deadline = time.monotonic() + timeout_ms / 1000
     while time.monotonic() < deadline:
@@ -563,6 +570,8 @@ def ensure_login(
         "password": login.password or "",
     }
     if login.impl:
+        if pacer is not None:
+            pacer.pace("登录：自定义登录")
         func = load_impl(login.impl, Path(project_dir))
         ctx = SimpleNamespace(
             page=page,
@@ -579,6 +588,8 @@ def ensure_login(
         for index, raw_step in enumerate(login.steps, 1):
             step = dict(raw_step)
             step.setdefault("name", f"登录步骤{index}")
+            if pacer is not None:
+                pacer.pace(f"登录 {index}/{len(login.steps)}：{step['name']}")
             try:
                 run_step(
                     page,

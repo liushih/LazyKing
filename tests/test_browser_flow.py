@@ -119,6 +119,35 @@ def test_impl_merges_vars(page, fixture_url, tmp_path):
     assert run(page, tmp_path, flow).result == "pass"
 
 
+class _Pacer:
+    def __init__(self):
+        self.labels = []
+
+    def pace(self, label):
+        self.labels.append(label)
+
+
+def test_flow_reports_each_step_to_pacer(page, fixture_url, tmp_path):
+    flow = make_flow(
+        {"name": "打开", "goto": fixture_url + "/index.html"},
+        {"name": "断言", "expect_url": {"path": "/index.html"}},
+    )
+    pacer = _Pacer()
+
+    result = run_flow(
+        page,
+        flow,
+        "dev",
+        {"order_no": "WO001"},
+        tmp_path,
+        timeout_ms=1000,
+        pacer=pacer,
+    )
+
+    assert result.result == "pass"
+    assert pacer.labels == ["步骤 1/2：打开", "步骤 2/2：断言"]
+
+
 def test_use_row_waits_for_layout_to_settle_before_next_click(page, fixture_url, tmp_path):
     flow = make_flow(
         {"name": "打开", "goto": fixture_url + "/jitter.html"},

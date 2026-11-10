@@ -40,6 +40,7 @@ from runtime.browser.driver import (
 )
 from runtime.browser.flow import FlowRunError, ensure_login, run_flow
 from runtime.browser.report import artifacts_dir, write_report
+from runtime.browser.watch import WatchController
 from runtime.config import ConfigError, data_home, load_values, project_dir, resolve_project, substitute
 
 PASS = 0
@@ -99,6 +100,7 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--var", action="append", default=[])
     run.add_argument("--headless", action="store_true")
     run.add_argument("--headed", action="store_true", help="显示窗口（一次性启动，会先关掉常驻浏览器）")
+    run.add_argument("--watch", action="store_true", help="观看模式：显示窗口并慢放，页面右上角有暂停/调速控制条")
     run.add_argument("--trace", action="store_true")
     run.add_argument("--json", action="store_true")
     run.add_argument("--profile")
@@ -147,9 +149,10 @@ def _chrome_path() -> str | None:
 
 
 def _launch_options(args: argparse.Namespace, cfg: object) -> dict:
-    """常驻（无头、不弹窗）是默认；--headed 或 resident: false 回到一次性启动。"""
-    resident = bool(cfg.resident) and not args.headed
-    headless = False if args.headed else bool(args.headless or cfg.headless)
+    """常驻（无头、不弹窗）是默认；--headed / --watch 或 resident: false 回到一次性启动。"""
+    visible = bool(args.headed or getattr(args, "watch", False))
+    resident = bool(cfg.resident) and not visible
+    headless = False if visible else bool(args.headless or cfg.headless)
     return {"headless": headless, "resident": resident}
 
 
@@ -257,12 +260,18 @@ def cmd_run(args: argparse.Namespace) -> int:
     artifacts = None
     trace_path = None
     browser_lost = False
+    watch = None
     try:
         session = launch(
             profile=profile,
             tracing=args.trace,
             **_launch_options(args, cfg),
         )
+        if args.watch:
+            watch = WatchController(session.page)
+            watch.attach()
+            if not args.json:
+                print("[观看] 已打开浏览器窗口：页面右上角可暂停/继续和调速")
         collector.attach(session.page)
         if cfg.login is not None:
             try:
@@ -272,6 +281,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                     variables=variables,
                     project_dir=project_dir(project),
                     timeout_ms=cfg.timeout_ms,
+                    pacer=watch,
                 )
             except FlowRunError:
                 raise
@@ -287,12 +297,15 @@ def cmd_run(args: argparse.Namespace) -> int:
             project_dir(project),
             timeout_ms=cfg.timeout_ms,
             api_watch=cfg.api_watch,
+            pacer=watch,
         )
         if result.result == "fail":
             if session_lost(session):
                 # 浏览器被手动关了，后面的失败都是连带的，不是流程本身的问题，也取不到有用的诊断。
                 browser_lost = True
             else:
+                if watch is not None:
+                    watch.hide()
                 try:
                     artifacts = capture(session.page, project, flow, result, collector)
                     result.artifacts = str(artifacts)

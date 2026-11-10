@@ -61,9 +61,9 @@ description: >-
 
 按 `<TOOLS_DIR>/skills/_references/browser-flow-contract.md` 把入口、步骤、等待信号、断言写成 `browser/flows/<流程名>.yaml`，再 `run` 到通过。关键详情页/列表页在数据稳定后加 `expect_display`，核对必须显示的字段并扫描截断；设计上允许省略的字段用 `allow_truncate` 放行。
 
-常用选项（完整表见 `browser-flow-contract.md` 第 10 节）：`--headed` 本次显示窗口（默认不显示，见下）；`--profile <路径>` 换浏览器 profile，用于绕开被占用的 profile 或强制重新登录；`--trace` 录制 trace；`--json` 机器可读输出。常驻和无头的视口固定 1280x720，`--headed` 是最大化，两者页面尺寸不同，对比失败时用同一种模式。
+常用选项（完整表见 `browser-flow-contract.md` 第 10 节）：`--watch` 观看模式（显示窗口并慢放，页面右上角有暂停/调速控制条）；`--headed` 只显示窗口、不快慢放；`--profile <路径>` 换浏览器 profile，用于绕开被占用的 profile 或强制重新登录；`--trace` 录制 trace；`--json` 机器可读输出。常驻和无头的视口固定 1280x720，`--headed` / `--watch` 是最大化，两者页面尺寸不同，对比失败时用同一种模式。
 
-**浏览器默认在后台常驻**：测试连的是工具自己开的专用无头 Chrome，不弹窗，不碰用户日常的 Chrome。第一次 `run` 自动拉起，之后每次只连接、跑完断开，不要在每次测试前后手动开关浏览器。用户要看页面才加 `--headed`；不用时 `browser.py stop --project <项目ID>` 关掉（`--all` 关本机全部）。
+**浏览器默认在后台常驻**：测试连的是工具自己开的专用无头 Chrome，不弹窗，不碰用户日常的 Chrome。第一次 `run` 自动拉起，之后每次只连接、跑完断开，不要在每次测试前后手动开关浏览器。用户要看页面才加 `--headed`；想看完整操作过程时加 `--watch`，每个步骤前停顿，页面右上角可暂停/继续、调快慢。`--watch` 和 `--headed` 都是一次性启动，会先关掉常驻浏览器，跑完关窗；不用时 `browser.py stop --project <项目ID>` 关掉常驻浏览器（`--all` 关本机全部）。
 
 **运行产物会自动清理**：报告保留最近 20 份，诊断包和探索快照各保留 10 份且最多 7 天，`--trace` 录制的 trace 只在失败时随诊断包保留。每次 `run` / `probe` 开始时会清理旧产物；流程通过时会立即删掉该流程之前的失败诊断包。测试任务收尾、不再需要诊断时，运行 `clean` 清空全部诊断包、探索快照和 trace：
 

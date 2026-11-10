@@ -293,6 +293,54 @@ def test_headed_runs_one_shot_visible_window(monkeypatch):
     assert launched[0]["headless"] is False
 
 
+def test_watch_runs_one_shot_headed_and_passes_controller(monkeypatch):
+    launched = []
+    _patch_run(monkeypatch, _Session(), launched)
+    attached = []
+    paced = []
+
+    class FakeWatch:
+        def __init__(self, page):
+            self.page = page
+
+        def attach(self):
+            attached.append(self.page)
+
+        def hide(self):
+            pass
+
+    def fake_run_flow(*args, **kwargs):
+        paced.append(kwargs.get("pacer"))
+        return FlowResult(
+            "smoke", "dev", "pass", "now", 1, "smoke.yaml", [StepResult("打开", "pass", 1)]
+        )
+
+    monkeypatch.setattr(cli, "WatchController", FakeWatch)
+    monkeypatch.setattr(cli, "run_flow", fake_run_flow)
+
+    code = cli.main(
+        ["run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1", "--watch"]
+    )
+
+    assert code == 0
+    assert launched[0]["resident"] is False
+    assert launched[0]["headless"] is False
+    assert attached and isinstance(paced[0], FakeWatch)
+
+
+def test_watch_wins_over_headless_flag(monkeypatch):
+    launched = []
+    _patch_run(monkeypatch, _Session(), launched)
+    cli.main(
+        [
+            "run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1",
+            "--watch", "--headless",
+        ]
+    )
+    assert launched[0]["headless"] is False
+    assert launched[0]["resident"] is False
+
+
 def test_browser_closed_mid_run_is_env_error_without_diagnostics(monkeypatch, capsys):
     class Lost(_Session):
         disconnected = True

@@ -653,10 +653,10 @@ GITLAB_TOKEN_DEMO=
 维护者在 LazyKing 仓库运行同步脚本：
 
 ```bash
-python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project-id <项目ID> --targets claude
+python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project-id <项目ID>
 ```
 
-`--targets` 可选 `claude,cursor,dsh`，逗号分隔，默认 `claude`。codex 只能写 `AGENTS.md`，无法局部忽略，因此团队模式不生成。
+`--targets` 可选 `claude,cursor,dsh`，逗号分隔，默认三者都生成。codex 只能写 `AGENTS.md`，无法局部忽略，因此团队模式不生成。
 不加 `--project-id` 时仍会创建 `.data-tools/` 根目录并同步工具包，只跳过
 `.data-tools/projects/<项目ID>/` 的项目骨架。
 

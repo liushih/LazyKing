@@ -369,7 +369,7 @@ def _planned_target_paths(
 def sync_project(
     project_dir: Path,
     project_id: str | None = None,
-    targets: tuple[str, ...] = ("claude",),
+    targets: tuple[str, ...] = ("claude", "cursor", "dsh"),
     source_root: Path | None = None,
     source_url: str = DEFAULT_SOURCE,
     dry_run: bool = False,
@@ -452,7 +452,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="把 data-tools 同步进业务仓库")
     parser.add_argument("--project-dir", type=Path, required=True, help="业务仓库根目录")
     parser.add_argument("--project-id", help="写入 .data-tools/config.yaml 的 default_project")
-    parser.add_argument("--targets", default="claude", help="逗号分隔：claude,cursor,dsh")
+    parser.add_argument("--targets", default="claude,cursor,dsh", help="逗号分隔：claude,cursor,dsh（默认三者）")
     parser.add_argument("--source", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--source-url", default=DEFAULT_SOURCE)
     parser.add_argument("--dry-run", action="store_true", help="只打印将要执行的动作，不写文件")

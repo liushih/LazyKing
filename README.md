@@ -90,10 +90,10 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -Target cursor,codex -Sco
 维护者在 LazyKing 仓库执行：
 
 ```bash
-python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project-id <项目ID> --targets claude
+python scripts/sync_project.py --project-dir C:\project\<业务仓库> --project-id <项目ID>
 ```
 
-业务仓库本地会出现 `data-tools/`、`.claude/skills/`、`.data-tools/`，但同步工具会把它们整体写进 `.gitignore`，**不会进入业务仓库 git**。业务仓库只保留业务代码。`--targets` 可选 `claude,cursor,dsh`；codex 只能写 `AGENTS.md`，无法局部忽略，因此团队模式不生成。
+业务仓库本地会出现 `data-tools/`、`.claude/skills/`、`.cursor/rules/`、`.dsh/skills/`、`.data-tools/`，但同步工具会把它们整体写进 `.gitignore`，**不会进入业务仓库 git**。业务仓库只保留业务代码。默认生成 `claude,cursor,dsh` 三个入口，可用 `--targets` 缩小；codex 只能写 `AGENTS.md`，无法局部忽略，因此团队模式不生成。
 
 同事接入时，由团队维护者通过内网制品库或共享盘分发 `data-tools/`（或各自从内网镜像同步），放到业务仓库根目录后：
 

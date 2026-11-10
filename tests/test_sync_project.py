@@ -75,6 +75,15 @@ def test_render_targets_keeps_tools_dir_placeholder(source, project):
     assert paths
 
 
+def test_cli_defaults_to_claude_cursor_and_dsh(source, project, capsys):
+    code = main(["--project-dir", str(project), "--source", str(source), "--dry-run"])
+    assert code == 0
+    out = capsys.readouterr().out.replace("\\", "/")
+    assert "/.claude/skills/db-access/SKILL.md" in out
+    assert "/.cursor/rules/db-access.mdc" in out
+    assert "/.dsh/skills/db-access/SKILL.md" in out
+
+
 def test_upsert_gitignore_is_idempotent(project):
     (project / ".gitignore").write_text("node_modules/\n", encoding="utf-8")
     upsert_gitignore(project, ["db-access"])

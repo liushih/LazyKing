@@ -7,6 +7,7 @@ from typing import Any, Callable
 
 SPEEDS_MS = (200, 500, 800, 1500, 2500)
 DEFAULT_SPEED_INDEX = 3
+HIGHLIGHT_HOLD_SECONDS = 0.9
 POLL_INTERVAL = 0.1
 _MAX_DRAIN_FAILURES = 20
 
@@ -108,6 +109,55 @@ _SHOW_JS = """
 }
 """
 
+_SUMMARY_JS = """
+(el) => {
+  const oneLine = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
+  const text = oneLine(el.innerText);
+  const placeholder = oneLine(el.getAttribute && el.getAttribute('placeholder'));
+  const testid = oneLine(el.getAttribute && el.getAttribute('data-testid'));
+  const id = oneLine(el.id);
+  const tag = el.tagName ? el.tagName.toLowerCase() : '';
+  return (text || placeholder || testid || id || tag).slice(0, 16);
+}
+"""
+
+_HIGHLIGHT_JS = """
+(state) => {
+  const old = document.getElementById('__data-tools-highlight');
+  if (old) old.remove();
+  const host = document.createElement('div');
+  host.id = '__data-tools-highlight';
+  host.style.cssText = 'all:initial;position:fixed;left:0;top:0;right:0;bottom:0;' +
+    'z-index:2147483646;pointer-events:none;';
+  const root = host.attachShadow({ mode: 'open' });
+  root.innerHTML = `
+    <style>
+      .box{position:fixed;border:2px solid #ff5a1f;border-radius:4px;pointer-events:none;
+           box-shadow:0 0 0 2px rgba(255,90,31,.22),0 0 14px rgba(255,90,31,.45);}
+      .label{position:fixed;font:600 13px/1.3 "Microsoft YaHei",system-ui,sans-serif;color:#fff;
+             background:#ff5a1f;border-radius:5px;padding:3px 8px;white-space:nowrap;
+             max-width:320px;overflow:hidden;text-overflow:ellipsis;pointer-events:none;
+             box-shadow:0 3px 10px rgba(0,0,0,.28);}
+    </style>
+    <div class="box"></div><div class="label"></div>`;
+  const box = root.querySelector('.box');
+  const label = root.querySelector('.label');
+  const pad = 3;
+  const left = Math.max(0, state.x - pad);
+  box.style.left = left + 'px';
+  box.style.top = Math.max(0, state.y - pad) + 'px';
+  box.style.width = (state.width + pad * 2) + 'px';
+  box.style.height = (state.height + pad * 2) + 'px';
+  label.textContent = state.text;
+  label.style.left = left + 'px';
+  const above = state.y - pad - 26;
+  label.style.top = (above >= 4 ? above : state.y + state.height + pad + 4) + 'px';
+  (document.body || document.documentElement).appendChild(host);
+  setTimeout(() => { if (host.parentNode) host.parentNode.removeChild(host); }, state.hold_ms);
+  return true;
+}
+"""
+
 
 class WatchController:
     """观看模式的速度与暂停状态；只在步骤边界生效。"""
@@ -138,6 +188,11 @@ class WatchController:
     def speed_text(self) -> str:
         return f"{self.delay_ms / 1000:.1f}s"
 
+    @property
+    def lead_seconds(self) -> float:
+        """动作前留给观众看清高亮的提前量：不超过档速的一半，最快档也不省到看不见。"""
+        return max(0.1, min(0.5, self.delay_ms / 2000))
+
     def status_text(self) -> str:
         return f"已暂停 · {self.label}" if self.paused else self.label
 
@@ -163,6 +218,36 @@ class WatchController:
             self._sleep(self.poll_interval)
             self._apply(self._drain())
         self._refresh()
+
+    def highlight(self, locator: Any, verb: str) -> None:
+        """动作前在页面上框出目标，并停顿一小会儿让观众看清。
+
+        取不到元素位置、页面已关闭等情况下静默跳过，只是没有高亮，不能影响流程本身。
+        """
+        try:
+            locator.scroll_into_view_if_needed(timeout=1500)
+        except Exception:
+            pass
+        try:
+            box = locator.bounding_box()
+            if box is None:
+                return
+            summary = str(locator.evaluate(_SUMMARY_JS) or "")
+            text = f"{verb} · {summary}" if summary else verb
+            self._evaluate(
+                _HIGHLIGHT_JS,
+                {
+                    "x": float(box["x"]),
+                    "y": float(box["y"]),
+                    "width": float(box["width"]),
+                    "height": float(box["height"]),
+                    "text": text,
+                    "hold_ms": int((self.lead_seconds + HIGHLIGHT_HOLD_SECONDS) * 1000),
+                },
+            )
+        except Exception:
+            return
+        self._sleep(self.lead_seconds)
 
     def hide(self) -> None:
         self._evaluate(_HIDE_JS)

@@ -77,6 +77,7 @@ class FlowResult:
 
 _ACTIONS = {"goto", "click", "fill", "press", "select", "check", "hover", "use_row", "impl"}
 _LOCATOR_ACTIONS = {"click", "fill", "select", "check", "hover"}
+_ACTION_VERBS = {"click": "点击", "fill": "输入", "select": "选择", "check": "勾选", "hover": "悬停"}
 
 
 def _ms(start: float) -> int:
@@ -241,6 +242,20 @@ def _target(page: Any, spec: dict, aliases: dict[str, Any]) -> Any:
     return locator
 
 
+def _targeted(
+    page: Any,
+    spec: dict,
+    aliases: dict[str, Any],
+    pacer: WatchController | None,
+    action: str,
+) -> Any:
+    """定位动作目标；观看模式下先高亮并短暂停顿，再交给调用方执行。"""
+    locator = _target(page, spec, aliases)
+    if pacer is not None:
+        pacer.highlight(locator, _ACTION_VERBS[action])
+    return locator
+
+
 def _perform(
     page: Any,
     step: dict,
@@ -248,21 +263,22 @@ def _perform(
     aliases: dict[str, Any],
     project_dir: Path,
     logger: Any,
+    pacer: WatchController | None = None,
 ) -> Any | None:
     if "goto" in step:
         page.goto(str(step["goto"]), wait_until="domcontentloaded")
     elif "click" in step:
-        _target(page, step["click"], aliases).click()
+        _targeted(page, step["click"], aliases, pacer, "click").click()
     elif "fill" in step:
-        _target(page, step["fill"], aliases).fill(str(step["value"]))
+        _targeted(page, step["fill"], aliases, pacer, "fill").fill(str(step["value"]))
     elif "press" in step:
         page.keyboard.press(str(step["press"]))
     elif "select" in step:
-        _target(page, step["select"], aliases).select_option(str(step["value"]))
+        _targeted(page, step["select"], aliases, pacer, "select").select_option(str(step["value"]))
     elif "check" in step:
-        _target(page, step["check"], aliases).check()
+        _targeted(page, step["check"], aliases, pacer, "check").check()
     elif "hover" in step:
-        _target(page, step["hover"], aliases).hover()
+        _targeted(page, step["hover"], aliases, pacer, "hover").hover()
     elif "use_row" in step:
         row = _row_locator(page, step["use_row"])
         if step.get("as"):
@@ -413,6 +429,7 @@ def run_step(
     timeout_ms: int,
     logger: Any = None,
     watch: ApiWatch | None = None,
+    pacer: WatchController | None = None,
 ) -> None:
     step = substitute(step, variables)
     action = next((key for key in step if key in _ACTIONS), None)
@@ -430,13 +447,13 @@ def run_step(
         if wait_response:
             predicate = _response_predicate(wait_response, any_status=watch is not None and watch.active)
             with page.expect_response(predicate, timeout=timeout_ms) as response_info:
-                target = _perform(page, step, variables, aliases, project_dir, logger)
+                target = _perform(page, step, variables, aliases, project_dir, logger, pacer)
             response = response_info.value
             _log(logger, f"{step.get('name')}: response {response.status} {response.url}")
             if watch is not None and not (isinstance(wait_response, dict) and "status" in wait_response):
                 watch.verify(response)
         else:
-            target = _perform(page, step, variables, aliases, project_dir, logger)
+            target = _perform(page, step, variables, aliases, project_dir, logger, pacer)
 
     _apply_waits(page, step, aliases, target, timeout_ms, watch)
     _apply_expects(page, step, aliases, timeout_ms, watch)
@@ -496,6 +513,7 @@ def run_flow(
                     timeout_ms=step_timeout,
                     logger=logger,
                     watch=watch,
+                    pacer=pacer,
                 )
             except _StepSkipped:
                 results.append(StepResult(name, "skipped", _ms(step_started)))
@@ -599,6 +617,7 @@ def ensure_login(
                     Path(project_dir),
                     timeout_ms=timeout_ms,
                     logger=logger,
+                    pacer=pacer,
                 )
             except _StepSkipped:
                 continue

@@ -27,6 +27,30 @@ class FakePage:
         return [arg for script, arg in self.calls if script is watch_mod._SET_JS and arg]
 
 
+class FakeLocator:
+    def __init__(self, box=(10, 20, 100, 30), summary="提交订单"):
+        self.box = box
+        self.summary = summary
+        self.calls = []
+
+    def scroll_into_view_if_needed(self, timeout=None):
+        self.calls.append(("scroll", timeout))
+
+    def bounding_box(self):
+        if isinstance(self.box, Exception):
+            raise self.box
+        if self.box is None:
+            return None
+        x, y, width, height = self.box
+        return {"x": x, "y": y, "width": width, "height": height}
+
+    def evaluate(self, script):
+        self.calls.append(("evaluate", script))
+        if isinstance(self.summary, Exception):
+            raise self.summary
+        return self.summary
+
+
 def test_pace_waits_one_action_interval():
     page = FakePage()
     sleeps = []
@@ -166,3 +190,81 @@ def test_bar_click_keeps_dropdown_open_and_focus(page):
     assert page.evaluate(
         "() => document.activeElement && document.activeElement.id"
     ) == "opener"
+
+
+def test_highlight_draws_box_and_waits_lead_before_action():
+    page = FakePage()
+    sleeps = []
+    controller = WatchController(page, sleep=sleeps.append)
+    locator = FakeLocator()
+
+    controller.highlight(locator, "点击")
+
+    assert locator.calls[0] == ("scroll", 1500)
+    args = [arg for script, arg in page.calls if script is watch_mod._HIGHLIGHT_JS]
+    assert args[-1] == {
+        "x": 10.0,
+        "y": 20.0,
+        "width": 100.0,
+        "height": 30.0,
+        "text": "点击 · 提交订单",
+        "hold_ms": 1400,
+    }
+    assert sleeps == [controller.lead_seconds]
+
+
+def test_highlight_lead_follows_speed():
+    page = FakePage()
+    sleeps = []
+    controller = WatchController(page, speed_index=0, sleep=sleeps.append)
+
+    controller.highlight(FakeLocator(), "输入")
+
+    assert controller.delay_ms == 200
+    assert sleeps == [0.1]
+
+
+def test_highlight_falls_back_to_verb_without_element_text():
+    page = FakePage()
+    controller = WatchController(page, sleep=lambda seconds: None)
+
+    controller.highlight(FakeLocator(summary=""), "点击")
+
+    args = [arg for script, arg in page.calls if script is watch_mod._HIGHLIGHT_JS]
+    assert args[-1]["text"] == "点击"
+
+
+def test_highlight_failure_is_silent_and_does_not_delay_action():
+    page = FakePage()
+    sleeps = []
+    controller = WatchController(page, sleep=sleeps.append)
+
+    controller.highlight(FakeLocator(box=RuntimeError("element detached")), "点击")
+    controller.highlight(FakeLocator(box=None), "点击")
+    controller.highlight(FakeLocator(summary=RuntimeError("页面已关闭")), "点击")
+
+    assert not [script for script, _ in page.calls if script is watch_mod._HIGHLIGHT_JS]
+    assert sleeps == []
+
+
+def test_highlight_overlay_is_click_through_and_disappears(page):
+    page.set_content('<button id="buy" style="margin:40px;padding:10px">提交订单</button>')
+    controller = WatchController(page, sleep=lambda seconds: None)
+    controller.attach()
+
+    controller.highlight(page.locator("#buy"), "点击")
+
+    assert page.evaluate("() => !!document.querySelector('#__data-tools-highlight')") is True
+    label = page.evaluate(
+        "() => document.querySelector('#__data-tools-highlight')"
+        ".shadowRoot.querySelector('.label').textContent"
+    )
+    assert label == "点击 · 提交订单"
+    assert page.evaluate(
+        "() => getComputedStyle(document.querySelector('#__data-tools-highlight')).pointerEvents"
+    ) == "none"
+
+    page.click("#buy")  # 高亮层不能拦住动作本身的点击
+    page.wait_for_function(
+        "() => !document.querySelector('#__data-tools-highlight')", timeout=3000
+    )

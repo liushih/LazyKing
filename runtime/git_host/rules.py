@@ -5,8 +5,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-_BRANCH = re.compile(r"^feature/(dev|test|prod)/([A-Za-z0-9_-]+)/(\d+)-([^\s/\\]+)$")
-_TARGET_PREFIX = re.compile(r"^feature/(dev|test|prod)/")
+_BRANCH = re.compile(r"^feature/(dev|test|uat|prod)/([A-Za-z0-9_-]+)/(\d+)-([^\s/\\]+)$")
+_TARGET_PREFIX = re.compile(r"^feature/(dev|test|uat|prod)/")
 _COMMIT_HEAD = re.compile(r"^(feat|fix)-(\d+): \S.*$")
 
 
@@ -83,7 +83,7 @@ def check_sync(branch: str, source: str | None) -> str:
         raise RuleViolation(
             "branch-naming",
             f"当前分支 {branch} 不是 feature/<目标>/... 形式，无法确定同步来源；"
-            "请用 --from <dev|test|prod> 指定",
+            "请用 --from <dev|test|uat|prod> 指定",
         )
     if source is not None and source != target:
         raise RuleViolation(
@@ -100,9 +100,9 @@ def check_merge(
     source_base: str | None,
     bring_in: list[str],
 ) -> list[str]:
-    if target in ("test", "prod"):
+    if target in ("test", "uat", "prod"):
         raise RuleViolation("direct-merge", f"{target} 只能通过 MR 合并，请使用 mr create --to {target}")
-    if source_base == "prod" and target in ("dev", "test"):
+    if source_base == "prod" and target in ("dev", "test", "uat"):
         raise RuleViolation(
             "prod-derived",
             f"prod 衍生分支不能直接合并到 {target}，请先经过 test 衍生的同步分支",

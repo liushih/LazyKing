@@ -11,7 +11,7 @@ import yaml
 from runtime import config, personal
 
 HOST_KINDS = ("github", "gitee", "gitlab")
-BRANCH_TARGETS = ("dev", "test", "prod")
+BRANCH_TARGETS = ("dev", "test", "uat", "prod")
 
 
 class GitHostConfigError(Exception):

@@ -565,7 +565,7 @@ branches:
   test: test
   prod: prod
 rules:
-  default_branch_target: test   # 新分支默认基线：dev | test | prod
+  default_branch_target: test   # 新分支默认基线：dev | test | uat | prod
   forbid_commit_paths:        # 本地环境配置不提交
     - pom.xml
     - vite.config.ts
@@ -607,17 +607,17 @@ GITLAB_TOKEN_DEMO=
 | `branch-naming` | 分支名须为 `feature/<目标>/<用户标识>/<任务号>-<描述>`，且用户标识与配置一致 |
 | `commit-message` | 首行须为 `feat-<任务号>: <描述>` 或 `fix-<任务号>: <描述>`，且必须有正文 |
 | `forbidden-path` | 禁止提交 `forbid_commit_paths` 中的文件 |
-| `direct-merge` | 合到 test、prod 只能建 MR，不能本地合并 |
-| `prod-derived` | prod 衍生分支不能直接合到 test 或 dev，要先经过 test 衍生的同步分支 |
+| `direct-merge` | 合到 test、uat、prod 只能建 MR，不能本地合并 |
+| `prod-derived` | prod 衍生分支不能直接合到 test、uat 或 dev，要先经过 test 衍生的同步分支 |
 | `net-increment` | 合到 dev 时若带入了非本分支的内容，先列清单，确认后加 `--confirm-bring-in` |
-| `push-target` | 本地分支名为 test、prod 时不能推送（只能走 MR）；dev 允许直接推送；其余分支只推到同名远端分支 |
+| `push-target` | 本地分支名为 test、uat、prod 时不能推送（只能走 MR）；dev 允许直接推送；其余分支只推到同名远端分支 |
 | `sync-source` | `sync` 只能同步分支名中「目标」对应的 origin 分支，如 `feature/test/...` 只能同步 test，不能同步 dev。分支名不完整时按 `feature/<目标>/` 前缀判断；没有目标前缀时用 `--from` 指定来源 |
 
 分支名只允许一个任务号，因此「一分支一任务」由分支名格式保证。
 
 ### 分支从哪里切
 
-- **默认取 `git_hosts.yaml` 的 `rules.default_branch_target`**（`dev` / `test` / `prod`，未配置时为 `test`）：新任务、缺陷修复、迭代需求以该分支最新基线为准
+- **默认取 `git_hosts.yaml` 的 `rules.default_branch_target`**（`dev` / `test` / `uat` / `prod`，未配置时为 `test`）：新任务、缺陷修复、迭代需求以该分支最新基线为准
 - 仅当用户明确要求「只进 dev、不经 test」时，从 `origin/dev` 切
 - 热修复：从 `origin/prod` 切，之后按热修复流程同步
 

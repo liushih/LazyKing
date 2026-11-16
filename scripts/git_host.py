@@ -27,7 +27,7 @@ from runtime.git_host.rules import RuleViolation, check_merge, parse_branch  # n
 
 EXIT_OK, EXIT_FAIL, EXIT_USAGE = 0, 1, 2
 
-DIRECT_MERGE_FORBIDDEN = ("test", "prod")
+DIRECT_MERGE_FORBIDDEN = ("test", "uat", "prod")
 
 
 def _build_parser() -> argparse.ArgumentParser:

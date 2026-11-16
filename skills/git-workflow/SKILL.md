@@ -3,7 +3,7 @@ name: git-workflow
 description: >-
   代码托管操作：提交、推送、拉取、合并、建 MR/PR、开分支、热修同步。用户说「提交一下」「推到 dev」
   「开个 MR」「建分支」「同步热修」时使用。提交时把工作区改动归纳成工作项让用户多选；
-  push 和 merge 直接执行；合并到 test 或 prod 只能建 MR。
+  push 和 merge 直接执行；合并到 test、uat 或 prod 只能建 MR。
 ---
 
 # Git 托管操作
@@ -14,7 +14,7 @@ description: >-
 - 建任务 / 缺陷分支（默认基线取 `git_hosts.yaml` 的 `rules.default_branch_target`，未配置按 `origin/test`，例外见「从哪里切分支」）
 - 发 MR 前把目标分支最新内容同步进当前分支（`sync`），冲突在本地解决
 - 合并到 dev（以 origin/dev 为准本地合并，合并前核对将带入的内容，dev 可直接推送）
-- 建 MR/PR 到 test、prod、dev（支持 GitHub、Gitee、GitLab）
+- 建 MR/PR 到 test、uat、prod、dev（支持 GitHub、Gitee、GitLab）
 - 热修复同步：把 prod 的热修复同步到 test 衍生分支，再合到 test 和 dev
 
 不适用：
@@ -39,7 +39,7 @@ description: >-
 1. 读 `<数据目录>/projects/<项目ID>/git_hosts.yaml`
 2. 若共享 `git_hosts.yaml` 的 `user_tag` 用 `${USER_TAG}` 且 `personal.yaml` 缺值：走 `project-setup` 补齐。`set-user-tag` 只写 `personal.yaml`，不再修改共享文件；共享文件仍是字面值时保持旧行为并提示迁移。
 3. 确认项目 ID；无法确定就问，不猜
-4. 确认目标：dev、test 还是 prod
+4. 确认目标：dev、test、uat 还是 prod
 
 任一项缺失就停止，说明缺什么。
 
@@ -56,9 +56,9 @@ description: >-
 ```bash
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/git_host.py" --project <项目ID> commit -m "feat-<任务号>: <描述>\n\n<正文>"
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/git_host.py" --project <项目ID> push --branch <分支>
-"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/git_host.py" --project <项目ID> sync [--from <test|dev|prod>]
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/git_host.py" --project <项目ID> sync [--from <test|dev|uat|prod>]
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/git_host.py" --project <项目ID> mr create --from <源分支> --to <目标> --title "<标题>"
-"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/git_host.py" --project <项目ID> branch create --name <分支名> --target <dev|test|prod>
+"<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/git_host.py" --project <项目ID> branch create --name <分支名> --target <dev|test|uat|prod>
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/git_host.py" --project <项目ID> merge --from <源分支> --to dev [--confirm-bring-in]
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/git_host.py" --project <项目ID> verify-flow --prod-branch prod --test-branch <test衍生分支> --target dev
 "<TOOLS_DIR>/.venv/Scripts/python.exe" "<TOOLS_DIR>/scripts/git_host.py" --project <项目ID> hotfix sync --fix-branch <热修分支> --task <任务号>
@@ -94,7 +94,7 @@ description: >-
 - 建 MR：确认源分支、目标分支和标题
 - 热修同步：确认热修分支与目标
 
-合并到 test、prod 仍然只能建 MR，不能直接合并（`direct-merge`）。只读命令（`verify-flow`、`mr status`）直接执行。
+合并到 test、uat、prod 仍然只能建 MR，不能直接合并（`direct-merge`）。只读命令（`verify-flow`、`mr status`）直接执行。
 
 ## 硬规则
 
@@ -102,20 +102,20 @@ description: >-
 
 | 规则 | 说明 |
 |---|---|
-| `direct-merge` | 合到 test、prod 只能建 MR：`mr create --to test` 或 `--to prod` |
-| `prod-derived` | prod 衍生分支不能直接合到 test 或 dev，要先经过 test 衍生的同步分支 |
+| `direct-merge` | 合到 test、uat、prod 只能建 MR：`mr create --to test`、`--to uat` 或 `--to prod` |
+| `prod-derived` | prod 衍生分支不能直接合到 test、uat 或 dev，要先经过 test 衍生的同步分支 |
 | `net-increment` | 合到 dev 时若带入了非本分支的内容，先列清单，用户确认后加 `--confirm-bring-in` |
 | `branch-naming` | 分支名须为 `feature/<目标>/<用户标识>/<任务号>-<描述>` |
 | `commit-message` | 提交首行须为 `feat-<任务号>: <描述>` 或 `fix-<任务号>: <描述>`，且必须有正文 |
 | `forbidden-path` | 本地环境配置（如 `pom.xml`、`vite.config.ts`）不得提交 |
-| `push-target` | 本地分支名为 test、prod 时不得推送（只能走 MR）；dev 允许直接推送；其余分支只推到同名远端分支 |
+| `push-target` | 本地分支名为 test、uat、prod 时不得推送（只能走 MR）；dev 允许直接推送；其余分支只推到同名远端分支 |
 | `sync-source` | `sync` 只能同步分支名「目标」对应的 origin 分支（`feature/test/...` 只同步 test），不能把 dev 并进送测分支。分支名不完整时按 `feature/<目标>/` 前缀判断；没有目标前缀时用 `--from` 指定来源 |
 
 ### 标准提交流程
 
 1. 按「提交：归纳工作项，让用户多选」逐项 `commit`。只勾选部分工作项时，工作区还会留下已跟踪的残留改动；后续 `merge`、`sync` 要求已跟踪文件干净（未跟踪文件不影响），有残留就先说明再决定
 2. **若同时要进 dev，先于第 3 步**：`merge --to dev`，再 `push --branch dev`。`merge` 会先 fetch，以 `origin/dev` 为准预检；本地 dev 落后会先快进，已分叉则停止，不强行覆盖。先合 dev 再 `sync` test，避免把送测期间新增的改动一并带入 dev
-3. **若要进 test**：`sync` 把最新 `origin/test` 合进当前分支；来源默认取分支名的 `feature/<目标>/` 前缀，分支名没有目标前缀时传 `--from <dev|test|prod>` 指定。无冲突才继续，有冲突按下文「冲突处理」解决后再继续
+3. **若要进 test**：`sync` 把最新 `origin/test` 合进当前分支；来源默认取分支名的 `feature/<目标>/` 前缀，分支名没有目标前缀时传 `--from <dev|test|uat|prod>` 指定。无冲突才继续，有冲突按下文「冲突处理」解决后再继续
 4. `push` 推到同名远端分支，再 `mr create --to test`，此时 MR 不会有冲突
 
 ### 冲突处理
@@ -131,7 +131,7 @@ description: >-
 
 ### 从哪里切分支
 
-- **默认取 `git_hosts.yaml` 的 `rules.default_branch_target`**（`dev` / `test` / `prod`，未配置时为 `test`）：新任务、缺陷修复、迭代需求以该分支最新基线为准
+- **默认取 `git_hosts.yaml` 的 `rules.default_branch_target`**（`dev` / `test` / `uat` / `prod`，未配置时为 `test`）：新任务、缺陷修复、迭代需求以该分支最新基线为准
 - 仅当用户明确要求「只进 dev、不经 test」时，从 `origin/dev` 切
 - 线上热修复从 `origin/prod` 切
 
@@ -164,4 +164,4 @@ description: >-
 | `sync` / `merge` 冲突 | 现场保留，列出冲突文件；按「冲突处理」保留双方改动解决，不得取一边 |
 | cherry-pick 冲突 | 工具已中止并列出冲突文件，不尝试自动解决；由用户处理后重新开始 |
 | 规则拒绝 | 原样告诉用户规则名与原因，不绕过 |
-| 分支名无法判断同步目标 | 改用 `--from <dev|test|prod>` 指定来源；不要用普通 `git merge` 绕过 |
+| 分支名无法判断同步目标 | 改用 `--from <dev|test|uat|prod>` 指定来源；不要用普通 `git merge` 绕过 |

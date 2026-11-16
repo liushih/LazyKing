@@ -139,6 +139,15 @@ def test_prod_default_branch_target_is_allowed(home):
     assert load_git_host_config("demo", home=home).default_branch_target == "prod"
 
 
+def test_uat_default_branch_target_is_allowed(home):
+    p = home / "projects" / "demo" / "git_hosts.yaml"
+    p.write_text(
+        YAML.replace("rules:\n", "rules:\n  default_branch_target: uat\n"),
+        encoding="utf-8",
+    )
+    assert load_git_host_config("demo", home=home).default_branch_target == "uat"
+
+
 def test_missing_rules_section_defaults_to_test(tmp_path):
     proj = tmp_path / "projects" / "demo"
     proj.mkdir(parents=True)

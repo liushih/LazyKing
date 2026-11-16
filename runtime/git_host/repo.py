@@ -8,8 +8,8 @@ from pathlib import Path
 
 from .rules import RuleViolation, check_commit_message, check_commit_paths, check_merge, check_sync
 
-PROTECTED_BRANCHES = ("test", "dev", "prod")
-PUSH_FORBIDDEN_LOCAL = ("test", "prod")  # dev 允许直接推送，其余只能走 MR
+PROTECTED_BRANCHES = ("test", "dev", "uat", "prod")
+PUSH_FORBIDDEN_LOCAL = ("test", "uat", "prod")  # dev 允许直接推送，其余只能走 MR
 
 
 class RepoError(Exception):
@@ -179,7 +179,7 @@ class Repo:
         if branch in PUSH_FORBIDDEN_LOCAL:
             raise RuleViolation(
                 "push-target",
-                f"本地分支名为 {branch} 时不允许推送：test、prod 只能经 MR 进入，"
+                f"本地分支名为 {branch} 时不允许推送：test、uat、prod 只能经 MR 进入，"
                 "请使用 feature/<目标>/<用户标识>/<任务号>-<描述>",
             )
         self._git("push", "-u", "origin", f"{branch}:{branch}")
@@ -214,7 +214,7 @@ class Repo:
         return created
 
     def check_prod_derived(self, source_base: str | None, target_branch: str) -> None:
-        if source_base == "prod" and target_branch in ("dev", "test"):
+        if source_base == "prod" and target_branch in ("dev", "test", "uat"):
             raise RuleViolation(
                 "prod-derived",
                 f"prod 衍生分支不能直接合并到 {target_branch}，请先经过 test 衍生的同步分支",

@@ -228,6 +228,14 @@ def test_push_to_non_matching_remote_is_refused(tmp_path):
     assert exc.value.rule == "push-target"
 
 
+def test_push_uat_is_refused(tmp_path):
+    repo = _init(tmp_path)
+    _git(repo, "checkout", "-q", "-b", "uat")
+    with pytest.raises(RuleViolation) as exc:
+        Repo(repo).push("uat")
+    assert exc.value.rule == "push-target"
+
+
 def test_push_dev_is_allowed(tmp_path):
     repo, _ = _with_remote(tmp_path)
     _commit(repo, "d.txt", "feat-1: d\n\nd")

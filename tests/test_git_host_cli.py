@@ -186,6 +186,13 @@ def test_branch_create_uses_configured_target(repo, project_config, capsys):
     assert ("create_branch", "feature/dev/lsh/1-x", "dev") in repo.calls
 
 
+def test_branch_create_uses_configured_uat_target(repo, project_config, capsys):
+    _set_default_branch_target(project_config, "uat")
+    rc = _run(["branch", "create", "--name", "feature/uat/lsh/1-x"], repo)
+    assert rc == 0
+    assert ("create_branch", "feature/uat/lsh/1-x", "uat") in repo.calls
+
+
 def test_branch_create_explicit_target_overrides_config(repo, project_config, capsys):
     _set_default_branch_target(project_config, "dev")
     rc = _run(

@@ -21,6 +21,11 @@ def test_parse_branch_rejects_missing_task():
     assert parse_branch("feature/test/lsh/no-task") is None
 
 
+def test_parse_branch_accepts_uat():
+    info = parse_branch("feature/uat/lsh/16603-包裹质检")
+    assert info.target == "uat" and info.user_tag == "lsh" and info.task == "16603"
+
+
 def test_check_branch_name_requires_matching_user_tag():
     with pytest.raises(RuleViolation) as exc:
         check_branch_name("feature/test/other/15579-x", user_tag="lsh")
@@ -69,6 +74,12 @@ def test_merge_to_prod_is_direct_violation():
         check_merge("feature/dev/lsh/1-x", "prod", None, [])
 
 
+def test_merge_to_uat_is_direct_violation():
+    with pytest.raises(RuleViolation) as exc:
+        check_merge("feature/uat/lsh/1-x", "uat", None, [])
+    assert exc.value.rule == "direct-merge"
+
+
 def test_merge_prod_derived_into_dev_is_blocked():
     with pytest.raises(RuleViolation) as exc:
         check_merge("feature/prod/lsh/1-x", "dev", "prod", [])
@@ -85,6 +96,16 @@ def test_merge_feature_test_with_no_foreign_commits_passes():
 
 def test_sync_source_defaults_to_branch_target():
     assert check_sync("feature/test/lsh/1-x", None) == "test"
+
+
+def test_sync_source_defaults_to_uat():
+    assert check_sync("feature/uat/lsh/1-x", None) == "uat"
+
+
+def test_sync_source_rejects_test_for_uat_branch():
+    with pytest.raises(RuleViolation) as exc:
+        check_sync("feature/uat/lsh/1-x", "test")
+    assert exc.value.rule == "sync-source"
 
 
 def test_sync_source_must_match_branch_target():

@@ -21,6 +21,9 @@ apache-jmeter-5.6.3/
 *.log
 *.png
 
+# IDE 本机配置
+.idea/
+
 # 运行产物与抓包数据：含内网地址、业务数据、飞书文档标识
 cursor-chat-export/
 hexin-db-tools/*.json

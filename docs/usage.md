@@ -617,7 +617,7 @@ GITLAB_TOKEN_DEMO=
 
 ### 分支从哪里切
 
-- **默认从 `origin/test` 切**：新任务、缺陷修复、迭代需求一律以 test 最新基线为准
+- **默认取 `git_hosts.yaml` 的 `rules.default_branch_target`**（`dev` / `test` / `prod`，未配置时为 `test`）：新任务、缺陷修复、迭代需求以该分支最新基线为准
 - 仅当用户明确要求「只进 dev、不经 test」时，从 `origin/dev` 切
 - 热修复：从 `origin/prod` 切，之后按热修复流程同步
 

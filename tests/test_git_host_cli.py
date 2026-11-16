@@ -196,6 +196,14 @@ def test_branch_create_explicit_target_overrides_config(repo, project_config, ca
     assert ("create_branch", "feature/test/lsh/1-x", "test") in repo.calls
 
 
+def test_branch_create_rejects_name_target_mismatch(repo, project_config, capsys):
+    _set_default_branch_target(project_config, "dev")
+    rc = _run(["branch", "create", "--name", "feature/test/lsh/1-x"], repo)
+    assert rc == 1
+    assert "branch-naming" in capsys.readouterr().out
+    assert repo.calls == []
+
+
 def test_verify_flow_is_read_only_and_prints(repo, capsys):
     from runtime.git_host.repo import FlowReport
 

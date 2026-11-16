@@ -214,3 +214,11 @@ def test_git_skill_branch_baseline_is_configurable():
     text = (SKILLS / "git-workflow" / "SKILL.md").read_text(encoding="utf-8")
     assert "default_branch_target" in text
     assert "origin/test" in text
+
+
+def test_usage_docs_match_configurable_branch_baseline():
+    text = (Path(__file__).resolve().parents[1] / "docs" / "usage.md").read_text(
+        encoding="utf-8"
+    )
+    assert "**默认从 `origin/test` 切**" not in text
+    assert "rules.default_branch_target" in text

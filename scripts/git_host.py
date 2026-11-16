@@ -23,7 +23,7 @@ from runtime.git_host.config import (  # noqa: E402
     save_user_tag,
 )
 from runtime.git_host.repo import Repo, RepoError  # noqa: E402
-from runtime.git_host.rules import RuleViolation, check_merge  # noqa: E402
+from runtime.git_host.rules import RuleViolation, check_merge, parse_branch  # noqa: E402
 
 EXIT_OK, EXIT_FAIL, EXIT_USAGE = 0, 1, 2
 
@@ -137,6 +137,13 @@ def main(argv: list[str] | None = None, host_fn=None, repo_fn=None) -> int:
 
         if args.cmd == "branch":
             target = args.target or cfg.default_branch_target
+            info = parse_branch(args.name)
+            if args.target is None and info is not None and info.target != target:
+                raise RuleViolation(
+                    "branch-naming",
+                    f"分支名目标 {info.target} 与默认基线 {target} 不一致；"
+                    "请显式传 --target 或调整分支名",
+                )
             repo.create_branch(args.name, target)
             print(f"已从 origin/{target} 切出 {args.name}")
             return EXIT_OK

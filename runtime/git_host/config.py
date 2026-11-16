@@ -11,6 +11,7 @@ import yaml
 from runtime import config, personal
 
 HOST_KINDS = ("github", "gitee", "gitlab")
+BRANCH_TARGETS = ("dev", "test", "prod")
 
 
 class GitHostConfigError(Exception):
@@ -27,6 +28,7 @@ class GitHostConfig:
     token_key: str
     branches: dict[str, str] = field(default_factory=dict)
     forbid_commit_paths: list[str] = field(default_factory=list)
+    default_branch_target: str = "test"
 
 
 def _base(project_id: str, home: Path | None) -> Path:
@@ -51,6 +53,13 @@ def load_git_host_config(project_id: str, home: Path | None = None) -> GitHostCo
         raise GitHostConfigError(f"不支持的托管平台 {kind!r}，可选：{', '.join(HOST_KINDS)}")
 
     rules = data.get("rules") or {}
+    raw_target = rules.get("default_branch_target", "test")
+    default_target = "test" if raw_target is None else str(raw_target).strip()
+    if default_target not in BRANCH_TARGETS:
+        raise GitHostConfigError(
+            "rules.default_branch_target 只能是 "
+            f"{'、'.join(BRANCH_TARGETS)}：{default_target!r}"
+        )
     return GitHostConfig(
         user_tag=str(data.get("user_tag") or ""),
         repo_path=Path(str(data.get("repo_path") or "")),
@@ -60,6 +69,7 @@ def load_git_host_config(project_id: str, home: Path | None = None) -> GitHostCo
         token_key=str(host.get("token_key") or ""),
         branches={str(k): str(v) for k, v in (data.get("branches") or {}).items()},
         forbid_commit_paths=[str(p) for p in (rules.get("forbid_commit_paths") or [])],
+        default_branch_target=default_target,
     )
 
 

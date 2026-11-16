@@ -115,3 +115,57 @@ def test_save_user_tag_writes_personal_in_placeholder_mode(tmp_path):
         == "zhang"
     )
     assert "${USER_TAG}" in (proj / "git_hosts.yaml").read_text(encoding="utf-8")
+
+
+def test_default_branch_target_defaults_to_test(home):
+    assert load_git_host_config("demo", home=home).default_branch_target == "test"
+
+
+def test_reads_default_branch_target(home):
+    p = home / "projects" / "demo" / "git_hosts.yaml"
+    p.write_text(
+        YAML.replace("rules:\n", "rules:\n  default_branch_target: dev\n"),
+        encoding="utf-8",
+    )
+    assert load_git_host_config("demo", home=home).default_branch_target == "dev"
+
+
+def test_prod_default_branch_target_is_allowed(home):
+    p = home / "projects" / "demo" / "git_hosts.yaml"
+    p.write_text(
+        YAML.replace("rules:\n", "rules:\n  default_branch_target: prod\n"),
+        encoding="utf-8",
+    )
+    assert load_git_host_config("demo", home=home).default_branch_target == "prod"
+
+
+def test_missing_rules_section_defaults_to_test(tmp_path):
+    proj = tmp_path / "projects" / "demo"
+    proj.mkdir(parents=True)
+    (proj / "git_hosts.yaml").write_text(
+        "user_tag: lsh\n"
+        "repo_path: C:/project/demo\n"
+        "host: {kind: gitlab, base_url: http://g, project_path: a/b, token_key: T}\n",
+        encoding="utf-8",
+    )
+    assert load_git_host_config("demo", home=tmp_path).default_branch_target == "test"
+
+
+def test_invalid_default_branch_target_rejected(home):
+    p = home / "projects" / "demo" / "git_hosts.yaml"
+    p.write_text(
+        YAML.replace("rules:\n", "rules:\n  default_branch_target: main\n"),
+        encoding="utf-8",
+    )
+    with pytest.raises(GitHostConfigError, match="default_branch_target"):
+        load_git_host_config("demo", home=home)
+
+
+def test_empty_default_branch_target_rejected(home):
+    p = home / "projects" / "demo" / "git_hosts.yaml"
+    p.write_text(
+        YAML.replace("rules:\n", 'rules:\n  default_branch_target: ""\n'),
+        encoding="utf-8",
+    )
+    with pytest.raises(GitHostConfigError, match="default_branch_target"):
+        load_git_host_config("demo", home=home)

@@ -17,6 +17,7 @@ from runtime import config  # noqa: E402
 from runtime.git_host import get_host  # noqa: E402
 from runtime.git_host.base import HostError  # noqa: E402
 from runtime.git_host.config import (  # noqa: E402
+    BRANCH_TARGETS,
     GitHostConfigError,
     load_git_host_config,
     save_user_tag,
@@ -60,7 +61,7 @@ def _build_parser() -> argparse.ArgumentParser:
     b_sub = b.add_subparsers(dest="branch_cmd", required=True)
     bc = b_sub.add_parser("create")
     bc.add_argument("--name", required=True)
-    bc.add_argument("--target", required=True)
+    bc.add_argument("--target", choices=list(BRANCH_TARGETS))
 
     vf = sub.add_parser("verify-flow")
     vf.add_argument("--prod-branch", required=True)
@@ -135,8 +136,9 @@ def main(argv: list[str] | None = None, host_fn=None, repo_fn=None) -> int:
             return EXIT_OK
 
         if args.cmd == "branch":
-            repo.create_branch(args.name, args.target)
-            print(f"已从 origin/{args.target} 切出 {args.name}")
+            target = args.target or cfg.default_branch_target
+            repo.create_branch(args.name, target)
+            print(f"已从 origin/{target} 切出 {args.name}")
             return EXIT_OK
 
     except RuleViolation as exc:

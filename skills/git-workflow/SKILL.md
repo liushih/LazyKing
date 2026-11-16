@@ -11,7 +11,7 @@ description: >-
 ## 适用场景
 
 - 提交、推送改动（提交信息须符合团队格式）
-- 建任务 / 缺陷分支（默认从 `origin/test` 切，例外见「从哪里切分支」）
+- 建任务 / 缺陷分支（默认基线取 `git_hosts.yaml` 的 `rules.default_branch_target`，未配置按 `origin/test`，例外见「从哪里切分支」）
 - 发 MR 前把目标分支最新内容同步进当前分支（`sync`），冲突在本地解决
 - 合并到 dev（以 origin/dev 为准本地合并，合并前核对将带入的内容，dev 可直接推送）
 - 建 MR/PR 到 test、prod、dev（支持 GitHub、Gitee、GitLab）
@@ -131,11 +131,11 @@ description: >-
 
 ### 从哪里切分支
 
-- **默认从 `origin/test` 切**：新任务、缺陷修复、迭代需求一律以 `origin/test` 最新基线为准
+- **默认取 `git_hosts.yaml` 的 `rules.default_branch_target`**（`dev` / `test` / `prod`，未配置时为 `test`）：新任务、缺陷修复、迭代需求以该分支最新基线为准
 - 仅当用户明确要求「只进 dev、不经 test」时，从 `origin/dev` 切
 - 线上热修复从 `origin/prod` 切
 
-从 test 基线切出的分支若要合入 dev，按 `net-increment` 预检：先列出将带入 `origin/dev` 的非本分支提交，用户确认后才加 `--confirm-bring-in`，不得未经确认把 test 内容带进 dev。
+从配置基线切出的分支若要合入 dev，按 `net-increment` 预检：先列出将带入 `origin/dev` 的非本分支提交，用户确认后才加 `--confirm-bring-in`，不得未经确认把 test 内容带进 dev。
 
 ### 热修复流程
 

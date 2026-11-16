@@ -208,3 +208,9 @@ def test_project_setup_skill_documents_flow():
     text = (SKILLS / "project-setup" / "SKILL.md").read_text(encoding="utf-8")
     for word in ["config.py", "check", "set-secret", "personal.yaml", "不猜", "不回显"]:
         assert word in text
+
+
+def test_git_skill_branch_baseline_is_configurable():
+    text = (SKILLS / "git-workflow" / "SKILL.md").read_text(encoding="utf-8")
+    assert "default_branch_target" in text
+    assert "origin/test" in text

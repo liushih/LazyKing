@@ -565,6 +565,7 @@ branches:
   test: test
   prod: prod
 rules:
+  default_branch_target: test   # 新分支默认基线：dev | test | prod
   forbid_commit_paths:        # 本地环境配置不提交
     - pom.xml
     - vite.config.ts
@@ -594,6 +595,8 @@ GITLAB_TOKEN_DEMO=
 .venv/Scripts/python.exe scripts/git_host.py --project demo verify-flow --prod-branch prod --test-branch feature/test/lsh/1234-描述 --target dev
 .venv/Scripts/python.exe scripts/git_host.py --project demo hotfix sync --fix-branch feature/prod/lsh/1234-热修 --task 1234
 ```
+
+`branch create` 省略 `--target` 时使用 `rules.default_branch_target`，未配置按 `test`。
 
 ### 规则
 

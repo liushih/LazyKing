@@ -162,6 +162,40 @@ def test_branch_create_calls_repo(repo, capsys):
     assert ("create_branch", "feature/dev/lsh/1-x", "dev") in repo.calls
 
 
+def test_branch_create_defaults_to_test(repo, capsys):
+    rc = _run(["branch", "create", "--name", "feature/test/lsh/1-x"], repo)
+    assert rc == 0
+    assert ("create_branch", "feature/test/lsh/1-x", "test") in repo.calls
+
+
+def _set_default_branch_target(project_config, value):
+    path = project_config / "git_hosts.yaml"
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "rules:\n  forbid_commit_paths: [pom.xml]\n",
+            f"rules:\n  default_branch_target: {value}\n  forbid_commit_paths: [pom.xml]\n",
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_branch_create_uses_configured_target(repo, project_config, capsys):
+    _set_default_branch_target(project_config, "dev")
+    rc = _run(["branch", "create", "--name", "feature/dev/lsh/1-x"], repo)
+    assert rc == 0
+    assert ("create_branch", "feature/dev/lsh/1-x", "dev") in repo.calls
+
+
+def test_branch_create_explicit_target_overrides_config(repo, project_config, capsys):
+    _set_default_branch_target(project_config, "dev")
+    rc = _run(
+        ["branch", "create", "--name", "feature/test/lsh/1-x", "--target", "test"],
+        repo,
+    )
+    assert rc == 0
+    assert ("create_branch", "feature/test/lsh/1-x", "test") in repo.calls
+
+
 def test_verify_flow_is_read_only_and_prints(repo, capsys):
     from runtime.git_host.repo import FlowReport
 

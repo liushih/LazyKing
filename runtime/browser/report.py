@@ -47,6 +47,11 @@ def traces_dir(project_id: str) -> Path:
     return browser_dir() / "traces"
 
 
+def state_dir(project_id: str) -> Path:
+    """断点续跑状态：每个项目一个目录，文件按环境与流程命名。"""
+    return browser_dir() / "state" / (project_id or "_")
+
+
 def write_report(project_id: str, result: FlowResult) -> Path:
     directory = reports_dir(project_id)
     directory.mkdir(parents=True, exist_ok=True)
@@ -145,11 +150,12 @@ def clear_artifacts(project_id: str | None = None, flow: str | None = None) -> i
 
 
 def clean_all(project_id: str | None = None) -> dict[str, int]:
-    """立即清空诊断包、探索快照和 trace；报告只保留最近 KEEP 份。"""
+    """立即清空诊断包、探索快照、trace 和断点；报告只保留最近 KEEP 份。"""
     project_id = project_id or ""
     return {
         "reports": prune(reports_dir(project_id), KEEP),
         "artifacts": clear(artifacts_dir(project_id)),
         "probes": clear(probes_dir(project_id)),
         "traces": clear(traces_dir(project_id)),
+        "states": clear(state_dir(project_id) if project_id else browser_dir() / "state"),
     }

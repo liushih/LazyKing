@@ -98,6 +98,72 @@ def test_run_failure_captures_diagnostics_and_returns_1(monkeypatch, capsys):
     assert "artifacts" in captured
 
 
+def _patch_resume(monkeypatch, saved):
+    monkeypatch.setattr(cli, "resolve_project", lambda project: project)
+    monkeypatch.setattr(cli, "load_browser_config", lambda project: fake_config())
+    monkeypatch.setattr(cli, "load_flow", lambda project, flow: fake_flow())
+    monkeypatch.setattr(cli, "launch", lambda profile, tracing=False, **kw: _Session())
+    monkeypatch.setattr(cli, "PageCollector", _Collector)
+    monkeypatch.setattr(cli, "ensure_login", lambda *args, **kwargs: True)
+    monkeypatch.setattr(cli, "flow_fingerprint", lambda path: "fh")
+    monkeypatch.setattr(cli, "seed_fingerprint", lambda values: "sh")
+    monkeypatch.setattr(cli, "state_path", lambda *args: Path("state.json"))
+    monkeypatch.setattr(cli, "load_state", lambda *args, **kwargs: saved)
+    monkeypatch.setattr(cli, "clear_state", lambda path: None)
+    monkeypatch.setattr(cli, "write_report", lambda project, result: Path("report.json"))
+    monkeypatch.setattr(cli, "close", lambda *args, **kwargs: None)
+
+
+def test_run_resume_skips_saved_steps_and_passes_them_as_carried(monkeypatch):
+    seen = {}
+    _patch_resume(monkeypatch, {"completed": 2, "produced": {"out_no": "WO9"}})
+    monkeypatch.setattr(
+        cli, "run_flow",
+        lambda *args, **kwargs: (
+            seen.update(
+                variables=args[3],
+                skip=kwargs.get("skip_steps"),
+                carried=kwargs.get("carried"),
+            )
+            or FlowResult("smoke", "dev", "pass", "now", 1, "smoke.yaml", [StepResult("打开", "pass", 1)])
+        ),
+    )
+    assert cli.main(["run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1", "--resume"]) == 0
+    assert seen["skip"] == 2
+    assert seen["carried"] == {"out_no": "WO9"}
+    assert seen["variables"]["out_no"] == "WO9"
+
+
+def test_run_resume_without_state_starts_from_scratch(monkeypatch, capsys):
+    seen = {}
+    _patch_resume(monkeypatch, None)
+    monkeypatch.setattr(
+        cli, "run_flow",
+        lambda *args, **kwargs: (
+            seen.update(skip=kwargs.get("skip_steps"), carried=kwargs.get("carried"))
+            or FlowResult("smoke", "dev", "pass", "now", 1, "smoke.yaml", [StepResult("打开", "pass", 1)])
+        ),
+    )
+    assert cli.main(["run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1", "--resume"]) == 0
+    assert seen == {"skip": 0, "carried": None}
+    assert "没有匹配的断点" in capsys.readouterr().out
+
+
+def test_run_failure_saves_checkpoint_from_each_step(monkeypatch):
+    saved = []
+    _patch_resume(monkeypatch, None)
+    monkeypatch.setattr(cli, "save_state", lambda path, **kwargs: saved.append(kwargs))
+
+    def fake_run(*args, **kwargs):
+        kwargs["checkpoint"](2, {"out_no": "WO9"})
+        return FlowResult("smoke", "dev", "fail", "now", 1, "smoke.yaml", [StepResult("打开", "fail", 1)])
+
+    monkeypatch.setattr(cli, "run_flow", fake_run)
+    assert cli.main(["run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1"]) == 1
+    assert saved[-1]["completed"] == 2
+    assert saved[-1]["produced"] == {"out_no": "WO9"}
+
+
 def test_undeclared_placeholder_is_config_error_before_launch(browser_project, monkeypatch):
     path = browser_project / "browser" / "flows" / "smoke.yaml"
     path.write_text(

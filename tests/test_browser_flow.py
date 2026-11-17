@@ -24,6 +24,17 @@ def test_wait_until_stops_immediately_when_browser_is_closed():
     assert time.monotonic() - started < 1
 
 
+def test_wait_stable_does_not_wait_for_missing_element(page):
+    import time
+
+    from runtime.browser.flow import _wait_stable
+
+    page.set_default_timeout(2000)
+    started = time.monotonic()
+    _wait_stable(page.locator("#missing-element"), 3000)
+    assert time.monotonic() - started < 1
+
+
 def test_wait_until_still_retries_ordinary_errors():
     from runtime.browser.flow import _wait_until
 
@@ -55,6 +66,42 @@ def run(page, tmp_path, flow, variables=None, timeout_ms=1000):
         page, flow, "dev", {"order_no": "WO001", **(variables or {})},
         tmp_path, timeout_ms=timeout_ms,
     )
+
+
+def test_run_flow_skips_completed_steps_for_resume(page, fixture_url, tmp_path):
+    page.goto(fixture_url + "/index.html")
+    flow = make_flow(
+        {"name": "不该执行", "click": {"css": "#missing-element"}, "timeout": 500},
+        {"name": "检查行数", "expect_count": {"locator": {"css": "table tbody tr"}, "eq": 2}},
+        {"name": "检查按钮", "expect_visible": {"testid": "save"}},
+    )
+    checkpoints = []
+    result = run_flow(
+        page, flow, "dev", {}, tmp_path, timeout_ms=2000,
+        skip_steps=1,
+        checkpoint=lambda index, produced: checkpoints.append((index, dict(produced))),
+    )
+    assert result.result == "pass"
+    assert [step.status for step in result.steps] == ["skipped", "pass", "pass"]
+    assert [index for index, _ in checkpoints] == [2, 3]
+
+
+def test_run_flow_checkpoint_collects_vars_and_keeps_carried(page, fixture_url, tmp_path):
+    (tmp_path / "impl_mod.py").write_text(
+        "def produce(ctx):\n    return {'plan_no': 'P1'}\n", encoding="utf-8"
+    )
+    page.goto(fixture_url + "/index.html")
+    flow = make_flow(
+        {"name": "产出", "impl": "impl_mod.py:produce", "expect_visible": {"testid": "save"}},
+    )
+    checkpoints = []
+    result = run_flow(
+        page, flow, "dev", {}, tmp_path, timeout_ms=2000,
+        carried={"out_no": "WO1"},
+        checkpoint=lambda index, produced: checkpoints.append((index, dict(produced))),
+    )
+    assert result.result == "pass"
+    assert checkpoints == [(1, {"out_no": "WO1", "plan_no": "P1"})]
 
 
 def test_click_fill_wait_and_expect(page, fixture_url, tmp_path):

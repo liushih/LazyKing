@@ -178,12 +178,19 @@ STABLE_INTERVAL = 0.06
 
 def _wait_stable(locator: Any, timeout_ms: int) -> None:
     """等元素的位置和大小连续几次不变；异步布局期间点击会落在旧坐标上。超时不报错，交给后续动作判断。"""
+    first = _first(locator)
+    try:
+        if first.count() == 0:
+            # 元素还不存在时交给后续动作按自己的超时等待；在这里等会让同一段超时付两遍。
+            return
+    except Exception:
+        return
     deadline = time.monotonic() + timeout_ms / 1000
     last = None
     same = 0
     while time.monotonic() < deadline:
         try:
-            box = _first(locator).bounding_box()
+            box = first.bounding_box()
         except Exception:
             box = None
         if box is not None and box == last:
@@ -485,19 +492,29 @@ def run_flow(
     logger: Any = None,
     api_watch: ApiWatchConfig | None = None,
     pacer: WatchController | None = None,
+    skip_steps: int = 0,
+    checkpoint: Callable[[int, dict[str, str]], None] | None = None,
+    carried: dict[str, str] | None = None,
 ) -> FlowResult:
     started_at = datetime.now().astimezone().isoformat(timespec="seconds")
     started = time.monotonic()
     values = dict(variables)
+    seed = dict(values)
+    produced: dict[str, str] = dict(carried or {})
     aliases: dict[str, Any] = {}
     results: list[StepResult] = []
     failure: StepFailure | None = None
     watch = ApiWatch(api_watch or ApiWatchConfig())
     watch.attach(page)
+    skip_steps = max(0, min(skip_steps, len(flow.steps) - 1))
 
     try:
         for index, step in enumerate(flow.steps, 1):
             name = str(step.get("name", f"步骤{index}"))
+            if index <= skip_steps:
+                results.append(StepResult(name, "skipped", 0))
+                _log(logger, f"{name}: skipped (resume)")
+                continue
             if pacer is not None:
                 pacer.pace(f"步骤 {index}/{len(flow.steps)}：{name}")
             step_started = time.monotonic()
@@ -526,6 +543,11 @@ def run_flow(
                 break
             results.append(StepResult(name, "pass", _ms(step_started)))
             _log(logger, f"{name}: pass")
+            if checkpoint is not None:
+                for key, value in values.items():
+                    if seed.get(key) != value:
+                        produced[key] = str(value)
+                checkpoint(index, dict(produced))
     finally:
         watch.detach()
 

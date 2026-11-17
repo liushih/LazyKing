@@ -40,6 +40,14 @@ from runtime.browser.driver import (
 )
 from runtime.browser.flow import FlowRunError, ensure_login, run_flow
 from runtime.browser.report import artifacts_dir, write_report
+from runtime.browser.resume import (
+    clear_state,
+    flow_fingerprint,
+    load_state,
+    save_state,
+    seed_fingerprint,
+    state_path,
+)
 from runtime.browser.watch import WatchController
 from runtime.config import ConfigError, data_home, load_values, project_dir, resolve_project, substitute
 
@@ -104,6 +112,11 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--trace", action="store_true")
     run.add_argument("--json", action="store_true")
     run.add_argument("--profile")
+    run.add_argument(
+        "--resume",
+        action="store_true",
+        help="从上次失败步骤之后继续；流程文件、输入或环境变化时自动从头开始",
+    )
 
     probe = sub.add_parser("probe", help="探索页面")
     probe.add_argument("--project")
@@ -252,6 +265,46 @@ def cmd_run(args: argparse.Namespace) -> int:
     if unresolved:
         raise BrowserConfigError(f"流程引用了未定义的变量：{', '.join(unresolved)}")
     profile = profile_path(cfg, env_name, Path(args.profile) if args.profile else None)
+    state_file = state_path(data_home(), project, env_name, flow.name)
+    flow_hash = flow_fingerprint(flow.path)
+    seed_hash = seed_fingerprint(
+        {
+            **cfg.envs[env_name].values,
+            **cli_vars,
+            **{name: variables.get(name, "") for name in flow.vars},
+        }
+    )
+    resume_from = 0
+    carried = None
+    if args.resume:
+        saved = load_state(
+            state_file,
+            flow_hash=flow_hash,
+            seed_hash=seed_hash,
+            env=env_name,
+            step_count=len(flow.steps),
+        )
+        if saved is not None:
+            variables.update(saved["produced"])
+            resume_from = saved["completed"]
+            carried = saved["produced"]
+            if not args.json:
+                print(f"[续跑] 前 {resume_from} 步已完成，从第 {resume_from + 1} 步继续")
+        elif not args.json:
+            print("[续跑] 没有匹配的断点，从头开始")
+
+    def checkpoint(index: int, produced: dict[str, str]) -> None:
+        try:
+            save_state(
+                state_file,
+                flow_hash=flow_hash,
+                seed_hash=seed_hash,
+                env=env_name,
+                completed=index,
+                produced=produced,
+            )
+        except OSError:
+            pass
 
     report_mod.cleanup(project)
     collector = PageCollector()
@@ -298,6 +351,9 @@ def cmd_run(args: argparse.Namespace) -> int:
             timeout_ms=cfg.timeout_ms,
             api_watch=cfg.api_watch,
             pacer=watch,
+            skip_steps=resume_from,
+            checkpoint=checkpoint,
+            carried=carried,
         )
         if result.result == "fail":
             if session_lost(session):
@@ -334,8 +390,9 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     report_path = write_report(project, result)
     if result.result == "pass":
-        # 流程已经修好，之前的失败诊断包对这次任务没用了，立即删掉。
+        # 流程已经修好，之前的失败诊断包和断点对这次任务没用了，立即删掉。
         report_mod.clear_artifacts(project, flow.name)
+        clear_state(state_file)
     if browser_lost:
         print(
             f"[环境] 测试浏览器在运行 {result.flow} 的过程中被关闭，本次结果无效，请重跑；"
@@ -504,7 +561,7 @@ def cmd_clean(args: argparse.Namespace) -> int:
     print(
         f"运行产物：清理 {removed} 项"
         f"（报告 {counts['reports']}，诊断包 {counts['artifacts']}，"
-        f"探索快照 {counts['probes']}，trace {counts['traces']}）"
+        f"探索快照 {counts['probes']}，trace {counts['traces']}，断点 {counts['states']}）"
     )
     if profiles:
         note = f"；{skipped} 个正在使用，已跳过" if skipped else ""

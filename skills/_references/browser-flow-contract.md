@@ -263,6 +263,7 @@ defaults:
 | `--profile 路径` | run / probe | 换浏览器 profile，用于绕开被占用的 profile 或强制重新登录 |
 | `--trace` | run | 录制 Playwright trace；只在失败时随诊断包保留，通过后自动删除 |
 | `--json` | list / run | 机器可读输出 |
+| `--resume` | run | 从上次失败的步骤之后继续；流程文件、输入或环境变化时自动从头开始，流程通过后断点自动删除 |
 | `--label 名称` | probe | 探索快照名称 |
 | `--all` | stop / clean | stop：关闭本机所有项目的常驻浏览器；clean：清空运行产物并清理本机所有 profile 缓存 |
 

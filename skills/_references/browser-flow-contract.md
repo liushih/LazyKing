@@ -225,7 +225,23 @@ defaults:
 ```
 
 - 函数签名 `func(ctx) -> dict | None`。
-- `ctx` 提供 `page`、`vars`、`project_dir`、`data_home`、`logger`、`step`。
+- `ctx` 提供 `page`、`vars`、`project_dir`、`data_home`、`logger`、`step`、`watch`。
+- 观看模式下用 `ctx.watch` 做页面动作，才会像 YAML 步骤一样先高亮目标、再按档速停顿：
+
+```python
+def run(ctx):
+    ctx.watch.click(ctx.page.locator("#submit"))
+    ctx.watch.fill(ctx.page.locator("#name"), "张三")
+    ctx.watch.select(ctx.page.locator("#type"), "A")
+    ctx.watch.check(ctx.page.locator("#agree"))
+    ctx.watch.hover(ctx.page.locator("#more"))
+    ctx.watch.pace("等列表加载")                 # 停顿一拍并更新控制条文案
+    ctx.watch.highlight(locator, "按键")          # 自定义动作前只画框
+```
+
+- `target` 可以传选择器字符串或 Playwright Locator；其余参数原样传给 Playwright。
+- 非观看模式（无头回归）下 `ctx.watch` 同样可用，只是不暂停、不高亮，项目脚本不用写分支。
+- 直接调 `ctx.page.click(...)` / `locator.click()` 的动作不会被高亮，也没有档速停顿。
 - 返回 dict 合并进后续变量。
 - 抛异常即本步失败，诊断包照常生成。
 - `impl` 路径相对项目目录解析。
@@ -287,7 +303,8 @@ defaults:
 - 在每个步骤开始前停顿，默认 1.5 秒，便于看清操作过程；流程 YAML 不用改。
 - 在页面右上角注入控制条：`暂停/继续`、`慢一点`（0.2/0.5/0.8/1.5/2.5 秒五档）、`快一点`，并显示当前步骤。
 - 每类定位动作（点击/输入/选择/勾选/悬停）执行前，把目标元素框出来并标上动作，如「点击 · 提交订单」；停顿 `min(0.5 秒, 当前档速的一半)` 后再执行，动作后约 1 秒自动消失。高亮层不拦鼠标，取不到元素位置时静默跳过，不影响流程结果。
-- 暂停和调速只在步骤边界生效，无法冻结正在执行的一次点击/输入；暂停期间手动操作页面可能导致后续步骤对不上。
+- `impl` 步骤里的动作要用 `ctx.watch.click/fill/select/check/hover` 写，才会继承同样的高亮和档速停顿；直接调 `ctx.page` 不会。写法见「8. impl」。
+- 暂停和调速在步骤边界和 `ctx.watch` 动作前生效；正在执行的一次点击/输入无法冻结，暂停期间手动操作页面可能导致后续步骤对不上。
 - 演示结束后浏览器保持打开：控制条变成「演示结束 · 通过/失败」并出现「关闭浏览器」按钮，命令一直等用户点它或直接关窗口才结束（关窗口不算环境错误，结果仍然有效）。
 - 失败截图前临时隐藏控制条，截图后重新显示；控制条只存在于本次观看模式，不影响后台常驻跑法。
 

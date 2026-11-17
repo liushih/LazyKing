@@ -170,9 +170,13 @@ class _Pacer:
     def __init__(self):
         self.labels = []
         self.highlights = []
+        self.beats = 0
 
     def pace(self, label):
         self.labels.append(label)
+
+    def beat(self):
+        self.beats += 1
 
     def highlight(self, locator, verb):
         self.highlights.append(verb)
@@ -219,6 +223,44 @@ def test_pacer_highlights_each_locator_action(page, fixture_url, tmp_path):
 
     assert result.result == "pass", result.failure
     assert pacer.highlights == ["点击", "输入"]
+
+
+def test_impl_step_actions_use_watch_helpers(page, fixture_url, tmp_path):
+    (tmp_path / "hook.py").write_text(
+        "def go(ctx):\n"
+        "    ctx.watch.click(ctx.page.locator('[data-testid=save]'))\n",
+        encoding="utf-8",
+    )
+    page.goto(fixture_url + "/index.html")
+    flow = make_flow(
+        {"name": "打开", "goto": fixture_url + "/index.html"},
+        {"name": "加工", "impl": "hook.py:go"},
+    )
+    pacer = _Pacer()
+
+    result = run_flow(
+        page, flow, "dev", {"order_no": "WO001"}, tmp_path,
+        timeout_ms=2000, pacer=pacer,
+    )
+
+    assert result.result == "pass", result.failure
+    assert pacer.highlights == ["点击"]
+    assert pacer.beats == 1
+
+
+def test_impl_step_watch_helpers_work_without_pacer(page, fixture_url, tmp_path):
+    (tmp_path / "hook.py").write_text(
+        "def go(ctx):\n"
+        "    ctx.watch.click(ctx.page.locator('[data-testid=save]'))\n",
+        encoding="utf-8",
+    )
+    page.goto(fixture_url + "/index.html")
+    flow = make_flow(
+        {"name": "打开", "goto": fixture_url + "/index.html"},
+        {"name": "加工", "impl": "hook.py:go"},
+    )
+
+    assert run(page, tmp_path, flow).result == "pass"
 
 
 def test_use_row_waits_for_layout_to_settle_before_next_click(page, fixture_url, tmp_path):
@@ -282,6 +324,28 @@ def test_ensure_login_fails_when_success_missing(page, fixture_url, tmp_path):
     )
     with pytest.raises(FlowRunError, match="登录"):
         ensure_login(page, login, variables={}, project_dir=tmp_path, timeout_ms=300)
+
+
+def test_login_impl_actions_use_watch_helpers(page, fixture_url, tmp_path):
+    (tmp_path / "hook.py").write_text(
+        "def login(ctx):\n"
+        "    ctx.watch.click(ctx.page.get_by_role('button', name='登 录'))\n"
+        "    ctx.page.evaluate(\"localStorage.setItem('Admin-Token', 'token-1')\")\n",
+        encoding="utf-8",
+    )
+    page.goto(fixture_url + "/login.html")
+    login = LoginConfig(
+        url=fixture_url + "/login.html", username=None, password=None,
+        steps=[], impl="hook.py:login",
+        success_url_path="/index.html", success_localstorage={"Admin-Token": r"token-\d+"},
+    )
+    pacer = _Pacer()
+
+    assert ensure_login(
+        page, login, variables={}, project_dir=tmp_path, timeout_ms=1000, pacer=pacer
+    ) is True
+    assert pacer.highlights == ["点击"]
+    assert pacer.beats == 1
 
 
 def display_flow(fixture_url, case, fields=None, *, timeout=800, **display):

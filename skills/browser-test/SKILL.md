@@ -95,7 +95,7 @@ description: >-
 
 原来能通过、突然稳定失败时，先查被测前端有没有刚发布（`curl -I <前端地址>` 看 `Last-Modified`），再手工点一次对应功能，确认功能本身变了再改流程；不要先改选择器或加等待。
 
-自愈顺序：读诊断 → 判断是选择器、等待信号、接口还是前置条件 → 改 YAML（复杂交互抽到项目 `scripts/` 的 `impl`）→ 重跑。只以退出码 0 报通过；未通过时明确说失败步骤。
+自愈顺序：读诊断 → 判断是选择器、等待信号、接口还是前置条件 → 改 YAML（复杂交互抽到项目 `scripts/` 的 `impl`，impl 内页面动作用 `ctx.watch.click/fill/select/check/hover`，观看模式才有高亮和档速停顿）→ 重跑。只以退出码 0 报通过；未通过时明确说失败步骤。
 
 诊断包细节见 `<TOOLS_DIR>/skills/_references/browser-diagnosis.md`。
 

@@ -18,7 +18,7 @@ from .config import FlowDef, LoginConfig
 from .display import check_display
 from .driver import check_login_success, page_closed
 from .locator import LocatorMatchError, find, find_all
-from .watch import WatchController
+from .watch import ImplWatch, WatchController
 
 
 class FlowRunError(Exception):
@@ -300,6 +300,7 @@ def _perform(
             data_home=data_home(),
             logger=logger,
             step=step,
+            watch=ImplWatch(pacer, page),
         )
         result = func(ctx)
         if isinstance(result, dict):
@@ -620,6 +621,7 @@ def ensure_login(
             data_home=data_home(),
             logger=logger,
             step={"impl": login.impl},
+            watch=ImplWatch(pacer, page),
         )
         result = func(ctx)
         if isinstance(result, dict):

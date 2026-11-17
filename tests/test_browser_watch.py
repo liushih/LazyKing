@@ -1,7 +1,7 @@
 import pytest
 
 from runtime.browser import watch as watch_mod
-from runtime.browser.watch import WatchController
+from runtime.browser.watch import ImplWatch, WatchController
 
 
 class FakePage:
@@ -113,6 +113,31 @@ def test_pause_releases_when_page_is_closed():
     controller.pace("步骤 3/5：审核")
 
     assert controller.paused is True
+
+
+def test_beat_waits_one_interval_without_changing_label():
+    page = FakePage()
+    sleeps = []
+    controller = WatchController(page, sleep=sleeps.append)
+    controller.label = "步骤 1/1：加工"
+
+    controller.beat()
+
+    assert sleeps == [1.5]
+    assert controller.label == "步骤 1/1：加工"
+
+
+def test_beat_waits_until_resume():
+    page = FakePage()
+    sleeps = []
+    controller = WatchController(page, sleep=sleeps.append)
+    controller.paused = True
+    page.drains = [[], ["toggle"]]
+
+    controller.beat()
+
+    assert controller.paused is False
+    assert sleeps == [controller.poll_interval]
 
 
 def test_finish_switches_bar_to_end_state():
@@ -347,3 +372,119 @@ def test_finish_shows_close_button_in_browser(page):
     page.locator("#__data-tools-watch [data-act=close]").click()
 
     assert "close" in controller._drain()
+
+
+class RecordingLocator:
+    def __init__(self):
+        self.calls = []
+
+    def click(self, **kwargs):
+        self.calls.append(("click", kwargs))
+        return "clicked"
+
+    def fill(self, value, **kwargs):
+        self.calls.append(("fill", value, kwargs))
+        return "filled"
+
+    def select_option(self, value, **kwargs):
+        self.calls.append(("select_option", value, kwargs))
+        return "selected"
+
+    def check(self, **kwargs):
+        self.calls.append(("check", kwargs))
+        return "checked"
+
+    def hover(self, **kwargs):
+        self.calls.append(("hover", kwargs))
+        return "hovered"
+
+
+class RecordingPage:
+    def __init__(self, locator=None):
+        self.locator_calls = []
+        self.locator_obj = locator or RecordingLocator()
+
+    def locator(self, selector):
+        self.locator_calls.append(selector)
+        return self.locator_obj
+
+
+class RecordingController:
+    def __init__(self):
+        self.calls = []
+        self.label = "步骤 1/1：加工"
+
+    def pace(self, label):
+        self.label = label
+        self.calls.append(("pace", label))
+
+    def beat(self):
+        self.calls.append(("beat",))
+
+    def highlight(self, locator, verb):
+        self.calls.append(("highlight", locator, verb))
+
+
+def test_impl_watch_click_beats_and_highlights_before_action():
+    page = RecordingPage()
+    controller = RecordingController()
+    watch = ImplWatch(controller, page)
+
+    result = watch.click("#save", timeout=1000)
+
+    assert result == "clicked"
+    assert page.locator_calls == ["#save"]
+    assert controller.calls == [("beat",), ("highlight", page.locator_obj, "点击")]
+    assert page.locator_obj.calls == [("click", {"timeout": 1000})]
+
+
+@pytest.mark.parametrize(
+    "invoke, expected_call, verb",
+    [
+        (lambda watch, target: watch.fill(target, "abc", timeout=5), ("fill", "abc", {"timeout": 5}), "输入"),
+        (lambda watch, target: watch.select(target, "A"), ("select_option", "A", {}), "选择"),
+        (lambda watch, target: watch.check(target, timeout=5), ("check", {"timeout": 5}), "勾选"),
+        (lambda watch, target: watch.hover(target), ("hover", {}), "悬停"),
+    ],
+    ids=["fill", "select", "check", "hover"],
+)
+def test_impl_watch_maps_helper_to_playwright_action_and_verb(invoke, expected_call, verb):
+    locator = RecordingLocator()
+    page = RecordingPage(locator)
+    controller = RecordingController()
+    watch = ImplWatch(controller, page)
+
+    invoke(watch, locator)
+
+    assert locator.calls == [expected_call]
+    assert controller.calls == [("beat",), ("highlight", locator, verb)]
+    assert page.locator_calls == []
+
+
+def test_impl_watch_without_controller_still_runs_actions():
+    page = RecordingPage()
+    watch = ImplWatch(None, page)
+
+    assert watch.enabled is False
+    assert watch.click("#save") == "clicked"
+    assert page.locator_obj.calls == [("click", {})]
+
+
+def test_impl_watch_manual_helpers_delegate_to_controller():
+    page = RecordingPage()
+    controller = RecordingController()
+    watch = ImplWatch(controller, page)
+    locator = page.locator_obj
+
+    watch.pace("加工 · 等接口")
+    watch.highlight(locator, "按键")
+
+    assert watch.enabled is True
+    assert controller.calls == [("pace", "加工 · 等接口"), ("highlight", locator, "按键")]
+
+
+def test_impl_watch_manual_helpers_are_noop_without_controller():
+    watch = ImplWatch(None, RecordingPage())
+
+    watch.pace("加工")
+    watch.highlight(object(), "点击")

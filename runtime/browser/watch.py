@@ -220,6 +220,10 @@ class WatchController:
         """在步骤开始前按当前速度停顿；暂停时一直等到用户点继续。"""
         self.label = label
         self._refresh()
+        self.beat()
+
+    def beat(self) -> None:
+        """按当前档速停顿一拍，不改控制条文案；暂停时等到用户点继续。"""
         self._apply(self._drain())
         if not self.paused:
             self._sleep(self.delay_ms / 1000)
@@ -329,3 +333,59 @@ class WatchController:
             return bool(self.page.is_closed())
         except Exception:
             return False
+
+
+_IMPL_VERBS = {
+    "click": "点击",
+    "fill": "输入",
+    "select": "选择",
+    "check": "勾选",
+    "hover": "悬停",
+}
+
+
+class ImplWatch:
+    """暴露给 impl 步骤的观看模式助手：动作前按档速停顿并高亮目标。
+
+    非观看模式下 controller 为 None，动作照常执行，只是不暂停、不高亮，
+    所以项目脚本可以无条件使用这套方法，无头回归和演示共用一份代码。
+    """
+
+    def __init__(self, controller: WatchController | None, page: Any) -> None:
+        self._controller = controller
+        self._page = page
+
+    @property
+    def enabled(self) -> bool:
+        return self._controller is not None
+
+    def pace(self, label: str) -> None:
+        if self._controller is not None:
+            self._controller.pace(label)
+
+    def highlight(self, locator: Any, verb: str) -> None:
+        if self._controller is not None:
+            self._controller.highlight(locator, verb)
+
+    def click(self, target: Any, **kwargs: Any) -> Any:
+        return self._act(target, "click", **kwargs)
+
+    def fill(self, target: Any, value: str, **kwargs: Any) -> Any:
+        return self._act(target, "fill", value, **kwargs)
+
+    def select(self, target: Any, value: str, **kwargs: Any) -> Any:
+        return self._act(target, "select", value, **kwargs)
+
+    def check(self, target: Any, **kwargs: Any) -> Any:
+        return self._act(target, "check", **kwargs)
+
+    def hover(self, target: Any, **kwargs: Any) -> Any:
+        return self._act(target, "hover", **kwargs)
+
+    def _act(self, target: Any, action: str, *args: Any, **kwargs: Any) -> Any:
+        locator = self._page.locator(target) if isinstance(target, str) else target
+        if self._controller is not None:
+            self._controller.beat()
+            self._controller.highlight(locator, _IMPL_VERBS[action])
+        method = "select_option" if action == "select" else action
+        return getattr(locator, method)(*args, **kwargs)

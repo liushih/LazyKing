@@ -49,9 +49,25 @@ _INSTALL_JS = """
 
   const api = {
     events: [],
+    speeds: [],
+    speedIndex: 0,
+    previewSpeed(act) {
+      if (!api.speeds.length) return;
+      if (act === 'slower') api.speedIndex = Math.min(api.speedIndex + 1, api.speeds.length - 1);
+      else if (act === 'faster') api.speedIndex = Math.max(api.speedIndex - 1, 0);
+      else return;
+      root.querySelector('.speed').textContent =
+        (api.speeds[api.speedIndex] / 1000).toFixed(1) + 's';
+    },
     set(state) {
       state = state || {};
       const ended = !!state.ended;
+      if (Array.isArray(state.speeds_ms) && state.speeds_ms.length) {
+        api.speeds = state.speeds_ms.slice();
+      }
+      if (typeof state.speed_index === 'number') {
+        api.speedIndex = state.speed_index;
+      }
       root.querySelector('.label').textContent = state.label || '';
       root.querySelector('.speed').textContent = ended ? '' : (state.speed || '');
       root.querySelector('[data-act=toggle]').textContent = state.paused ? '继续' : '暂停';
@@ -74,7 +90,10 @@ _INSTALL_JS = """
     }
     if (event.type === 'click') {
       const button = pathOf(event).find((node) => node && node.dataset && node.dataset.act);
-      if (button) api.events.push(button.dataset.act);
+      if (button) {
+        api.previewSpeed(button.dataset.act);
+        api.events.push(button.dataset.act);
+      }
     }
   };
   ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click'].forEach((type) =>
@@ -219,20 +238,28 @@ class WatchController:
     def pace(self, label: str) -> None:
         """在步骤开始前按当前速度停顿；暂停时一直等到用户点继续。"""
         self.label = label
+        was_paused = self.paused
+        self._apply(self._drain())
         self._refresh()
-        self.beat()
+        self._wait_turn(was_paused)
 
     def beat(self) -> None:
         """按当前档速停顿一拍，不改控制条文案；暂停时等到用户点继续。"""
+        self._wait_turn(self.paused)
+
+    def _wait_turn(self, was_paused: bool) -> None:
         self._apply(self._drain())
-        if not self.paused:
-            self._sleep(self.delay_ms / 1000)
-            return
-        while self.paused and not self._closed():
+        if self.paused:
+            while self.paused and not self._closed():
+                self._refresh()
+                self._sleep(self.poll_interval)
+                self._apply(self._drain())
             self._refresh()
-            self._sleep(self.poll_interval)
-            self._apply(self._drain())
-        self._refresh()
+            return
+        if was_paused:
+            # 刚点「继续」：本次直接放行，不再叠加一档停顿。
+            return
+        self._sleep(self.delay_ms / 1000)
 
     def highlight(self, locator: Any, verb: str) -> None:
         """动作前在页面上框出目标，并停顿一小会儿让观众看清。
@@ -317,6 +344,8 @@ class WatchController:
                 "speed": self.speed_text,
                 "paused": self.paused,
                 "ended": self.ended,
+                "speed_index": self.speed_index,
+                "speeds_ms": list(self.speeds_ms),
             },
         )
 

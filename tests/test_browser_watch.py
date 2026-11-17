@@ -66,6 +66,8 @@ def test_pace_waits_one_action_interval():
         "speed": "1.5s",
         "paused": False,
         "ended": False,
+        "speed_index": 3,
+        "speeds_ms": [200, 500, 800, 1500, 2500],
     }
 
 
@@ -100,7 +102,7 @@ def test_pause_waits_until_resume_without_extra_delay():
 
     assert controller.paused is False
     assert 0.8 not in sleeps
-    assert sleeps == [controller.poll_interval]
+    assert sleeps == []
     assert any(state["label"] == "已暂停 · 步骤 2/5：填单" for state in page.states())
 
 
@@ -153,6 +155,8 @@ def test_finish_switches_bar_to_end_state():
         "speed": "1.5s",
         "paused": False,
         "ended": True,
+        "speed_index": 3,
+        "speeds_ms": [200, 500, 800, 1500, 2500],
     }
 
 
@@ -230,18 +234,45 @@ def test_control_bar_is_injected_into_real_page(page, fixture_url):
     assert label  # 新页面加载后控制条自动重建
 
 
+def _bar_speed(page):
+    return page.evaluate(
+        "() => document.querySelector('#__data-tools-watch')"
+        ".shadowRoot.querySelector('.speed').textContent"
+    )
+
+
 def test_slower_button_in_browser_is_picked_up(page, fixture_url):
     controller = WatchController(page, sleep=lambda seconds: None)
     controller.attach()
     page.goto(fixture_url + "/index.html")
+    controller.pace("开始")
 
     page.locator("#__data-tools-watch [data-act=slower]").click()
+
+    assert _bar_speed(page) == "2.5s"
+
     sleeps = []
     controller._sleep = sleeps.append
     controller.pace("下一步")
 
     assert controller.delay_ms == 2500
     assert sleeps == [2.5]
+    assert _bar_speed(page) == "2.5s"
+
+
+def test_speed_buttons_clamp_preview_text(page, fixture_url):
+    controller = WatchController(page, sleep=lambda seconds: None)
+    controller.attach()
+    page.goto(fixture_url + "/index.html")
+    controller.pace("开始")
+
+    for _ in range(5):
+        page.locator("#__data-tools-watch [data-act=slower]").click()
+    assert _bar_speed(page) == "2.5s"
+
+    for _ in range(8):
+        page.locator("#__data-tools-watch [data-act=faster]").click()
+    assert _bar_speed(page) == "0.2s"
 
 
 def test_bar_click_keeps_dropdown_open_and_focus(page):

@@ -367,6 +367,12 @@ def cmd_run(args: argparse.Namespace) -> int:
                     result.artifacts = str(artifacts)
                 except Exception as exc:
                     print(f"[诊断] 生成失败：{exc}")
+        if watch is not None and not browser_lost:
+            status = "通过" if result.result == "pass" else "失败"
+            watch.finish(f"演示结束 · {status}")
+            if not args.json:
+                print("[观看] 演示结束，浏览器保持打开；看完后点页面右上角「关闭浏览器」")
+            watch.wait_close()
     finally:
         if session is not None:
             if args.trace:

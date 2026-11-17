@@ -61,7 +61,12 @@ def test_pace_waits_one_action_interval():
     assert sleeps == [1.5]
     assert controller.delay_ms == 1500
     assert controller.speed_text == "1.5s"
-    assert page.states()[-1] == {"label": "步骤 1/3：打开", "speed": "1.5s", "paused": False}
+    assert page.states()[-1] == {
+        "label": "步骤 1/3：打开",
+        "speed": "1.5s",
+        "paused": False,
+        "ended": False,
+    }
 
 
 def test_speed_buttons_change_pace_and_clamp():
@@ -108,6 +113,60 @@ def test_pause_releases_when_page_is_closed():
     controller.pace("步骤 3/5：审核")
 
     assert controller.paused is True
+
+
+def test_finish_switches_bar_to_end_state():
+    page = FakePage()
+    controller = WatchController(page, sleep=lambda seconds: None)
+
+    controller.finish("演示结束 · 通过")
+
+    assert controller.ended is True
+    assert controller.paused is False
+    assert page.states()[-1] == {
+        "label": "演示结束 · 通过",
+        "speed": "1.5s",
+        "paused": False,
+        "ended": True,
+    }
+
+
+def test_wait_close_returns_after_close_button_click():
+    page = FakePage()
+    sleeps = []
+    page.drains = [[], ["close"]]
+    controller = WatchController(page, sleep=sleeps.append)
+
+    controller.wait_close()
+
+    assert sleeps == [controller.poll_interval]
+
+
+def test_wait_close_returns_immediately_when_window_is_closed():
+    page = FakePage()
+    page.closed = True
+    sleeps = []
+    controller = WatchController(page, sleep=sleeps.append)
+
+    controller.wait_close()
+
+    assert sleeps == []
+
+
+def test_wait_close_gives_up_when_page_keeps_failing():
+    class BrokenPage:
+        def evaluate(self, script):
+            raise RuntimeError("page crashed")
+
+        def is_closed(self):
+            return False
+
+    sleeps = []
+    controller = WatchController(BrokenPage(), sleep=sleeps.append)
+
+    controller.wait_close()
+
+    assert 0 < len(sleeps) <= watch_mod._MAX_DRAIN_FAILURES
 
 
 def test_attach_installs_bar_now_and_on_future_navigation():
@@ -268,3 +327,23 @@ def test_highlight_overlay_is_click_through_and_disappears(page):
     page.wait_for_function(
         "() => !document.querySelector('#__data-tools-highlight')", timeout=3000
     )
+
+
+def test_finish_shows_close_button_in_browser(page):
+    page.set_content("<p>演示结果</p>")
+    controller = WatchController(page, sleep=lambda seconds: None)
+    controller.attach()
+
+    controller.finish("演示结束 · 通过")
+
+    label = page.evaluate(
+        "() => document.querySelector('#__data-tools-watch')"
+        ".shadowRoot.querySelector('.label').textContent"
+    )
+    assert label == "演示结束 · 通过"
+    assert page.locator("#__data-tools-watch [data-act=close]").is_visible()
+    assert page.locator("#__data-tools-watch [data-act=toggle]").is_visible() is False
+
+    page.locator("#__data-tools-watch [data-act=close]").click()
+
+    assert "close" in controller._drain()

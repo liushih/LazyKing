@@ -26,17 +26,24 @@ _INSTALL_JS = """
       .row{display:flex;gap:6px;align-items:center;flex-wrap:nowrap}
       .label{font-weight:600;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .speed{opacity:.75;margin-left:auto;white-space:nowrap}
+      .hint{opacity:.75;font-size:12px;white-space:nowrap}
       button{font:inherit;color:#fff;background:#3b3b46;border:0;border-radius:6px;padding:4px 10px;cursor:pointer;white-space:nowrap}
       button:hover{background:#50505e}
       button.primary{background:#2f6fed}
       button.primary:hover{background:#3f7ffd}
+      button.close{background:#c0392b}
+      button.close:hover{background:#d64535}
     </style>
     <div class="bar">
       <div class="row"><span class="label">准备中…</span><span class="speed"></span></div>
-      <div class="row">
+      <div class="row controls">
         <button type="button" data-act="toggle" class="primary">暂停</button>
         <button type="button" data-act="slower">慢一点</button>
         <button type="button" data-act="faster">快一点</button>
+      </div>
+      <div class="row end" style="display:none">
+        <button type="button" data-act="close" class="close">关闭浏览器</button>
+        <span class="hint">看完再关</span>
       </div>
     </div>`;
 
@@ -44,9 +51,12 @@ _INSTALL_JS = """
     events: [],
     set(state) {
       state = state || {};
+      const ended = !!state.ended;
       root.querySelector('.label').textContent = state.label || '';
-      root.querySelector('.speed').textContent = state.speed || '';
+      root.querySelector('.speed').textContent = ended ? '' : (state.speed || '');
       root.querySelector('[data-act=toggle]').textContent = state.paused ? '继续' : '暂停';
+      root.querySelector('.controls').style.display = ended ? 'none' : 'flex';
+      root.querySelector('.end').style.display = ended ? 'flex' : 'none';
     },
     hide() { host.style.display = 'none'; },
     show() { host.style.display = ''; },
@@ -175,6 +185,7 @@ class WatchController:
         self.speeds_ms = tuple(speeds_ms)
         self.speed_index = max(0, min(speed_index, len(self.speeds_ms) - 1))
         self.paused = False
+        self.ended = False
         self.label = "准备中…"
         self.poll_interval = poll_interval
         self._sleep = sleep
@@ -255,6 +266,24 @@ class WatchController:
     def show(self) -> None:
         self._evaluate(_SHOW_JS)
 
+    def finish(self, label: str) -> None:
+        """演示结束：控制条切到结束态，浏览器保持打开等用户自己关。"""
+        self.ended = True
+        self.paused = False
+        self.label = label
+        self.show()
+        self._refresh()
+
+    def wait_close(self) -> None:
+        """等用户点控制条上的「关闭浏览器」或手动关窗口；只等待，不改流程结果。"""
+        while not self._closed():
+            if "close" in self._drain():
+                return
+            # 页面异常时不能把命令永久挂住：连续取不到事件就当作结束。
+            if self._drain_failures >= _MAX_DRAIN_FAILURES:
+                return
+            self._sleep(self.poll_interval)
+
     def _apply(self, events: list[str]) -> None:
         for event in events:
             if event == "toggle":
@@ -279,7 +308,12 @@ class WatchController:
     def _refresh(self) -> None:
         self._evaluate(
             _SET_JS,
-            {"label": self.status_text(), "speed": self.speed_text, "paused": self.paused},
+            {
+                "label": self.status_text(),
+                "speed": self.speed_text,
+                "paused": self.paused,
+                "ended": self.ended,
+            },
         )
 
     def _evaluate(self, script: str, arg: Any = None) -> Any:

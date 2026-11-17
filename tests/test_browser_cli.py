@@ -368,12 +368,20 @@ def test_watch_runs_one_shot_headed_and_passes_controller(monkeypatch):
     class FakeWatch:
         def __init__(self, page):
             self.page = page
+            self.finished = []
+            self.waited = 0
 
         def attach(self):
             attached.append(self.page)
 
         def hide(self):
             pass
+
+        def finish(self, label):
+            self.finished.append(label)
+
+        def wait_close(self):
+            self.waited += 1
 
     def fake_run_flow(*args, **kwargs):
         paced.append(kwargs.get("pacer"))
@@ -392,11 +400,62 @@ def test_watch_runs_one_shot_headed_and_passes_controller(monkeypatch):
     assert launched[0]["resident"] is False
     assert launched[0]["headless"] is False
     assert attached and isinstance(paced[0], FakeWatch)
+    assert paced[0].finished == ["演示结束 · 通过"]
+    assert paced[0].waited == 1
+
+
+def test_watch_failure_keeps_browser_open_with_failure_state(monkeypatch):
+    launched = []
+    _patch_run(monkeypatch, _Session(), launched, result="fail")
+    monkeypatch.setattr(cli, "capture", lambda *args, **kwargs: Path("artifacts"))
+    watched = []
+
+    class FakeWatch:
+        def __init__(self, page):
+            self.finished = []
+            self.waited = 0
+
+        def attach(self):
+            pass
+
+        def hide(self):
+            pass
+
+        def finish(self, label):
+            self.finished.append(label)
+
+        def wait_close(self):
+            self.waited += 1
+
+    monkeypatch.setattr(cli, "WatchController", lambda page: watched.append(FakeWatch(page)) or watched[-1])
+
+    code = cli.main(
+        ["run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1", "--watch"]
+    )
+
+    assert code == 1
+    assert watched[0].finished == ["演示结束 · 失败"]
+    assert watched[0].waited == 1
 
 
 def test_watch_wins_over_headless_flag(monkeypatch):
     launched = []
     _patch_run(monkeypatch, _Session(), launched)
+
+    class FakeWatch:
+        def __init__(self, page):
+            pass
+
+        def attach(self):
+            pass
+
+        def finish(self, label):
+            pass
+
+        def wait_close(self):
+            pass
+
+    monkeypatch.setattr(cli, "WatchController", FakeWatch)
     cli.main(
         [
             "run", "--project", "demo", "--flow", "smoke", "--var", "order_no=A1",
